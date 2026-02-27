@@ -1,9 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'screen_five.dart';
-// third page that have 1 pic of parent with phone and get started arrow back
-class ScreenFour extends StatelessWidget {
-  const ScreenFour({super.key});
+import 'role_selection_screen.dart';
+// Onboarding page four that have 1 pic of parent with phone and get started arrow back
+class OnboardingScreenFour extends StatelessWidget {
+  const OnboardingScreenFour({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +42,7 @@ class ScreenFour extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: GestureDetector(
                         onTap: () {
-                          Navigator.pop(context); // Goes back to Screen 3
+                          Navigator.pop(context); // Goes back to the previous screen
                         },
                         child: const Icon(
                           Icons.arrow_back_ios,
@@ -153,7 +153,7 @@ class ScreenFour extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const ScreenFive()),
+                          MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
                         );
                       },
                       child: FittedBox(

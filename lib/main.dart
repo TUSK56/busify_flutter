@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/get_started_screen.dart'; // Import your new screen here!
+import 'screens/onboarding/get_started_screen.dart'; // Import your new screen here!
 
 void main() {
   runApp(const MyApp());

@@ -1,18 +1,16 @@
 import 'dart:ui';
-import 'package:application/screens/screen_home_parent.dart';
 import 'package:flutter/material.dart';
-import 'screen_twelve.dart'; // Ensure the file name matches
-import 'screen_sixteen.dart';
-
-// Login page for Parent (Screen 11) with email/password, forget password, and bottom text
-class ScreenEleven extends StatefulWidget {
-  const ScreenEleven({super.key});
+import 'supervisor_forget_password_screen.dart';// Ensure the file name matches
+import 'supervisor_home_screen.dart';
+// login page for supervisor with email password login and forget password
+class SupervisorLoginScreen extends StatefulWidget {
+  const SupervisorLoginScreen({super.key});
 
   @override
-  State<ScreenEleven> createState() => _ScreenElevenState();
+  State<SupervisorLoginScreen> createState() => _SupervisorLoginScreenState();
 }
 
-class _ScreenElevenState extends State<ScreenEleven> {
+class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
   // State to manage password visibility toggle
   bool _isObscured = true;
 
@@ -225,6 +223,7 @@ class _ScreenElevenState extends State<ScreenEleven> {
                             const SizedBox(height: 8),
 
                             // Forgot Password Text
+                            // Forgot Password Text
                             Align(
                               alignment: Alignment.centerRight,
                               child: GestureDetector(
@@ -233,12 +232,13 @@ class _ScreenElevenState extends State<ScreenEleven> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const ScreenTwelve(),
+                                      builder: (context) => const SupervisorForgetPasswordScreen(),
                                     ),
                                   );
                                 },
                                 child: Text(
                                   'Forget Password?',
+                                // ... rest of the code
                                   style: TextStyle(
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.w500, // Medium 16
@@ -257,7 +257,7 @@ class _ScreenElevenState extends State<ScreenEleven> {
                                 // Navigate to Create Account screen
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                                  MaterialPageRoute(builder: (context) => const SupervisorHomeScreen()),
                                 );
                               },
                               child: Container(
@@ -285,48 +285,6 @@ class _ScreenElevenState extends State<ScreenEleven> {
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                  ),
-
-                  // Spacing between the card and the bottom text
-                  SizedBox(height: screenHeight * 0.04),
-
-                  // ==========================================
-                  // UPDATED MULTI-COLORED BOTTOM TEXT (NO UNDERLINE)
-                  // ==========================================
-                  GestureDetector(
-                    onTap: () {
-                      // Navigate to Forget Password Screen
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ScreenSixteen(),
-                        ),
-                      );
-                    },
-                    child: RichText(
-                      text: TextSpan(
-                        text: "Don't have an account? ",
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w500, // Medium 16
-                          fontSize: 16,
-                          color: const Color(0xFFFFFFFF).withOpacity(0.90), // White text
-                          decoration: TextDecoration.none, // Removes underline
-                        ),
-                        children: [
-                          TextSpan(
-                            text: "Sign Up",
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontWeight: FontWeight.w500,
-                              fontSize: 16,
-                              color: const Color(0xFF4DA3FF).withOpacity(0.90), // 4da3ff 90%
-                              decoration: TextDecoration.none, // Removes underline
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ),

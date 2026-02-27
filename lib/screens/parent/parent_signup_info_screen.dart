@@ -1,15 +1,15 @@
 import 'dart:ui';
-import 'package:application/screens/screen_seventeen.dart';
+import 'package:application/screens/parent/parent_signup_student_screen.dart';
 import 'package:flutter/material.dart';
 
-class ScreenSixteen extends StatefulWidget {
-  const ScreenSixteen({super.key});
+class ParentSignupInfoScreen extends StatefulWidget {
+  const ParentSignupInfoScreen({super.key});
 
   @override
-  State<ScreenSixteen> createState() => _ScreenSixteenState();
+  State<ParentSignupInfoScreen> createState() => _ParentSignupInfoScreenState();
 }
 
-class _ScreenSixteenState extends State<ScreenSixteen> {
+class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
   // State to manage password visibility
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -201,7 +201,7 @@ class _ScreenSixteenState extends State<ScreenSixteen> {
                                 // Navigate to Success Screen
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const ScreenSeventeen()),
+                                  MaterialPageRoute(builder: (context) => const ParentSignupStudentScreen()),
                                 );
                               },
                               child: Container(

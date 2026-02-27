@@ -1,15 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'screen_fifteen.dart';
+import 'supervisor_success_screen.dart';
 // this page for creating new password and confirming it
-class ScreenFourteen extends StatefulWidget {
-  const ScreenFourteen({super.key});
+class SupervisorResetPasswordScreen extends StatefulWidget {
+  const SupervisorResetPasswordScreen({super.key});
 
   @override
-  State<ScreenFourteen> createState() => _ScreenEightState();
+  State<SupervisorResetPasswordScreen> createState() => _SupervisorResetPasswordScreenState();
 }
 
-class _ScreenEightState extends State<ScreenFourteen> {
+class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordScreen> {
   // States to manage password visibility toggles independently
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -192,7 +192,7 @@ class _ScreenEightState extends State<ScreenFourteen> {
                                   // Navigate to Success Screen
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (context) => const ScreenFifteen()),
+                                    MaterialPageRoute(builder: (context) => const SupervisorSuccessScreen()),
                                   );
                                 },
                                 child: Container(

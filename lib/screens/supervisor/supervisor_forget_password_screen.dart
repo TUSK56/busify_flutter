@@ -1,9 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'screen_eight.dart';
+import 'supervisor_otp_screen.dart';
 // this page for supervisor email otp
-class ScreenSeven extends StatelessWidget {
-  const ScreenSeven({super.key});
+class SupervisorForgetPasswordScreen extends StatelessWidget {
+  const SupervisorForgetPasswordScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +67,7 @@ class ScreenSeven extends StatelessWidget {
                             padding: EdgeInsets.only(left: 24 * widthRatio),
                             child: GestureDetector(
                               onTap: () {
-                                Navigator.pop(context); // Go back to Screen 6
+                                Navigator.pop(context); // Go back
                               },
                               child: Container(
                                 width: 45,
@@ -225,7 +225,7 @@ class ScreenSeven extends StatelessWidget {
                                     onTap: () {
                                       Navigator.push(
                                         context,
-                                        MaterialPageRoute(builder: (context) => const ScreenEight()),
+                                        MaterialPageRoute(builder: (context) => const SupervisorOtpScreen()),
                                       );
                                     },
                                     child: Container(

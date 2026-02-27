@@ -1,14 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class SupervisorHomeScreen extends StatefulWidget {
+  const SupervisorHomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<SupervisorHomeScreen> createState() => _SupervisorHomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
   @override
   Widget build(BuildContext context) {
     // 1. Get screen dimensions

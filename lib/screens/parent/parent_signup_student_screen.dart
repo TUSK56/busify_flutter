@@ -1,15 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'screen_eighteen.dart';
+import 'parent_signup_success_screen.dart';
 
-class ScreenSeventeen extends StatefulWidget {
-  const ScreenSeventeen({super.key});
+class ParentSignupStudentScreen extends StatefulWidget {
+  const ParentSignupStudentScreen({super.key});
 
   @override
-  State<ScreenSeventeen> createState() => _ScreenSeventeenState();
+  State<ParentSignupStudentScreen> createState() => _ParentSignupStudentScreenState();
 }
 
-class _ScreenSeventeenState extends State<ScreenSeventeen> {
+class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
   // Dummy data for dropdowns (you can replace these with API data later)
   final List<String> _schools = ['International School', 'National School', 'Language School'];
   final List<String> _grades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
@@ -282,11 +282,11 @@ class _ScreenSeventeenState extends State<ScreenSeventeen> {
                               onTap: () {
                                 // Optional: Add your validation logic here
                                 if (_selectedSchool != null && _selectedGrade != null) {
-                                  // Navigate to ScreenEighteen
+                                  // Navigate to Success screen
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const ScreenEighteen(), // Ensure this class exists
+                                      builder: (context) => const ParentSignupSuccessScreen(), // Ensure this class exists
                                     ),
                                   );
                                 } else {

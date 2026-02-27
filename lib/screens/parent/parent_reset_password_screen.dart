@@ -1,15 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'screen_ten.dart';
+import 'parent_success_screen.dart';
 // this page for creating new password and confirming it
-class ScreenNine extends StatefulWidget {
-  const ScreenNine({super.key});
+class ParentResetPasswordScreen extends StatefulWidget {
+  const ParentResetPasswordScreen({super.key});
 
   @override
-  State<ScreenNine> createState() => _ScreenEightState();
+  State<ParentResetPasswordScreen> createState() => _ParentResetPasswordScreenState();
 }
 
-class _ScreenEightState extends State<ScreenNine> {
+class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
   // States to manage password visibility toggles independently
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -192,7 +192,7 @@ class _ScreenEightState extends State<ScreenNine> {
                                   // Navigate to Success Screen
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (context) => const ScreenTen()),
+                                    MaterialPageRoute(builder: (context) => const ParentSuccessScreen()),
                                   );
                                 },
                                 child: Container(

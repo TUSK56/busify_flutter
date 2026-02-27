@@ -1,10 +1,10 @@
 import 'dart:ui';
-import 'package:application/screens/screen_eleven.dart';
+import 'package:application/screens/parent/parent_login_screen.dart';
 import 'package:flutter/material.dart';
-import 'screen_six.dart'; // Add this import (make sure the filename matches what you named screen 6)
+import 'package:application/screens/supervisor/supervisor_login_screen.dart';
 // this page have welcome msg with login as supervisor or parent
-class ScreenFive extends StatelessWidget {
-  const ScreenFive({super.key});
+class RoleSelectionScreen extends StatelessWidget {
+  const RoleSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -136,11 +136,11 @@ class ScreenFive extends StatelessWidget {
                               title: 'Supervisor',
                               width: effectiveWidth * 0.74, // ~291 max
                               onTap: () {
-                                // Navigate to Screen 6
+                                // Navigate to Supervisor Login
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const ScreenSix(),
+                                    builder: (context) => const SupervisorLoginScreen(),
                                   ),
                                 );
                               },
@@ -157,11 +157,11 @@ class ScreenFive extends StatelessWidget {
                               title: 'Parent',
                               width: effectiveWidth * 0.74, // ~291 max
                               onTap: () {
-                                // Navigate to Screen 6
+                                // Navigate to Parent Login
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const ScreenEleven(),
+                                    builder: (context) => const ParentLoginScreen(),
                                   ),
                                 );
                               },

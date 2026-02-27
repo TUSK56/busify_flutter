@@ -1,16 +1,18 @@
 import 'dart:ui';
+import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:flutter/material.dart';
-import 'screen_seven.dart';// Ensure the file name matches
-import 'screen_home_supervisor.dart';
-// login page for supervisor with email password login and forget password
-class ScreenSix extends StatefulWidget {
-  const ScreenSix({super.key});
+import 'parent_forget_password_screen.dart'; // Ensure the file name matches
+import 'parent_signup_info_screen.dart';
+
+// Login page for Parent with email/password, forget password, and bottom text
+class ParentLoginScreen extends StatefulWidget {
+  const ParentLoginScreen({super.key});
 
   @override
-  State<ScreenSix> createState() => _ScreenSixState();
+  State<ParentLoginScreen> createState() => _ParentLoginScreenState();
 }
 
-class _ScreenSixState extends State<ScreenSix> {
+class _ParentLoginScreenState extends State<ParentLoginScreen> {
   // State to manage password visibility toggle
   bool _isObscured = true;
 
@@ -223,7 +225,6 @@ class _ScreenSixState extends State<ScreenSix> {
                             const SizedBox(height: 8),
 
                             // Forgot Password Text
-                            // Forgot Password Text
                             Align(
                               alignment: Alignment.centerRight,
                               child: GestureDetector(
@@ -232,13 +233,12 @@ class _ScreenSixState extends State<ScreenSix> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const ScreenSeven(),
+                                      builder: (context) => const ParentForgetPasswordScreen(),
                                     ),
                                   );
                                 },
                                 child: Text(
                                   'Forget Password?',
-                                // ... rest of the code
                                   style: TextStyle(
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.w500, // Medium 16
@@ -257,7 +257,7 @@ class _ScreenSixState extends State<ScreenSix> {
                                 // Navigate to Create Account screen
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                                  MaterialPageRoute(builder: (context) => const ParentHomeScreen()),
                                 );
                               },
                               child: Container(
@@ -285,6 +285,48 @@ class _ScreenSixState extends State<ScreenSix> {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                  ),
+
+                  // Spacing between the card and the bottom text
+                  SizedBox(height: screenHeight * 0.04),
+
+                  // ==========================================
+                  // UPDATED MULTI-COLORED BOTTOM TEXT (NO UNDERLINE)
+                  // ==========================================
+                  GestureDetector(
+                    onTap: () {
+                      // Navigate to Forget Password Screen
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ParentSignupInfoScreen(),
+                        ),
+                      );
+                    },
+                    child: RichText(
+                      text: TextSpan(
+                        text: "Don't have an account? ",
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w500, // Medium 16
+                          fontSize: 16,
+                          color: const Color(0xFFFFFFFF).withOpacity(0.90), // White text
+                          decoration: TextDecoration.none, // Removes underline
+                        ),
+                        children: [
+                          TextSpan(
+                            text: "Sign Up",
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.w500,
+                              fontSize: 16,
+                              color: const Color(0xFF4DA3FF).withOpacity(0.90), // 4da3ff 90%
+                              decoration: TextDecoration.none, // Removes underline
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

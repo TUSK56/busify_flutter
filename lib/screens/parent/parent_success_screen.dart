@@ -1,9 +1,9 @@
 import 'dart:ui';
+import 'package:application/screens/parent/parent_login_screen.dart';
 import 'package:flutter/material.dart';
-import 'screen_six.dart'; // Import Screen 6 to navigate back to Log In
 // this page after conforming the new password
-class ScreenTen extends StatelessWidget {
-  const ScreenTen({super.key});
+class ParentSuccessScreen extends StatelessWidget {
+  const ParentSuccessScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -125,11 +125,11 @@ class ScreenTen extends StatelessWidget {
                             // Log In Button
                             GestureDetector(
                               onTap: () {
-                                // Navigate back to Screen 6 (Login) and clear the navigation stack
+                                // Navigate back to Login and clear the navigation stack
                                 Navigator.pushAndRemoveUntil(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const ScreenSix(),
+                                      builder: (context) => const ParentLoginScreen(),
                                   ),
                                       (route) => false, // This prevents the user from hitting "back" to go to the reset screen
                                 );

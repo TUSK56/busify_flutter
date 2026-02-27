@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screen_fourteen.dart'; // Make sure you rename the previous code file to screen_9.dart!
+import 'parent_reset_password_screen.dart'; // Make sure you rename the previous code file to screen_9.dart!
 // this page is supervisor otp verification
-class ScreenThirteen extends StatefulWidget {
-  const ScreenThirteen({super.key});
+class ParentOtpScreen extends StatefulWidget {
+  const ParentOtpScreen({super.key});
 
   @override
-  State<ScreenThirteen> createState() => _ScreenEightState();
+  State<ParentOtpScreen> createState() => _ParentOtpScreenState();
 }
 
-class _ScreenEightState extends State<ScreenThirteen> {
+class _ParentOtpScreenState extends State<ParentOtpScreen> {
   // Controllers and FocusNodes for the 4 OTP boxes
   final List<TextEditingController> _controllers = List.generate(4, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
@@ -37,11 +37,11 @@ class _ScreenEightState extends State<ScreenThirteen> {
       setState(() {
         _errorMessage = null;
       });
-      // Correct OTP! Navigate to Screen 9
+      // Correct OTP! Navigate to Reset Password
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const ScreenFourteen(), // Previously "ScreenEight"
+          builder: (context) => const ParentResetPasswordScreen(), // Previously "ScreenEight"
         ),
       );
     } else {

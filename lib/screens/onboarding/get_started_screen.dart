@@ -1,6 +1,6 @@
-import 'package:application/screens/screen_five.dart';
+import 'package:application/screens/onboarding/role_selection_screen.dart';
 import 'package:flutter/material.dart';
-import 'screen_two.dart';
+import 'onboarding_screen_two.dart';
 // first page that have 2 logo and get started with login
 class GetStartedScreen extends StatelessWidget {
   const GetStartedScreen({super.key});
@@ -92,7 +92,7 @@ class GetStartedScreen extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const ScreenTwo()),
+                          MaterialPageRoute(builder: (context) => const OnboardingScreenTwo()),
                         );
                       },
                       child: const Text(
@@ -115,11 +115,11 @@ class GetStartedScreen extends StatelessWidget {
                   // Bottom Text "Already have an account? Log in"
                   GestureDetector(
                     onTap: () {
-                      // Navigate to Screen 6
+                      // Navigate to Role Selection
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const ScreenFive(),
+                          builder: (context) => const RoleSelectionScreen(),
                         ),
                       );
                     },
