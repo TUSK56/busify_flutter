@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_signup_student_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 
 class ParentSignupInfoScreen extends StatefulWidget {
   const ParentSignupInfoScreen({super.key});
@@ -35,7 +37,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -51,7 +53,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                 child: Padding(
                   padding: EdgeInsets.only(left: 47 * widthRatio),
                   child: Image.asset(
-                    'assets/images/2.png',
+                    AppImages.logo,
                     width: 104 * widthRatio,
                     height: 44 * widthRatio,
                     fit: BoxFit.contain,
@@ -97,7 +99,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w600, // SemiBold 24
                         fontSize: 24,
-                        color: const Color(0xFFFFFFFF), // ffffff 100%
+                        color: AppColors.white, // ffffff 100%
                       ),
                     ),
                   ),
@@ -118,7 +120,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                     child: Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFFFFF).withOpacity(0.37), // ffffff 37%
+                        color: AppColors.white.withOpacity(0.37), // ffffff 37%
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(30),
                           topRight: Radius.circular(30),
@@ -210,7 +212,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                                 height: 62,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF214071), // 214071 100%
+                                  color: AppColors.primaryBlue, // 214071 100%
                                   borderRadius: BorderRadius.circular(15),
                                 ),
                                 child: const Text(
@@ -219,7 +221,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.w600, // SemiBold 32
                                     fontSize: 32,
-                                    color: Color(0xFFFFFFFF), // ffffff 100%
+                                    color: AppColors.white, // ffffff 100%
                                   ),
                                 ),
                               ),
@@ -264,7 +266,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
               height: 24, // Fixed height from Figma
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFF214071), // 214071 100%
+                color: AppColors.primaryBlue, // 214071 100%
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Text(
@@ -273,7 +275,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                   fontFamily: 'Inter',
                   fontWeight: FontWeight.w400, // Regular 14
                   fontSize: 14,
-                  color: Color(0xFFF5F5F5), // f5f5f5 100%
+                  color: AppColors.lightGray, // f5f5f5 100%
                 ),
               ),
             ),
@@ -287,10 +289,10 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
             height: 40, // Height restricted to 40 per Figma spec
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: const Color(0xFFFFFFFF).withOpacity(0.21), // ffffff 21%
+              color: AppColors.white.withOpacity(0.21), // ffffff 21%
               borderRadius: BorderRadius.circular(15),
               border: Border.all(
-                color: const Color(0xFFFFFFFF).withOpacity(0.79), // ffffff 79%
+                color: AppColors.white.withOpacity(0.79), // ffffff 79%
                 width: 1,
               ),
             ),
@@ -307,7 +309,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                   fontFamily: 'Inter',
                   fontWeight: FontWeight.w400,
                   fontSize: 14,
-                  color: const Color(0xFFFFFFFF).withOpacity(0.50), // Subtle hint text
+                  color: AppColors.white.withOpacity(0.50), // Subtle hint text
                 ),
                 // Only show suffix icon if it's a password field
                 suffixIcon: isPassword
@@ -315,7 +317,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                   onTap: onToggleVisibility,
                   child: Icon(
                     obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    color: const Color(0xFFFFFFFF).withOpacity(0.66),
+                    color: AppColors.white.withOpacity(0.66),
                     size: 20,
                   ),
                 )

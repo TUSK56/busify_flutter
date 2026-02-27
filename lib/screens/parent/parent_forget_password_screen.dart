@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_otp_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 // this page for supervisor email otp
 class ParentForgetPasswordScreen extends StatelessWidget {
   const ParentForgetPasswordScreen({super.key});
@@ -26,7 +28,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -51,7 +53,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                           child: Padding(
                             padding: EdgeInsets.only(left: 47 * widthRatio),
                             child: Image.asset(
-                              'assets/images/2.png',
+                              AppImages.logo,
                               width: 144 * widthRatio,
                               height: 100 * widthRatio,
                               fit: BoxFit.contain,
@@ -103,7 +105,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                               // The content inside will dictate the exact height, matching Figma's ~602px
                               padding: const EdgeInsets.only(top: 18, bottom: 50),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF171723).withOpacity(0.16), // 171723 16%
+                                color: AppColors.panelDark.withOpacity(0.16), // 171723 16%
                                 border: Border(
                                   top: BorderSide(
                                     color: Colors.white.withOpacity(0.30), // Approximating linear stroke
@@ -131,7 +133,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                         ),
                                       ],
                                       image: const DecorationImage(
-                                        image: AssetImage('assets/images/6.png'),
+                                        image: AssetImage(AppImages.lockIcon),
                                         fit: BoxFit.cover,
                                       ),
                                     ),
@@ -147,7 +149,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                       fontFamily: 'Inter',
                                       fontWeight: FontWeight.w600, // SemiBold 32
                                       fontSize: 32,
-                                      color: const Color(0xFFFFFFFF).withOpacity(0.90), // ffffff 90%
+                                      color: AppColors.white.withOpacity(0.90), // ffffff 90%
                                     ),
                                   ),
 
@@ -163,7 +165,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                         fontFamily: 'Inter',
                                         fontWeight: FontWeight.w400, // Regular 15
                                         fontSize: 15,
-                                        color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+                                        color: AppColors.white.withOpacity(0.66), // ffffff 66%
                                       ),
                                     ),
                                   ),
@@ -181,7 +183,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                           fontFamily: 'Inter',
                                           fontWeight: FontWeight.w500, // Medium 24
                                           fontSize: 24,
-                                          color: const Color(0xFFF5F5F5).withOpacity(0.90), // f5f5f5 90%
+                                          color: AppColors.lightGray.withOpacity(0.90), // f5f5f5 90%
                                         ),
                                       ),
                                     ),
@@ -195,10 +197,10 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                     height: 62,
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFFFFFFF).withOpacity(0.21), // ffffff 21%
+                                      color: AppColors.white.withOpacity(0.21), // ffffff 21%
                                       borderRadius: BorderRadius.circular(15),
                                       border: Border.all(
-                                        color: const Color(0xFFFFFFFF).withOpacity(0.79), // ffffff 79%
+                                        color: AppColors.white.withOpacity(0.79), // ffffff 79%
                                         width: 1,
                                       ),
                                     ),
@@ -213,7 +215,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                           fontFamily: 'Inter',
                                           fontWeight: FontWeight.w500, // Medium 20
                                           fontSize: 20,
-                                          color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+                                          color: AppColors.white.withOpacity(0.66), // ffffff 66%
                                         ),
                                       ),
                                     ),
@@ -234,7 +236,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                       height: 62,
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF214071), // 214071 100%
+                                        color: AppColors.primaryBlue, // 214071 100%
                                         borderRadius: BorderRadius.circular(15),
                                       ),
                                       child: const Text(
@@ -243,7 +245,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                           fontFamily: 'Inter',
                                           fontWeight: FontWeight.w600, // SemiBold 24
                                           fontSize: 24,
-                                          color: Color(0xFFFFFFFF), // ffffff 100%
+                                          color: AppColors.white, // ffffff 100%
                                         ),
                                       ),
                                     ),

@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 import 'parent_signup_success_screen.dart';
 
 class ParentSignupStudentScreen extends StatefulWidget {
@@ -38,7 +40,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -54,7 +56,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                 child: Padding(
                   padding: EdgeInsets.only(left: 47 * widthRatio),
                   child: Image.asset(
-                    'assets/images/2.png',
+                    AppImages.logo,
                     width: 104 * widthRatio,
                     height: 44 * widthRatio,
                     fit: BoxFit.contain,
@@ -100,7 +102,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w600, // SemiBold 24
                         fontSize: 24,
-                        color: const Color(0xFFFFFFFF), // ffffff 100%
+                        color: AppColors.white, // ffffff 100%
                       ),
                     ),
                   ),
@@ -120,7 +122,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                     fontWeight: FontWeight.w400, // Regular 16
                     fontSize: 16,
                     height: 1.3,
-                    color: const Color(0xFFFFFFFF).withOpacity(0.72), // ffffff 72%
+                    color: AppColors.white.withOpacity(0.72), // ffffff 72%
                   ),
                 ),
               ),
@@ -139,7 +141,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                     child: Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFFFFF).withOpacity(0.37), // ffffff 37%
+                        color: AppColors.white.withOpacity(0.37), // ffffff 37%
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(30),
                           topRight: Radius.circular(30),
@@ -165,7 +167,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                 style: const TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 16,
-                                  color: Color(0xFF214071), // Typed text matches dark blue
+                                  color: AppColors.primaryBlue, // Typed text matches dark blue
                                   fontWeight: FontWeight.w500,
                                 ),
                                 decoration: InputDecoration(
@@ -177,7 +179,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.w500, // Medium 16
                                     fontSize: 16,
-                                    color: const Color(0xFF595959).withOpacity(0.68), // 595959 68%
+                                    color: AppColors.grayText.withOpacity(0.68), // 595959 68%
                                   ),
                                 ),
                               ),
@@ -195,7 +197,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                   isExpanded: true,
                                   icon: Icon(
                                     Icons.expand_more_rounded, // Chevron rotated 90
-                                    color: const Color(0xFF595959).withOpacity(0.72), // 595959 72%
+                                    color: AppColors.grayText.withOpacity(0.72), // 595959 72%
                                     size: 30,
                                   ),
                                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -205,13 +207,13 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                       fontFamily: 'Inter',
                                       fontWeight: FontWeight.w500, // Medium 16
                                       fontSize: 16,
-                                      color: const Color(0xFF595959).withOpacity(0.68), // 595959 68%
+                                      color: AppColors.grayText.withOpacity(0.68), // 595959 68%
                                     ),
                                   ),
                                   style: const TextStyle(
                                     fontFamily: 'Inter',
                                     fontSize: 16,
-                                    color: Color(0xFF214071), // Dark blue text when selected
+                                    color: AppColors.primaryBlue, // Dark blue text when selected
                                     fontWeight: FontWeight.w500,
                                   ),
                                   items: _schools.map((String school) {
@@ -241,7 +243,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                   isExpanded: true,
                                   icon: Icon(
                                     Icons.expand_more_rounded, // Chevron rotated 90
-                                    color: const Color(0xFF595959).withOpacity(0.72), // 595959 72%
+                                    color: AppColors.grayText.withOpacity(0.72), // 595959 72%
                                     size: 30,
                                   ),
                                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -251,13 +253,13 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                       fontFamily: 'Inter',
                                       fontWeight: FontWeight.w500, // Medium 16
                                       fontSize: 16,
-                                      color: const Color(0xFF595959).withOpacity(0.68), // 595959 68%
+                                      color: AppColors.grayText.withOpacity(0.68), // 595959 68%
                                     ),
                                   ),
                                   style: const TextStyle(
                                     fontFamily: 'Inter',
                                     fontSize: 16,
-                                    color: Color(0xFF214071), // Dark blue text when selected
+                                    color: AppColors.primaryBlue, // Dark blue text when selected
                                     fontWeight: FontWeight.w500,
                                   ),
                                   items: _grades.map((String grade) {
@@ -300,7 +302,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                 height: 62,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF214071),
+                                  color: AppColors.primaryBlue,
                                   borderRadius: BorderRadius.circular(15),
                                 ),
                                 child: const Text(
@@ -309,7 +311,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.w600,
                                     fontSize: 32,
-                                    color: Color(0xFFFFFFFF),
+                                    color: AppColors.white,
                                   ),
                                 ),
                               ),
@@ -349,7 +351,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                 fontFamily: 'Inter',
                 fontWeight: FontWeight.w600, // SemiBold 20
                 fontSize: 20,
-                color: Color(0xFF214071), // Deep Blue 100%
+                color: AppColors.primaryBlue, // Deep Blue 100%
               ),
             ),
           ),
@@ -360,10 +362,10 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
             height: 55, // Fixed height per Figma
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: const Color(0xFFFFFFFF).withOpacity(0.21), // ffffff 21%
+              color: AppColors.white.withOpacity(0.21), // ffffff 21%
               borderRadius: BorderRadius.circular(15),
               border: Border.all(
-                color: const Color(0xFFFFFFFF).withOpacity(0.79), // ffffff 79%
+                color: AppColors.white.withOpacity(0.79), // ffffff 79%
                 width: 1,
               ),
             ),

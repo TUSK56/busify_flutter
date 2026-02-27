@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_login_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 import 'package:application/screens/supervisor/supervisor_login_screen.dart';
 // this page have welcome msg with login as supervisor or parent
 class RoleSelectionScreen extends StatelessWidget {
@@ -26,7 +28,7 @@ class RoleSelectionScreen extends StatelessWidget {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -46,7 +48,7 @@ class RoleSelectionScreen extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.only(left: 47 * widthRatio),
                       child: Image.asset(
-                        'assets/images/2.png',
+                        AppImages.logo,
                         width: 144 * widthRatio, // Scales from 144 max
                         height: 115 * widthRatio,
                         fit: BoxFit.contain,
@@ -87,7 +89,7 @@ class RoleSelectionScreen extends StatelessWidget {
                       fontWeight: FontWeight.bold, // Bold 32
                       fontSize: 32,
                       letterSpacing: 0,
-                      color: Color(0xFFFFFFFF),
+                      color: AppColors.white,
                     ),
                   ),
 
@@ -102,7 +104,7 @@ class RoleSelectionScreen extends StatelessWidget {
                       fontWeight: FontWeight.w400, // Regular 16
                       fontSize: 16,
                       letterSpacing: 0,
-                      color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+                      color: AppColors.white.withOpacity(0.66), // ffffff 66%
                     ),
                   ),
 
@@ -118,10 +120,10 @@ class RoleSelectionScreen extends StatelessWidget {
                         width: effectiveWidth * 0.85, // ~331 max
                         height: effectiveWidth * 0.85, // Enforces the perfect square shape you designed
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFFFFF).withOpacity(0.27), // ffffff 27%
+                          color: AppColors.white.withOpacity(0.27), // ffffff 27%
                           borderRadius: BorderRadius.circular(30),
                           border: Border.all(
-                            color: const Color(0xFFFFFFFF).withOpacity(0.50), // ffffff 50%
+                            color: AppColors.white.withOpacity(0.50), // ffffff 50%
                             width: 1,
                           ),
                         ),
@@ -194,10 +196,10 @@ class RoleSelectionScreen extends StatelessWidget {
         width: width,
         height: 62,
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFFFF).withOpacity(0.21), // ffffff 21%
+          color: AppColors.white.withOpacity(0.21), // ffffff 21%
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
-            color: const Color(0xFFFFFFFF).withOpacity(0.79), // ffffff 79%
+            color: AppColors.white.withOpacity(0.79), // ffffff 79%
             width: 1,
           ),
         ),
@@ -213,7 +215,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 fontFamily: 'Inter',
                 fontWeight: FontWeight.bold, // Bold 32
                 fontSize: 32,
-                color: Color(0xFFFFFFFF),
+                color: AppColors.white,
               ),
             ),
 

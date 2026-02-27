@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 import 'supervisor_forget_password_screen.dart';// Ensure the file name matches
 import 'supervisor_home_screen.dart';
 // login page for supervisor with email password login and forget password
@@ -34,7 +36,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -54,7 +56,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                     child: Padding(
                       padding: EdgeInsets.only(left: 47 * widthRatio),
                       child: Image.asset(
-                        'assets/images/2.png',
+                        AppImages.logo,
                         width: 104 * widthRatio,
                         height: 100 * widthRatio,
                         fit: BoxFit.contain,
@@ -100,7 +102,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                           fontWeight: FontWeight.bold, // Bold 24
                           fontSize: 24,
                           letterSpacing: 0,
-                          color: const Color(0xFFFFFFFF).withOpacity(0.90), // ffffff 90% opacity
+                          color: AppColors.white.withOpacity(0.90), // ffffff 90% opacity
                         ),
                       ),
                     ),
@@ -121,10 +123,10 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                             vertical: 24
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFFFFF).withOpacity(0.27), // ffffff 27%
+                          color: AppColors.white.withOpacity(0.27), // ffffff 27%
                           borderRadius: BorderRadius.circular(30),
                           border: Border.all(
-                            color: const Color(0xFFFFFFFF).withOpacity(0.50), // ffffff 50%
+                            color: AppColors.white.withOpacity(0.50), // ffffff 50%
                             width: 1,
                           ),
                         ),
@@ -141,7 +143,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                   fontFamily: 'Inter',
                                   fontWeight: FontWeight.w500, // Medium 24
                                   fontSize: 24,
-                                  color: const Color(0xFFF5F5F5).withOpacity(0.90), // f5f5f5 90%
+                                  color: AppColors.lightGray.withOpacity(0.90), // f5f5f5 90%
                                 ),
                               ),
                             ),
@@ -158,11 +160,11 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.w400, // Regular 20
                                     fontSize: 20,
-                                    color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+                                    color: AppColors.white.withOpacity(0.66), // ffffff 66%
                                   ),
                                   prefixIcon: Icon(
                                     Icons.email_outlined,
-                                    color: const Color(0xFFFFFFFF).withOpacity(0.67), // ffffff 67%
+                                    color: AppColors.white.withOpacity(0.67), // ffffff 67%
                                     size: 28,
                                   ),
                                 ),
@@ -180,7 +182,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                   fontFamily: 'Inter',
                                   fontWeight: FontWeight.w500, // Medium 24
                                   fontSize: 24,
-                                  color: const Color(0xFFF5F5F5).withOpacity(0.90), // f5f5f5 95% base, applied 90%
+                                  color: AppColors.lightGray.withOpacity(0.90), // f5f5f5 95% base, applied 90%
                                 ),
                               ),
                             ),
@@ -198,17 +200,17 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.w400, // Regular 20
                                     fontSize: 20,
-                                    color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+                                    color: AppColors.white.withOpacity(0.66), // ffffff 66%
                                   ),
                                   prefixIcon: Icon(
                                     Icons.lock_outline,
-                                    color: const Color(0xFFFFFFFF).withOpacity(0.67), // ffffff 67%
+                                    color: AppColors.white.withOpacity(0.67), // ffffff 67%
                                     size: 28,
                                   ),
                                   suffixIcon: IconButton(
                                     icon: Icon(
                                       _isObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                      color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+                                      color: AppColors.white.withOpacity(0.66), // ffffff 66%
                                       size: 24,
                                     ),
                                     onPressed: () {
@@ -242,7 +244,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.w500, // Medium 16
                                     fontSize: 16,
-                                    color: const Color(0xFFF5F5F5).withOpacity(0.66), // f5f5f5 66%
+                                    color: AppColors.lightGray.withOpacity(0.66), // f5f5f5 66%
                                   ),
                                 ),
                               ),
@@ -263,10 +265,10 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                 width: 291 * widthRatio,
                                 height: 62,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF214071), // 214071 100%
+                                  color: AppColors.primaryBlue, // 214071 100%
                                   borderRadius: BorderRadius.circular(15),
                                   border: Border.all(
-                                    color: const Color(0xFF214071), // Match border to fill
+                                    color: AppColors.primaryBlue, // Match border to fill
                                     width: 1,
                                   ),
                                 ),
@@ -277,7 +279,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.bold, // Bold 24
                                     fontSize: 24,
-                                    color: Color(0xFFFFFFFF), // ffffff 100%
+                                    color: AppColors.white, // ffffff 100%
                                   ),
                                 ),
                               ),
@@ -306,10 +308,10 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
       height: 62,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF).withOpacity(0.21), // ffffff 21%
+        color: AppColors.white.withOpacity(0.21), // ffffff 21%
         borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color: const Color(0xFFFFFFFF).withOpacity(0.79), // ffffff 79%
+          color: AppColors.white.withOpacity(0.79), // ffffff 79%
           width: 1,
         ),
       ),

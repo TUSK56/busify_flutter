@@ -1,5 +1,7 @@
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 import 'package:flutter/services.dart';
 import 'supervisor_reset_password_screen.dart';
 // this page is supervisor otp verification
@@ -76,7 +78,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -95,7 +97,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                     child: Padding(
                       padding: EdgeInsets.only(left: 47 * widthRatio),
                       child: Image.asset(
-                        'assets/images/2.png',
+                        AppImages.logo,
                         width: 104 * widthRatio,
                         height: 100 * widthRatio,
                         fit: BoxFit.contain,
@@ -140,7 +142,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                       fontFamily: 'Inter',
                       fontWeight: FontWeight.w600, // SemiBold 32
                       fontSize: 32,
-                      color: Color(0xFFFFFFFF), // ffffff 100%
+                      color: AppColors.white, // ffffff 100%
                     ),
                   ),
 
@@ -153,7 +155,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                       fontFamily: 'Inter',
                       fontWeight: FontWeight.w500, // Medium 16
                       fontSize: 16,
-                      color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+                      color: AppColors.white.withOpacity(0.66), // ffffff 66%
                     ),
                   ),
 
@@ -198,7 +200,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                       height: 45,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF214071), // 214071 100%
+                        color: AppColors.primaryBlue, // 214071 100%
                         borderRadius: BorderRadius.circular(15),
                       ),
                       child: const Text(
@@ -207,7 +209,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                           fontFamily: 'Inter',
                           fontWeight: FontWeight.w600, // SemiBold
                           fontSize: 18,
-                          color: Color(0xFFFFFFFF), // ffffff 100%
+                          color: AppColors.white, // ffffff 100%
                         ),
                       ),
                     ),
@@ -229,7 +231,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w500, // Medium 16
                         fontSize: 16,
-                        color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+                        color: AppColors.white.withOpacity(0.66), // ffffff 66%
                       ),
                     ),
                   ),
@@ -251,10 +253,10 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
       height: 60,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5).withOpacity(0.32), // f5f5f5 32%
+        color: AppColors.lightGray.withOpacity(0.32), // f5f5f5 32%
         borderRadius: BorderRadius.circular(10), // Radius 10
         border: Border.all(
-          color: const Color(0xFFFFFFFF), // ffffff 100%
+          color: AppColors.white, // ffffff 100%
           width: 2, // weight: 2
         ),
       ),

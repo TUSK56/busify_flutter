@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 import 'supervisor_success_screen.dart';
 // this page for creating new password and confirming it
 class SupervisorResetPasswordScreen extends StatefulWidget {
@@ -34,7 +36,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -53,7 +55,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                     child: Padding(
                       padding: EdgeInsets.only(left: 47 * widthRatio),
                       child: Image.asset(
-                        'assets/images/2.png',
+                        AppImages.logo,
                         width: 104 * widthRatio,
                         height: 100 * widthRatio,
                         fit: BoxFit.contain,
@@ -97,7 +99,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w400, // Regular 15
                         fontSize: 15,
-                        color: const Color(0xFFFFFFFF).withOpacity(0.63), // ffffff 63%
+                        color: AppColors.white.withOpacity(0.63), // ffffff 63%
                         height: 1.4, // Line height adjustment
                       ),
                     ),
@@ -118,10 +120,10 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                           vertical: 36, // Adjust padding to match Figma inner Y coordinates
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFFFFF).withOpacity(0.27), // ffffff 27%
+                          color: AppColors.white.withOpacity(0.27), // ffffff 27%
                           borderRadius: BorderRadius.circular(30),
                           border: Border.all(
-                            color: const Color(0xFFFFFFFF).withOpacity(0.50), // ffffff 50%
+                            color: AppColors.white.withOpacity(0.50), // ffffff 50%
                             width: 1,
                           ),
                         ),
@@ -138,7 +140,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                                   fontFamily: 'Inter',
                                   fontWeight: FontWeight.w500, // Medium 24
                                   fontSize: 24,
-                                  color: const Color(0xFFFFFFFF).withOpacity(0.90), // ffffff 90%
+                                  color: AppColors.white.withOpacity(0.90), // ffffff 90%
                                 ),
                               ),
                             ),
@@ -166,7 +168,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                                   fontFamily: 'Inter',
                                   fontWeight: FontWeight.w500, // Medium 24
                                   fontSize: 24,
-                                  color: const Color(0xFFFFFFFF).withOpacity(0.90), // ffffff 90%
+                                  color: AppColors.white.withOpacity(0.90), // ffffff 90%
                                 ),
                               ),
                             ),
@@ -201,7 +203,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                                   height: 62,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF214071), // 214071 100%
+                                    color: AppColors.primaryBlue, // 214071 100%
                                     borderRadius: BorderRadius.circular(10), // Radius 10
                                   ),
                                   child: const Text(
@@ -210,7 +212,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                                       fontFamily: 'Inter',
                                       fontWeight: FontWeight.w600, // SemiBold 20
                                       fontSize: 20,
-                                      color: Color(0xFFFFFFFF), // ffffff 100%
+                                      color: AppColors.white, // ffffff 100%
                                     ),
                                   ),
                                 ),
@@ -246,10 +248,10 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
       alignment: Alignment.center,
       padding: const EdgeInsets.only(left: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF).withOpacity(0.21), // ffffff 21%
+        color: AppColors.white.withOpacity(0.21), // ffffff 21%
         borderRadius: BorderRadius.circular(10), // Radius 10
         border: Border.all(
-          color: const Color(0xFFFFFFFF).withOpacity(strokeOpacity), // Stroke opacity varies
+          color: AppColors.white.withOpacity(strokeOpacity), // Stroke opacity varies
           width: 1,
         ),
       ),
@@ -271,7 +273,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
             fontWeight: FontWeight.w600, // SemiBold 24
             fontSize: 24,
             letterSpacing: 2.0,
-            color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+            color: AppColors.white.withOpacity(0.66), // ffffff 66%
           ),
           suffixIconConstraints: const BoxConstraints(
             minWidth: 45,
@@ -281,7 +283,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
             onTap: onToggleVisibility,
             child: Icon(
               isObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+              color: AppColors.white.withOpacity(0.66), // ffffff 66%
               size: 22,
             ),
           ),

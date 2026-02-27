@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 
 class SupervisorHomeScreen extends StatefulWidget {
   const SupervisorHomeScreen({super.key});
@@ -34,7 +36,7 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -52,7 +54,7 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Image.asset(
-                      'assets/images/2.png',
+                      AppImages.logo,
                       width: 90.0 * widthRatio,
                       fit: BoxFit.contain,
                     ),
@@ -190,7 +192,7 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
           width: 60.0 * widthRatio,
           height: 60.0 * widthRatio,
           decoration: BoxDecoration(
-            color: const Color(0xFF214071).withOpacity(0.8),
+            color: AppColors.primaryBlue.withOpacity(0.8),
             borderRadius: BorderRadius.circular(15.0),
             border: Border.all(color: Colors.white.withOpacity(0.3)),
           ),
@@ -223,7 +225,7 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
         children: [
           CircleAvatar(
             radius: 22.0 * widthRatio,
-            backgroundColor: const Color(0xFF214071),
+            backgroundColor: AppColors.primaryBlue,
             child: Icon(Icons.person_outline, color: Colors.white, size: 22.0 * widthRatio),
           ),
           SizedBox(width: 12.0 * widthRatio),

@@ -1,6 +1,8 @@
 import 'package:application/screens/onboarding/role_selection_screen.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 import 'onboarding_screen_two.dart';
 // first page that have 2 logo and get started with login
 class GetStartedScreen extends StatelessWidget {
@@ -28,7 +30,7 @@ class GetStartedScreen extends StatelessWidget {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'), // Updated Path
+            image: AssetImage(AppImages.background), // Updated Path
             fit: BoxFit.cover,
           ),
         ),
@@ -53,7 +55,7 @@ class GetStartedScreen extends StatelessWidget {
                         Positioned(
                           top: 0,
                           child: Image.asset(
-                            'assets/images/1.png', // Updated Path
+                            AppImages.busIcon, // Updated Path
                             width: img1Width,
                             fit: BoxFit.contain,
                           ),
@@ -62,7 +64,7 @@ class GetStartedScreen extends StatelessWidget {
                         Positioned(
                           top: img2TopOffset, // Dynamically calculates overlap
                           child: Image.asset(
-                            'assets/images/2.png', // Updated Path
+                            AppImages.logo, // Updated Path
                             width: img2Width,
                             fit: BoxFit.contain,
                           ),
@@ -80,12 +82,12 @@ class GetStartedScreen extends StatelessWidget {
                     height: 62,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF214071),
+                        backgroundColor: AppColors.primaryBlue,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15),
                           side: const BorderSide(
-                            color: Color(0xFF214071),
+                            color: AppColors.primaryBlue,
                             width: 1,
                           ),
                         ),
@@ -104,7 +106,7 @@ class GetStartedScreen extends StatelessWidget {
                           fontSize: 24,
                           height: 22 / 24,
                           letterSpacing: 0,
-                          color: Color(0xFFFFFFFF),
+                          color: AppColors.white,
                         ),
                       ),
                     ),
@@ -134,12 +136,12 @@ class GetStartedScreen extends StatelessWidget {
                         children: [
                           const TextSpan(
                             text: 'Already have an account? ',
-                            style: TextStyle(color: Color(0xFFFFFFFF)),
+                            style: TextStyle(color: AppColors.white),
                           ),
                           TextSpan(
                             text: 'Log in',
                             style: TextStyle(
-                              color: Color(0xFF4DA3FF), // Dropped .withOpacity(0.9) to ensure sharp text on maps
+                              color: AppColors.linkBlue, // Dropped .withOpacity(0.9) to ensure sharp text on maps
                             ),
                           ),
                         ],

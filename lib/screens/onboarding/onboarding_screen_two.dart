@@ -1,6 +1,8 @@
 import 'dart:ui'; // Required for the blur effect (ImageFilter)
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 import 'onboarding_screen_three.dart';
 import 'role_selection_screen.dart';
 // second page that have 1 pic of bus and next skip arrow back
@@ -23,7 +25,7 @@ class OnboardingScreenTwo extends StatelessWidget {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -71,7 +73,7 @@ class OnboardingScreenTwo extends StatelessWidget {
                               fontSize: 24,
                               height: 22 / 24,
                               letterSpacing: 0,
-                              color: Color(0xFFFFFFFF),
+                              color: AppColors.white,
                             ),
                           ),
                         ),
@@ -92,10 +94,10 @@ class OnboardingScreenTwo extends StatelessWidget {
                         // height scales responsively but maintains the general proportion
                         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFFFFF).withOpacity(0.14), // ffffff 14%
+                          color: AppColors.white.withOpacity(0.14), // ffffff 14%
                           borderRadius: BorderRadius.circular(30),
                           border: Border.all(
-                            color: const Color(0xFFFFFFFF).withOpacity(0.76), // ffffff 76% stroke
+                            color: AppColors.white.withOpacity(0.76), // ffffff 76% stroke
                             width: 1, // inside weight 1
                           ),
                         ),
@@ -104,7 +106,7 @@ class OnboardingScreenTwo extends StatelessWidget {
                           children: [
                             // Image 3.png
                             Image.asset(
-                              'assets/images/3.png',
+                              AppImages.onboardingBus,
                               width: effectiveWidth * 0.74, // ~290 max
                               height: screenHeight * 0.23, // ~196 max
                               fit: BoxFit.contain,
@@ -122,7 +124,7 @@ class OnboardingScreenTwo extends StatelessWidget {
                                 fontSize: 24,
                                 height: 22 / 24,
                                 letterSpacing: 0,
-                                color: Color(0xFFFFFFFF),
+                                color: AppColors.white,
                               ),
                             ),
 
@@ -132,7 +134,7 @@ class OnboardingScreenTwo extends StatelessWidget {
                             Container(
                               width: effectiveWidth * 0.65, // ~254 max
                               height: 2, // weight: 2
-                              color: const Color(0xFFFFFFFF).withOpacity(0.66), // ffffff 66%
+                              color: AppColors.white.withOpacity(0.66), // ffffff 66%
                             ),
 
                             SizedBox(height: screenHeight * 0.025), // Spacing
@@ -147,7 +149,7 @@ class OnboardingScreenTwo extends StatelessWidget {
                                 fontSize: 16,
                                 height: 22 / 16,
                                 letterSpacing: 0,
-                                color: Color(0xFFFFFFFF),
+                                color: AppColors.white,
                               ),
                             ),
 
@@ -168,12 +170,12 @@ class OnboardingScreenTwo extends StatelessWidget {
                     height: 62,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF214071), // Fill
+                        backgroundColor: AppColors.primaryBlue, // Fill
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15),
                           side: const BorderSide(
-                            color: Color(0xFF214071), // Stroke
+                            color: AppColors.primaryBlue, // Stroke
                             width: 1,
                           ),
                         ),
@@ -192,7 +194,7 @@ class OnboardingScreenTwo extends StatelessWidget {
                           fontSize: 32,
                           height: 22 / 32,
                           letterSpacing: 0,
-                          color: Color(0xFFFFFFFF),
+                          color: AppColors.white,
                         ),
                       ),
                     ),

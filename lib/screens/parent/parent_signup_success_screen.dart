@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
 import 'parent_login_screen.dart';
 // this page after conforming the new password
 class ParentSignupSuccessScreen extends StatelessWidget {
@@ -25,7 +27,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/10.png'),
+            image: AssetImage(AppImages.background),
             fit: BoxFit.cover,
           ),
         ),
@@ -75,10 +77,10 @@ class ParentSignupSuccessScreen extends StatelessWidget {
                         width: 331 * widthRatio,
                         height: 426, // Exact height from Figma
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFFFFF).withOpacity(0.27), // ffffff 27%
+                          color: AppColors.white.withOpacity(0.27), // ffffff 27%
                           borderRadius: BorderRadius.circular(30),
                           border: Border.all(
-                            color: const Color(0xFFFFFFFF).withOpacity(0.50), // ffffff 50%
+                            color: AppColors.white.withOpacity(0.50), // ffffff 50%
                             width: 1,
                           ),
                         ),
@@ -96,7 +98,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(15),
                                 image: const DecorationImage(
-                                  image: AssetImage('assets/images/7.png'),
+                                  image: AssetImage(AppImages.successIcon),
                                   fit: BoxFit.contain,
                                 ),
                               ),
@@ -116,7 +118,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
                                   fontWeight: FontWeight.w600, // SemiBold 24
                                   fontSize: 24,
                                   height: 1.2, // Handles the line height
-                                  color: Color(0xFFFFFFFF), // ffffff 100%
+                                  color: AppColors.white, // ffffff 100%
                                 ),
                               ),
                             ),
@@ -138,7 +140,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
                                 height: 62,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF214071), // 214071 100%
+                                  color: AppColors.primaryBlue, // 214071 100%
                                   borderRadius: BorderRadius.circular(10), // Radius 10
                                 ),
                                 child: const Text(
@@ -147,7 +149,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.bold, // Bold 24
                                     fontSize: 24,
-                                    color: Color(0xFFFFFFFF), // ffffff 100%
+                                    color: AppColors.white, // ffffff 100%
                                   ),
                                 ),
                               ),
