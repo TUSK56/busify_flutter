@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'parent_signup_success_screen.dart';
 
@@ -285,9 +286,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                   // Navigate to Success screen
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const ParentSignupSuccessScreen(), // Ensure this class exists
-                                    ),
+                                    fadeRoute(const ParentSignupSuccessScreen()),
                                   );
                                 } else {
                                   // Show error if fields aren't selected

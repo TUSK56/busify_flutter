@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'supervisor_forget_password_screen.dart';// Ensure the file name matches
 import 'supervisor_home_screen.dart';
@@ -231,9 +232,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                   // Navigate to Forget Password Screen
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const SupervisorForgetPasswordScreen(),
-                                    ),
+                                    fadeRoute(const SupervisorForgetPasswordScreen()),
                                   );
                                 },
                                 child: Text(
@@ -257,7 +256,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                 // Navigate to Create Account screen
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const SupervisorHomeScreen()),
+                                  fadeRoute(const SupervisorHomeScreen()),
                                 );
                               },
                               child: Container(

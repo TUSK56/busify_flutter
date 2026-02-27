@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'supervisor_success_screen.dart';
 // this page for creating new password and confirming it
@@ -192,7 +193,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                                   // Navigate to Success Screen
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (context) => const SupervisorSuccessScreen()),
+                                    fadeRoute(const SupervisorSuccessScreen()),
                                   );
                                 },
                                 child: Container(

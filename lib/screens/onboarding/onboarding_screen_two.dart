@@ -1,4 +1,5 @@
 import 'dart:ui'; // Required for the blur effect (ImageFilter)
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'onboarding_screen_three.dart';
 import 'role_selection_screen.dart';
@@ -59,9 +60,7 @@ class OnboardingScreenTwo extends StatelessWidget {
                             // Navigate to Role Selection
                             Navigator.push(
                               context,
-                              MaterialPageRoute(
-                                builder: (context) => const RoleSelectionScreen(),
-                              ),
+                              fadeRoute(const RoleSelectionScreen()),
                             );
                           },
                           child: const Text(
@@ -182,7 +181,7 @@ class OnboardingScreenTwo extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const OnboardingScreenThree()),
+                          fadeRoute(const OnboardingScreenThree()),
                         );
                       },
                       child: const Text(

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'onboarding_screen_four.dart';
 import 'role_selection_screen.dart';
@@ -59,9 +60,7 @@ class OnboardingScreenThree extends StatelessWidget {
                             // Navigate to Role Selection
                             Navigator.push(
                               context,
-                              MaterialPageRoute(
-                                builder: (context) => const RoleSelectionScreen(),
-                              ),
+                              fadeRoute(const RoleSelectionScreen()),
                             );
                           },
                           child: const Text(
@@ -180,7 +179,7 @@ class OnboardingScreenThree extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const OnboardingScreenFour()),
+                          fadeRoute(const OnboardingScreenFour()),
                         );
                       },
                       child: const Text(

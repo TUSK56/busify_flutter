@@ -1,6 +1,7 @@
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'parent_reset_password_screen.dart'; // Make sure you rename the previous code file to screen_9.dart!
+import 'parent_reset_password_screen.dart';
 // this page is supervisor otp verification
 class ParentOtpScreen extends StatefulWidget {
   const ParentOtpScreen({super.key});
@@ -40,9 +41,7 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
       // Correct OTP! Navigate to Reset Password
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => const ParentResetPasswordScreen(), // Previously "ScreenEight"
-        ),
+        fadeRoute(const ParentResetPasswordScreen()),
       );
     } else {
       // Wrong OTP, show error message

@@ -1,6 +1,7 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
-import 'supervisor_login_screen.dart'; // Import login screen to navigate back
+import 'supervisor_login_screen.dart';
 // this page after conforming the new password
 class SupervisorSuccessScreen extends StatelessWidget {
   const SupervisorSuccessScreen({super.key});
@@ -128,10 +129,8 @@ class SupervisorSuccessScreen extends StatelessWidget {
                                 // Navigate back to Login and clear the navigation stack
                                 Navigator.pushAndRemoveUntil(
                                   context,
-                                  MaterialPageRoute(
-                                      builder: (context) => const SupervisorLoginScreen(),
-                                  ),
-                                      (route) => false, // This prevents the user from hitting "back" to go to the reset screen
+                                  fadeRoute(const SupervisorLoginScreen()),
+                                      (route) => false,
                                 );
                               },
                               child: Container(

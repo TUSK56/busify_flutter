@@ -1,4 +1,5 @@
 import 'package:application/screens/onboarding/role_selection_screen.dart';
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'onboarding_screen_two.dart';
 // first page that have 2 logo and get started with login
@@ -92,7 +93,7 @@ class GetStartedScreen extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const OnboardingScreenTwo()),
+                          fadeRoute(const OnboardingScreenTwo()),
                         );
                       },
                       child: const Text(
@@ -118,9 +119,7 @@ class GetStartedScreen extends StatelessWidget {
                       // Navigate to Role Selection
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const RoleSelectionScreen(),
-                        ),
+                        fadeRoute(const RoleSelectionScreen()),
                       );
                     },
                     child: RichText(

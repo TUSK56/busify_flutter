@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:flutter/material.dart';
 import 'parent_forget_password_screen.dart'; // Ensure the file name matches
@@ -230,11 +231,9 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                               child: GestureDetector(
                                 onTap: () {
                                   // Navigate to Forget Password Screen
-                                  Navigator.push(
+                                Navigator.push(
                                     context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const ParentForgetPasswordScreen(),
-                                    ),
+                                    fadeRoute(const ParentForgetPasswordScreen()),
                                   );
                                 },
                                 child: Text(
@@ -257,7 +256,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                                 // Navigate to Create Account screen
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const ParentHomeScreen()),
+                                  fadeRoute(const ParentHomeScreen()),
                                 );
                               },
                               child: Container(
@@ -300,9 +299,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                       // Navigate to Forget Password Screen
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const ParentSignupInfoScreen(),
-                        ),
+                        fadeRoute(const ParentSignupInfoScreen()),
                       );
                     },
                     child: RichText(

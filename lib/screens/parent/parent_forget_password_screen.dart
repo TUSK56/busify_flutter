@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_otp_screen.dart';
 import 'package:flutter/material.dart';
 // this page for supervisor email otp
@@ -225,7 +226,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                     onTap: () {
                                       Navigator.push(
                                         context,
-                                        MaterialPageRoute(builder: (context) => const ParentOtpScreen()),
+                                        fadeRoute(const ParentOtpScreen()),
                                       );
                                     },
                                     child: Container(

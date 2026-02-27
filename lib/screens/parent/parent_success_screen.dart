@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_login_screen.dart';
 import 'package:flutter/material.dart';
 // this page after conforming the new password
@@ -128,10 +129,8 @@ class ParentSuccessScreen extends StatelessWidget {
                                 // Navigate back to Login and clear the navigation stack
                                 Navigator.pushAndRemoveUntil(
                                   context,
-                                  MaterialPageRoute(
-                                      builder: (context) => const ParentLoginScreen(),
-                                  ),
-                                      (route) => false, // This prevents the user from hitting "back" to go to the reset screen
+                                  fadeRoute(const ParentLoginScreen()),
+                                      (route) => false,
                                 );
                               },
                               child: Container(

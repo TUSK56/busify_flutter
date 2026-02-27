@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/screens/supervisor/supervisor_login_screen.dart';
@@ -139,9 +140,7 @@ class RoleSelectionScreen extends StatelessWidget {
                                 // Navigate to Supervisor Login
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const SupervisorLoginScreen(),
-                                  ),
+                                  fadeRoute(const SupervisorLoginScreen()),
                                 );
                               },
                             ),
@@ -160,9 +159,7 @@ class RoleSelectionScreen extends StatelessWidget {
                                 // Navigate to Parent Login
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const ParentLoginScreen(),
-                                  ),
+                                  fadeRoute(const ParentLoginScreen()),
                                 );
                               },
                             ),

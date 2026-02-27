@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_signup_student_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -201,7 +202,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                                 // Navigate to Success Screen
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const ParentSignupStudentScreen()),
+                                  fadeRoute(const ParentSignupStudentScreen()),
                                 );
                               },
                               child: Container(

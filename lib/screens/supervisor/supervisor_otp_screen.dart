@@ -1,6 +1,7 @@
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'supervisor_reset_password_screen.dart'; // Make sure you rename the previous code file to screen_9.dart!
+import 'supervisor_reset_password_screen.dart';
 // this page is supervisor otp verification
 class SupervisorOtpScreen extends StatefulWidget {
   const SupervisorOtpScreen({super.key});
@@ -40,9 +41,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
       // Correct OTP! Navigate to Reset Password
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => const SupervisorResetPasswordScreen(), // Previously "ScreenEight"
-        ),
+        fadeRoute(const SupervisorResetPasswordScreen()),
       );
     } else {
       // Wrong OTP, show error message

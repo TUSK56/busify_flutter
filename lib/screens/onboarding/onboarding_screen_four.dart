@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'role_selection_screen.dart';
 // Onboarding page four that have 1 pic of parent with phone and get started arrow back
@@ -153,7 +154,7 @@ class OnboardingScreenFour extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
+                          fadeRoute(const RoleSelectionScreen()),
                         );
                       },
                       child: FittedBox(
