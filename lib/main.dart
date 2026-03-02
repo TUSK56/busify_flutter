@@ -1,8 +1,11 @@
 import 'package:application/screens/onboarding/get_started_screen.dart';
+import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ServiceLocator.init();
   runApp(const MyApp());
 }
 

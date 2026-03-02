@@ -1,10 +1,11 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
+import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'parent_forget_password_screen.dart'; // Ensure the file name matches
+import 'parent_forget_password_screen.dart';
 import 'parent_signup_info_screen.dart';
 
 // Login page for Parent with email/password, forget password, and bottom text
@@ -16,8 +17,17 @@ class ParentLoginScreen extends StatefulWidget {
 }
 
 class _ParentLoginScreenState extends State<ParentLoginScreen> {
-  // State to manage password visibility toggle
   bool _isObscured = true;
+  bool _isLoading = false;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -154,19 +164,21 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                             _buildTextFieldContainer(
                               width: 291 * widthRatio,
                               child: TextField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
                                 style: const TextStyle(color: Colors.white, fontSize: 20),
                                 decoration: InputDecoration(
                                   border: InputBorder.none,
                                   hintText: 'Enter your email',
                                   hintStyle: TextStyle(
                                     fontFamily: 'Inter',
-                                    fontWeight: FontWeight.w400, // Regular 20
+                                    fontWeight: FontWeight.w400,
                                     fontSize: 20,
-                                    color: AppColors.white.withOpacity(0.66), // ffffff 66%
+                                    color: AppColors.white.withOpacity(0.66),
                                   ),
                                   prefixIcon: Icon(
                                     Icons.email_outlined,
-                                    color: AppColors.white.withOpacity(0.67), // ffffff 67%
+                                    color: AppColors.white.withOpacity(0.67),
                                     size: 28,
                                   ),
                                 ),
@@ -193,6 +205,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                             _buildTextFieldContainer(
                               width: 291 * widthRatio,
                               child: TextField(
+                                controller: _passwordController,
                                 obscureText: _isObscured,
                                 style: const TextStyle(color: Colors.white, fontSize: 20),
                                 decoration: InputDecoration(
@@ -254,12 +267,34 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
                             // Log In Button
                             GestureDetector(
-                              onTap: () {
-                                // Navigate to Create Account screen
-                                Navigator.push(
-                                  context,
-                                  fadeRoute(const ParentHomeScreen()),
-                                );
+                              onTap: _isLoading ? null : () async {
+                                final email = _emailController.text.trim();
+                                final password = _passwordController.text;
+                                if (email.isEmpty || password.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter email and password.')),
+                                  );
+                                  return;
+                                }
+                                setState(() => _isLoading = true);
+                                try {
+                                  await ServiceLocator.parentService.login(
+                                    email: email,
+                                    password: password,
+                                  );
+                                  if (!mounted) return;
+                                  Navigator.pushReplacement(
+                                    context,
+                                    fadeRoute(const ParentHomeScreen()),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString())),
+                                  );
+                                } finally {
+                                  if (mounted) setState(() => _isLoading = false);
+                                }
                               },
                               child: Container(
                                 width: 291 * widthRatio,
@@ -273,7 +308,16 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                                   ),
                                 ),
                                 alignment: Alignment.center,
-                                child: const Text(
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
                                   'Log In',
                                   style: TextStyle(
                                     fontFamily: 'Inter',

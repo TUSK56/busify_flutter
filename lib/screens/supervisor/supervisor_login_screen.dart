@@ -1,11 +1,12 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'supervisor_forget_password_screen.dart';// Ensure the file name matches
+import 'supervisor_forget_password_screen.dart';
 import 'supervisor_home_screen.dart';
-// login page for supervisor with email password login and forget password
+
 class SupervisorLoginScreen extends StatefulWidget {
   const SupervisorLoginScreen({super.key});
 
@@ -14,8 +15,17 @@ class SupervisorLoginScreen extends StatefulWidget {
 }
 
 class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
-  // State to manage password visibility toggle
   bool _isObscured = true;
+  bool _isLoading = false;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +162,8 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                             _buildTextFieldContainer(
                               width: 291 * widthRatio,
                               child: TextField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
                                 style: const TextStyle(color: Colors.white, fontSize: 20),
                                 decoration: InputDecoration(
                                   border: InputBorder.none,
@@ -191,6 +203,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                             _buildTextFieldContainer(
                               width: 291 * widthRatio,
                               child: TextField(
+                                controller: _passwordController,
                                 obscureText: _isObscured,
                                 style: const TextStyle(color: Colors.white, fontSize: 20),
                                 decoration: InputDecoration(
@@ -254,12 +267,34 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
 
                             // Log In Button
                             GestureDetector(
-                              onTap: () {
-                                // Navigate to Create Account screen
-                                Navigator.push(
-                                  context,
-                                  fadeRoute(const SupervisorHomeScreen()),
-                                );
+                              onTap: _isLoading ? null : () async {
+                                final email = _emailController.text.trim();
+                                final password = _passwordController.text;
+                                if (email.isEmpty || password.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter email and password.')),
+                                  );
+                                  return;
+                                }
+                                setState(() => _isLoading = true);
+                                try {
+                                  await ServiceLocator.supervisorService.login(
+                                    email: email,
+                                    password: password,
+                                  );
+                                  if (!mounted) return;
+                                  Navigator.pushReplacement(
+                                    context,
+                                    fadeRoute(const SupervisorHomeScreen()),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString())),
+                                  );
+                                } finally {
+                                  if (mounted) setState(() => _isLoading = false);
+                                }
                               },
                               child: Container(
                                 width: 291 * widthRatio,
@@ -273,7 +308,16 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                   ),
                                 ),
                                 alignment: Alignment.center,
-                                child: const Text(
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
                                   'Log In',
                                   style: TextStyle(
                                     fontFamily: 'Inter',

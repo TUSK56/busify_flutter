@@ -4,9 +4,22 @@ import 'package:application/screens/parent/parent_otp_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-// this page for supervisor email otp
-class ParentForgetPasswordScreen extends StatelessWidget {
+
+class ParentForgetPasswordScreen extends StatefulWidget {
   const ParentForgetPasswordScreen({super.key});
+
+  @override
+  State<ParentForgetPasswordScreen> createState() => _ParentForgetPasswordScreenState();
+}
+
+class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen> {
+  final _emailController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +218,7 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                       ),
                                     ),
                                     child: TextField(
+                                      controller: _emailController,
                                       style: const TextStyle(color: Colors.white, fontSize: 20),
                                       keyboardType: TextInputType.emailAddress,
                                       decoration: InputDecoration(
@@ -226,9 +240,16 @@ class ParentForgetPasswordScreen extends StatelessWidget {
                                   // Get OTP Button
                                   GestureDetector(
                                     onTap: () {
+                                      final email = _emailController.text.trim();
+                                      if (email.isEmpty) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Please enter your email.')),
+                                        );
+                                        return;
+                                      }
                                       Navigator.push(
                                         context,
-                                        fadeRoute(const ParentOtpScreen()),
+                                        fadeRoute(ParentOtpScreen(email: email)),
                                       );
                                     },
                                     child: Container(
