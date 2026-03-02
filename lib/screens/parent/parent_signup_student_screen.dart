@@ -1,24 +1,45 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/models/child.dart';
+import 'package:application/models/parent_signup_data.dart';
+import 'package:application/models/school.dart';
+import 'package:application/screens/parent/parent_signup_success_screen.dart';
+import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'parent_signup_success_screen.dart';
 
 class ParentSignupStudentScreen extends StatefulWidget {
-  const ParentSignupStudentScreen({super.key});
+  final ParentSignupData parentData;
+
+  const ParentSignupStudentScreen({super.key, required this.parentData});
 
   @override
   State<ParentSignupStudentScreen> createState() => _ParentSignupStudentScreenState();
 }
 
 class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
-  // Dummy data for dropdowns (you can replace these with API data later)
-  final List<String> _schools = ['International School', 'National School', 'Language School'];
   final List<String> _grades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+  final _studentNameController = TextEditingController();
+  final _birthdateController = TextEditingController();
+  late final Future<List<School>> _schoolsFuture;
 
-  String? _selectedSchool;
+  School? _selectedSchool;
   String? _selectedGrade;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _schoolsFuture = ServiceLocator.schoolService.getSchools();
+  }
+
+  @override
+  void dispose() {
+    _studentNameController.dispose();
+    _birthdateController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +185,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                               widthRatio: widthRatio,
                               label: 'Student’s Full Name',
                               child: TextField(
+                                controller: _studentNameController,
                                 style: const TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 16,
@@ -187,46 +209,103 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
                             const SizedBox(height: 24),
 
-                            // 2. Select School Dropdown
+                            // 2. Select School Dropdown (FutureBuilder from API)
                             _buildInputWrapper(
                               widthRatio: widthRatio,
                               label: 'School Name',
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _selectedSchool,
-                                  isExpanded: true,
-                                  icon: Icon(
-                                    Icons.expand_more_rounded, // Chevron rotated 90
-                                    color: AppColors.grayText.withOpacity(0.72), // 595959 72%
-                                    size: 30,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  hint: Text(
-                                    'Select School',
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontWeight: FontWeight.w500, // Medium 16
-                                      fontSize: 16,
-                                      color: AppColors.grayText.withOpacity(0.68), // 595959 68%
-                                    ),
-                                  ),
-                                  style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 16,
-                                    color: AppColors.primaryBlue, // Dark blue text when selected
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  items: _schools.map((String school) {
-                                    return DropdownMenuItem<String>(
-                                      value: school,
-                                      child: Text(school),
+                              child: FutureBuilder<List<School>>(
+                                future: _schoolsFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 16),
+                                      child: SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
                                     );
-                                  }).toList(),
-                                  onChanged: (String? newValue) {
-                                    setState(() {
-                                      _selectedSchool = newValue;
-                                    });
-                                  },
+                                  }
+                                  if (snapshot.hasError) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      child: Text(
+                                        'Failed to load schools: ${snapshot.error}',
+                                        style: TextStyle(
+                                          color: Colors.red.shade300,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  final schools = snapshot.data ?? [];
+                                  return DropdownButtonHideUnderline(
+                                    child: DropdownButton<School>(
+                                      value: _selectedSchool,
+                                      isExpanded: true,
+                                      icon: Icon(
+                                        Icons.expand_more_rounded,
+                                        color: AppColors.grayText.withOpacity(0.72),
+                                        size: 30,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      hint: Text(
+                                        'Select School',
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 16,
+                                          color: AppColors.grayText.withOpacity(0.68),
+                                        ),
+                                      ),
+                                      style: const TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 16,
+                                        color: AppColors.primaryBlue,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      items: schools.map((School school) {
+                                        return DropdownMenuItem<School>(
+                                          value: school,
+                                          child: Text(school.name),
+                                        );
+                                      }).toList(),
+                                      onChanged: (School? newValue) {
+                                        setState(() {
+                                          _selectedSchool = newValue;
+                                        });
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // 2b. Birthdate
+                            _buildInputWrapper(
+                              widthRatio: widthRatio,
+                              label: 'Birthdate (yyyy-MM-dd)',
+                              child: TextField(
+                                controller: _birthdateController,
+                                style: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 16,
+                                  color: AppColors.primaryBlue,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  isCollapsed: true,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                                  hintText: 'e.g. 2015-03-15',
+                                  hintStyle: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 16,
+                                    color: AppColors.grayText.withOpacity(0.68),
+                                  ),
                                 ),
                               ),
                             ),
@@ -280,21 +359,65 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                             const SizedBox(height: 48), // Spacing before button
 
                             // Sign Up Button
-                            // Sign Up Button
                             GestureDetector(
-                              onTap: () {
-                                // Optional: Add your validation logic here
-                                if (_selectedSchool != null && _selectedGrade != null) {
-                                  // Navigate to Success screen
+                              onTap: _isLoading ? null : () async {
+                                final studentName = _studentNameController.text.trim();
+                                final birthdate = _birthdateController.text.trim();
+
+                                if (studentName.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter student name.')),
+                                  );
+                                  return;
+                                }
+                                if (_selectedSchool == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please select a school.')),
+                                  );
+                                  return;
+                                }
+                                if (_selectedGrade == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please select a grade.')),
+                                  );
+                                  return;
+                                }
+                                if (birthdate.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter birthdate (yyyy-MM-dd).')),
+                                  );
+                                  return;
+                                }
+
+                                setState(() => _isLoading = true);
+                                try {
+                                  final child = Child(
+                                    name: studentName,
+                                    schoolId: _selectedSchool!.id,
+                                    birthdate: birthdate,
+                                    grade: _selectedGrade!,
+                                    photoUrl: null,
+                                  );
+                                  await ServiceLocator.parentService.register(
+                                    name: widget.parentData.name,
+                                    phone: widget.parentData.phone,
+                                    email: widget.parentData.email,
+                                    password: widget.parentData.password,
+                                    address: widget.parentData.address,
+                                    children: [child],
+                                  );
+                                  if (!mounted) return;
                                   Navigator.push(
                                     context,
                                     fadeRoute(const ParentSignupSuccessScreen()),
                                   );
-                                } else {
-                                  // Show error if fields aren't selected
+                                } catch (e) {
+                                  if (!mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please select School and Grade.')),
+                                    SnackBar(content: Text(e.toString())),
                                   );
+                                } finally {
+                                  if (mounted) setState(() => _isLoading = false);
                                 }
                               },
                               child: Container(
@@ -305,7 +428,16 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                   color: AppColors.primaryBlue,
                                   borderRadius: BorderRadius.circular(15),
                                 ),
-                                child: const Text(
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
                                   'Sign Up',
                                   style: TextStyle(
                                     fontFamily: 'Inter',

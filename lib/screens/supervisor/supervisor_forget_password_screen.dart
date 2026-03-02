@@ -4,9 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'supervisor_otp_screen.dart';
-// this page for supervisor email otp
-class SupervisorForgetPasswordScreen extends StatelessWidget {
+
+class SupervisorForgetPasswordScreen extends StatefulWidget {
   const SupervisorForgetPasswordScreen({super.key});
+
+  @override
+  State<SupervisorForgetPasswordScreen> createState() => _SupervisorForgetPasswordScreenState();
+}
+
+class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswordScreen> {
+  final _emailController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +218,7 @@ class SupervisorForgetPasswordScreen extends StatelessWidget {
                                       ),
                                     ),
                                     child: TextField(
+                                      controller: _emailController,
                                       style: const TextStyle(color: Colors.white, fontSize: 20),
                                       keyboardType: TextInputType.emailAddress,
                                       decoration: InputDecoration(
@@ -226,9 +240,16 @@ class SupervisorForgetPasswordScreen extends StatelessWidget {
                                   // Get OTP Button
                                   GestureDetector(
                                     onTap: () {
+                                      final email = _emailController.text.trim();
+                                      if (email.isEmpty) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Please enter your email.')),
+                                        );
+                                        return;
+                                      }
                                       Navigator.push(
                                         context,
-                                        fadeRoute(const SupervisorOtpScreen()),
+                                        fadeRoute(SupervisorOtpScreen(email: email)),
                                       );
                                     },
                                     child: Container(

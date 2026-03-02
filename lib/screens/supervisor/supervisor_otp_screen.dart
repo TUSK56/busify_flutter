@@ -1,12 +1,14 @@
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'package:flutter/services.dart';
 import 'supervisor_reset_password_screen.dart';
-// this page is supervisor otp verification
+
 class SupervisorOtpScreen extends StatefulWidget {
-  const SupervisorOtpScreen({super.key});
+  final String email;
+
+  const SupervisorOtpScreen({super.key, required this.email});
 
   @override
   State<SupervisorOtpScreen> createState() => _SupervisorOtpScreenState();
@@ -36,14 +38,12 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
     String otp = _controllers.map((c) => c.text).join();
 
     if (otp == '0000') {
-      // Clear error if any
       setState(() {
         _errorMessage = null;
       });
-      // Correct OTP! Navigate to Reset Password
       Navigator.push(
         context,
-        fadeRoute(const SupervisorResetPasswordScreen()),
+        fadeRoute(SupervisorResetPasswordScreen(email: widget.email, otp: otp)),
       );
     } else {
       // Wrong OTP, show error message

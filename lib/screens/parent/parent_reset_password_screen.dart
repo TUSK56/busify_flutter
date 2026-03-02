@@ -1,21 +1,34 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'parent_success_screen.dart';
-// this page for creating new password and confirming it
+
 class ParentResetPasswordScreen extends StatefulWidget {
-  const ParentResetPasswordScreen({super.key});
+  final String email;
+  final String otp;
+
+  const ParentResetPasswordScreen({super.key, required this.email, required this.otp});
 
   @override
   State<ParentResetPasswordScreen> createState() => _ParentResetPasswordScreenState();
 }
 
 class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
-  // States to manage password visibility toggles independently
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,8 +161,9 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
                             // Password Input Box
                             _buildPasswordField(
                               widthRatio: widthRatio,
+                              controller: _passwordController,
                               isObscured: _obscurePassword,
-                              strokeOpacity: 0.18, // ffffff 18%
+                              strokeOpacity: 0.18,
                               onToggleVisibility: () {
                                 setState(() {
                                   _obscurePassword = !_obscurePassword;
@@ -176,8 +190,9 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
                             // Confirm Password Input Box
                             _buildPasswordField(
                               widthRatio: widthRatio,
+                              controller: _confirmPasswordController,
                               isObscured: _obscureConfirmPassword,
-                              strokeOpacity: 0.25, // ffffff 25%
+                              strokeOpacity: 0.25,
                               onToggleVisibility: () {
                                 setState(() {
                                   _obscureConfirmPassword = !_obscureConfirmPassword;
@@ -191,12 +206,47 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
                             Align(
                               alignment: Alignment.center,
                               child: GestureDetector(
-                                onTap: () {
-                                  // Navigate to Success Screen
-                                  Navigator.push(
-                                    context,
-                                    fadeRoute(const ParentSuccessScreen()),
-                                  );
+                                onTap: _isLoading ? null : () async {
+                                  final password = _passwordController.text;
+                                  final confirm = _confirmPasswordController.text;
+                                  if (password.isEmpty || confirm.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Please fill both fields.')),
+                                    );
+                                    return;
+                                  }
+                                  if (password != confirm) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Passwords do not match.')),
+                                    );
+                                    return;
+                                  }
+                                  if (password.length < 6) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Password must be at least 6 characters.')),
+                                    );
+                                    return;
+                                  }
+                                  setState(() => _isLoading = true);
+                                  try {
+                                    await ServiceLocator.parentService.resetPassword(
+                                      email: widget.email,
+                                      otp: widget.otp,
+                                      newPassword: password,
+                                    );
+                                    if (!mounted) return;
+                                    Navigator.push(
+                                      context,
+                                      fadeRoute(const ParentSuccessScreen()),
+                                    );
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(e.toString())),
+                                    );
+                                  } finally {
+                                    if (mounted) setState(() => _isLoading = false);
+                                  }
                                 },
                                 child: Container(
                                   width: 291 * widthRatio,
@@ -206,7 +256,16 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
                                     color: AppColors.primaryBlue, // 214071 100%
                                     borderRadius: BorderRadius.circular(10), // Radius 10
                                   ),
-                                  child: const Text(
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 24,
+                                          width: 24,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text(
                                     'Create New Password',
                                     style: TextStyle(
                                       fontFamily: 'Inter',
@@ -235,9 +294,9 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
     );
   }
 
-  // Helper widget to build the exact password text fields based on Figma specs
   Widget _buildPasswordField({
     required double widthRatio,
+    TextEditingController? controller,
     required bool isObscured,
     required double strokeOpacity,
     required VoidCallback onToggleVisibility,
@@ -256,6 +315,7 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
         ),
       ),
       child: TextField(
+        controller: controller,
         obscureText: isObscured,
         style: const TextStyle(
           color: Colors.white,

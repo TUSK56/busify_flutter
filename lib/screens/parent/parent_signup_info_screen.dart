@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/models/parent_signup_data.dart';
 import 'package:application/screens/parent/parent_signup_student_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
@@ -16,6 +17,24 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
   // State to manage password visibility
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +162,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                               widthRatio: widthRatio,
                               label: 'Parent Name',
                               hintText: 'Enter your name',
+                              controller: _nameController,
                             ),
 
                             // 2. Email
@@ -151,6 +171,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                               label: 'Email',
                               hintText: 'Enter your email',
                               keyboardType: TextInputType.emailAddress,
+                              controller: _emailController,
                             ),
 
                             // 3. Mobile Number
@@ -159,6 +180,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                               label: 'Mobile Number',
                               hintText: 'Enter your mobile number',
                               keyboardType: TextInputType.phone,
+                              controller: _phoneController,
                             ),
 
                             // 4. Address
@@ -166,6 +188,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                               widthRatio: widthRatio,
                               label: 'Address',
                               hintText: 'Enter your address',
+                              controller: _addressController,
                             ),
 
                             // 5. Password
@@ -175,6 +198,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                               hintText: 'Enter password',
                               isPassword: true,
                               obscureText: _obscurePassword,
+                              controller: _passwordController,
                               onToggleVisibility: () {
                                 setState(() {
                                   _obscurePassword = !_obscurePassword;
@@ -189,6 +213,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                               hintText: 'Confirm your password',
                               isPassword: true,
                               obscureText: _obscureConfirmPassword,
+                              controller: _confirmPasswordController,
                               onToggleVisibility: () {
                                 setState(() {
                                   _obscureConfirmPassword = !_obscureConfirmPassword;
@@ -201,10 +226,43 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                             // Continue Button
                             GestureDetector(
                               onTap: () {
-                                // Navigate to Success Screen
+                                final name = _nameController.text.trim();
+                                final email = _emailController.text.trim();
+                                final phone = _phoneController.text.trim();
+                                final address = _addressController.text.trim();
+                                final password = _passwordController.text;
+                                final confirm = _confirmPasswordController.text;
+
+                                if (name.isEmpty || email.isEmpty || phone.isEmpty ||
+                                    address.isEmpty || password.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please fill all fields.')),
+                                  );
+                                  return;
+                                }
+                                if (password != confirm) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Passwords do not match.')),
+                                  );
+                                  return;
+                                }
+                                if (password.length < 6) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Password must be at least 6 characters.')),
+                                  );
+                                  return;
+                                }
+
+                                final data = ParentSignupData(
+                                  name: name,
+                                  email: email,
+                                  phone: phone,
+                                  address: address,
+                                  password: password,
+                                );
                                 Navigator.push(
                                   context,
-                                  fadeRoute(const ParentSignupStudentScreen()),
+                                  fadeRoute(ParentSignupStudentScreen(parentData: data)),
                                 );
                               },
                               child: Container(
@@ -248,6 +306,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
     required double widthRatio,
     required String label,
     required String hintText,
+    TextEditingController? controller,
     bool isPassword = false,
     bool obscureText = false,
     VoidCallback? onToggleVisibility,
@@ -297,6 +356,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
               ),
             ),
             child: TextField(
+              controller: controller,
               obscureText: obscureText,
               keyboardType: keyboardType,
               style: const TextStyle(color: Colors.white, fontSize: 16),
