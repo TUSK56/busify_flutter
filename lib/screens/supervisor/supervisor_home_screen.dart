@@ -1,3 +1,7 @@
+import 'package:application/constants/app_colors.dart';
+import 'package:application/constants/app_images.dart';
+import 'package:application/helpers/fade_route.dart';
+import 'package:application/screens/supervisor/supervisor_trip_screen.dart';
 import 'package:flutter/material.dart';
 
 class SupervisorHomeScreen extends StatelessWidget {
@@ -5,161 +9,164 @@ class SupervisorHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final screenHeight = size.height;
+    double effectiveWidth = size.width;
+    if (effectiveWidth > 450) effectiveWidth = 450;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: Stack(
-        children: [
-          // --- TOP BLUE FRAME ---
-          Positioned(
-            left: -19,
-            top: -13,
-            child: Container(
-              width: 422,
-              height: 262,
-              decoration: BoxDecoration(
-                color: const Color(0xF7214071), // 214071 with 97% opacity
-                borderRadius: BorderRadius.circular(40),
-              ),
-            ),
-          ),
-
-          // --- LOGO (2.png) ---
-          Positioned(
-            left: 61,
-            top: 62,
-            child: Image.asset(
-              'assets/2.png',
-              width: 104,
-              height: 44,
-              errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.bus_alert, color: Colors.white, size: 40),
-            ),
-          ),
-
-          // --- WELCOME TEXT ---
-          const Positioned(
-            left: 48,
-            top: 150,
-            child: Text(
-              'Welcome, Supervisor',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ),
-
-          // --- PROFILE IMAGE (13.png) ---
-          Positioned(
-            left: 312,
-            top: 135,
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(5),
-                image: const DecorationImage(
-                  image: AssetImage('assets/13.png'),
-                  fit: BoxFit.cover,
-                ),
-                color: Colors.grey[300],
-              ),
-            ),
-          ),
-
-          // --- MAIN CONTENT AREA (GRAY FRAME) ---
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 221,
-            bottom: 0,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(40),
-                  topRight: Radius.circular(40),
-                ),
-              ),
-              child: Stack(
-                children: [
-                  // --- STUDENTS STATUS CARD ---
-                  Positioned(
-                    left: 24,
-                    top: 58,
-                    child: Container(
-                      width: 342, // Adjusted to fit screen width
-                      height: 188,
-                      decoration: BoxDecoration(
-                        color: const Color(0x7DD9D9D9), // d9d9d9 with 49% opacity
-                        borderRadius: BorderRadius.circular(29),
-                      ),
-                      child: const _StatusCardContent(),
-                    ),
+      backgroundColor: AppColors.lightGray,
+      body: SafeArea(
+        child: Center(
+          child: SizedBox(
+            width: effectiveWidth,
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                  constraints: BoxConstraints(
+                    minHeight: 200,
+                    maxHeight: screenHeight * 0.32,
                   ),
-
-                  // --- START TRIP BUTTON ---
-                  Positioned(
-                    left: 50, // Center alignment adjustment
-                    right: 50,
-                    top: 332,
-                    child: SizedBox(
-                      width: 291,
-                      height: 62,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // TODO: Edit your onTap logic here
-                          print("Trip Started!");
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xF7214071), // Fill color
-                          foregroundColor: Colors.white, // Text color
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: const BorderSide(color: Colors.transparent),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue,
+                    borderRadius: BorderRadius.circular(40),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Image.asset(
+                            AppImages.logo,
+                            width: 104,
+                            height: 44,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.bus_alert, color: Colors.white, size: 40),
                           ),
-                        ),
-                        child: const Text(
-                          'Start Trip',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
+                          const Spacer(),
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(5),
+                              image: const DecorationImage(
+                                image: AssetImage(AppImages.supervisorAvatar),
+                                fit: BoxFit.cover,
+                              ),
+                              color: Colors.grey[300],
+                            ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Welcome, Supervisor',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.white,
                         ),
                       ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Main content + fixed bottom nav
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: AppColors.lightGray,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(40),
+                        topRight: Radius.circular(40),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  constraints: const BoxConstraints(maxWidth: 342),
+                                  height: 188,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.49),
+                                    borderRadius: BorderRadius.circular(29),
+                                  ),
+                                  child: const _StatusCardContent(),
+                                ),
+                                const SizedBox(height: 24),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 62,
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        fadeRoute(const SupervisorTripScreen()),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primaryBlue,
+                                      foregroundColor: AppColors.white,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        side: const BorderSide(color: Colors.transparent),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Start Trip',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                          child: Container(
+                            height: 84,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE6E9ED),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildNavItem(Icons.home, 'Home', AppColors.linkBlue, true),
+                                _buildNavItem(Icons.fact_check_outlined, 'Attendance', AppColors.grayText, false),
+                                _buildNavItem(Icons.person_outline, 'Profile', AppColors.grayText, false),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-
-          // --- BOTTOM NAVIGATION BAR ---
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 20,
-            child: Container(
-              height: 84,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE6E9ED),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(Icons.home, 'Home', const Color(0xFF2859C5), true),
-                  _buildNavItem(Icons.fact_check_outlined, 'Attendance', const Color(0xFF595959), false),
-                  _buildNavItem(Icons.person_outline, 'Profile', const Color(0xFF595959), false),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -168,7 +175,11 @@ class SupervisorHomeScreen extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: isActive ? const Color(0xFF2859C5) : const Color(0xFF333333), size: 28),
+        Icon(
+          icon,
+          color: isActive ? AppColors.linkBlue : const Color(0xFF333333),
+          size: 28,
+        ),
         Text(
           label,
           style: TextStyle(
