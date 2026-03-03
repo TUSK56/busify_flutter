@@ -1,261 +1,255 @@
-import 'dart:ui';
-import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/helpers/fade_route.dart';
+import 'package:application/screens/supervisor/supervisor_trip_screen.dart';
+import 'package:flutter/material.dart';
 
-class SupervisorHomeScreen extends StatefulWidget {
+class SupervisorHomeScreen extends StatelessWidget {
   const SupervisorHomeScreen({super.key});
 
   @override
-  State<SupervisorHomeScreen> createState() => _SupervisorHomeScreenState();
-}
-
-class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
-  @override
   Widget build(BuildContext context) {
-    // 1. Get screen dimensions
-    final Size size = MediaQuery.of(context).size;
-    final double screenHeight = size.height;
-    final double screenWidth = size.width;
-
-    // 2. Responsive Scaling Logic
-    // Cap the width for tablets so content doesn't stretch too far
-    double effectiveWidth = screenWidth > 600 ? 600.0 : screenWidth;
-
-    // Explicitly treat as double to avoid 'int' subtype errors
-    final double widthRatio = effectiveWidth / 390.0;
-
-    // Fixed Scaling helper: Input and Output are strictly double
-    double sp(double fontSize) {
-      return fontSize * widthRatio;
-    }
+    final size = MediaQuery.of(context).size;
+    final screenHeight = size.height;
+    double effectiveWidth = size.width;
+    if (effectiveWidth > 450) effectiveWidth = 450;
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage(AppImages.background),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- TOP HEADER ---
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 24.0 * widthRatio,
-                  vertical: 15.0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Image.asset(
-                      AppImages.logo,
-                      width: 90.0 * widthRatio,
-                      fit: BoxFit.contain,
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.0),
-                      ),
-                      child: CircleAvatar(
-                        radius: 20.0 * widthRatio,
-                        backgroundColor: Colors.white24,
-                        child: Icon(Icons.person, color: Colors.white, size: 20.0 * widthRatio),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // --- WELCOME MESSAGE ---
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.0 * widthRatio),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome back,',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w400,
-                        fontSize: sp(18.0), // Explicit double
-                        color: Colors.white.withOpacity(0.8),
-                      ),
-                    ),
-                    Text(
-                      'Supervisor',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.bold,
-                        fontSize: sp(28.0), // Explicit double
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: screenHeight * 0.03),
-
-              // --- MAIN DASHBOARD (Glassmorphism) ---
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(35.0),
-                    topRight: Radius.circular(35.0),
+      backgroundColor: AppColors.lightGray,
+      body: SafeArea(
+        child: Center(
+          child: SizedBox(
+            width: effectiveWidth,
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                  constraints: BoxConstraints(
+                    minHeight: 200,
+                    maxHeight: screenHeight * 0.32,
                   ),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(35.0),
-                          topRight: Radius.circular(35.0),
-                        ),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1.0,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue,
+                    borderRadius: BorderRadius.circular(40),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Image.asset(
+                            AppImages.logo,
+                            width: 104,
+                            height: 44,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.bus_alert, color: Colors.white, size: 40),
+                          ),
+                          const Spacer(),
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(5),
+                              image: const DecorationImage(
+                                image: AssetImage(AppImages.supervisorAvatar),
+                                fit: BoxFit.cover,
+                              ),
+                              color: Colors.grey[300],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Welcome, Supervisor',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.white,
                         ),
                       ),
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: EdgeInsets.all(24.0 * widthRatio),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Quick Actions',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: sp(20.0),
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
 
-                            // --- ACTION GRID ---
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                const SizedBox(height: 12),
+
+                // Main content + fixed bottom nav
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: AppColors.lightGray,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(40),
+                        topRight: Radius.circular(40),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                            child: Column(
                               children: [
-                                Expanded(child: _buildFeatureIcon(Icons.school, "School", widthRatio, sp)),
-                                Expanded(child: _buildFeatureIcon(Icons.calendar_month, "Events", widthRatio, sp)),
-                                Expanded(child: _buildFeatureIcon(Icons.notifications, "Alerts", widthRatio, sp)),
-                                Expanded(child: _buildFeatureIcon(Icons.settings, "Setup", widthRatio, sp)),
+                                Container(
+                                  width: double.infinity,
+                                  constraints: const BoxConstraints(maxWidth: 342),
+                                  height: 188,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.49),
+                                    borderRadius: BorderRadius.circular(29),
+                                  ),
+                                  child: const _StatusCardContent(),
+                                ),
+                                const SizedBox(height: 24),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 62,
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        fadeRoute(const SupervisorTripScreen()),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primaryBlue,
+                                      foregroundColor: AppColors.white,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        side: const BorderSide(color: Colors.transparent),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Start Trip',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
-
-                            SizedBox(height: 30.0 * widthRatio),
-
-                            Text(
-                              'Linked Students',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: sp(20.0),
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-
-                            _buildStudentCard(widthRatio, sp),
-
-                            const SizedBox(height: 20),
-                          ],
+                          ),
                         ),
-                      ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                          child: Container(
+                            height: 84,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE6E9ED),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildNavItem(Icons.home, 'Home', AppColors.linkBlue, true),
+                                _buildNavItem(Icons.fact_check_outlined, 'Attendance', AppColors.grayText, false),
+                                _buildNavItem(Icons.person_outline, 'Profile', AppColors.grayText, false),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFeatureIcon(IconData icon, String label, double widthRatio, double Function(double) sp) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 60.0 * widthRatio,
-          height: 60.0 * widthRatio,
-          decoration: BoxDecoration(
-            color: AppColors.primaryBlue.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(15.0),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
-          ),
-          child: Icon(icon, color: Colors.white, size: 24.0 * widthRatio),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: sp(12.0),
-            fontFamily: 'Inter',
-          ),
-        )
-      ],
-    );
-  }
-
-  Widget _buildStudentCard(double widthRatio, double Function(double) sp) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(16.0 * widthRatio),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 22.0 * widthRatio,
-            backgroundColor: AppColors.primaryBlue,
-            child: Icon(Icons.person_outline, color: Colors.white, size: 22.0 * widthRatio),
-          ),
-          SizedBox(width: 12.0 * widthRatio),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'John Mason',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: sp(16.0),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Grade 4 - International School',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: sp(13.0),
                   ),
                 ),
               ],
             ),
           ),
-          Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 14.0 * widthRatio),
-        ],
+        ),
       ),
     );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, Color color, bool isActive) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          color: isActive ? AppColors.linkBlue : const Color(0xFF333333),
+          size: 28,
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 12,
+            color: color,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Sub-widget for the Status Card inner elements
+class _StatusCardContent extends StatelessWidget {
+  const _StatusCardContent();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        const Positioned(
+          left: 20,
+          top: 15,
+          child: Text('Students Status', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+        ),
+        const Positioned(
+          right: 20,
+          top: 15,
+          child: Text('Bus #7', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+        ),
+        // Divider line
+        Positioned(
+          left: 20,
+          right: 20,
+          top: 50,
+          child: Container(height: 1, color: Colors.black.withOpacity(0.2)),
+        ),
+        // Statistics Row
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 80,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildStat('25', 'Assigned'),
+              _buildVerticalDivider(),
+              _buildStat('0', 'Boarded'),
+              _buildVerticalDivider(),
+              _buildStat('25', 'Not Yet'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStat(String value, String label) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
+
+  Widget _buildVerticalDivider() {
+    return Container(width: 1, height: 60, color: Colors.black.withOpacity(0.2));
   }
 }

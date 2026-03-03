@@ -9,4 +9,9 @@ class AppImages {
   static const String onboardingParentTrack = 'assets/images/5.png';
   static const String lockIcon = 'assets/images/6.png';
   static const String successIcon = 'assets/images/7.png';
+
+  // Supervisor-specific assets
+  static const String supervisorProfile = 'assets/images/11.png';
+  static const String supervisorMap = 'assets/images/12.png';
+  static const String supervisorAvatar = 'assets/images/13.png';
 }
