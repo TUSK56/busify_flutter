@@ -3,5 +3,5 @@
 class ApiConfig {
   ApiConfig._();
 
-  static const String baseUrl = 'http://10.30.100.104:5000';
+  static const String baseUrl = 'https://busifyy.runasp.net';
 }
