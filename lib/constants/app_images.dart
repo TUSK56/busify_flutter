@@ -10,8 +10,10 @@ class AppImages {
   static const String lockIcon = 'assets/images/6.png';
   static const String successIcon = 'assets/images/7.png';
 
-  // Supervisor-specific assets
   static const String supervisorProfile = 'assets/images/11.png';
   static const String supervisorMap = 'assets/images/12.png';
   static const String supervisorAvatar = 'assets/images/13.png';
+  static const String image14 = 'assets/images/14.png';
+  static const String image15 = 'assets/images/15.png';
+  static const String successCheck = 'assets/images/16.png';
 }

@@ -153,7 +153,15 @@ class SupervisorHomeScreen extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
                                 _buildNavItem(Icons.home, 'Home', AppColors.linkBlue, true),
-                                _buildNavItem(Icons.fact_check_outlined, 'Attendance', AppColors.grayText, false),
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => const SupervisorTripScreen()),
+                                    );
+                                  },
+                                  child: _buildNavItem(Icons.fact_check_outlined, 'Attendance', AppColors.grayText, false),
+                                ),
                                 _buildNavItem(Icons.person_outline, 'Profile', AppColors.grayText, false),
                               ],
                             ),
