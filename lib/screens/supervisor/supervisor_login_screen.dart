@@ -300,12 +300,8 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                 width: 291 * widthRatio,
                                 height: 62,
                                 decoration: BoxDecoration(
-                                  color: AppColors.primaryBlue, // 214071 100%
+                                  gradient: AppColors.primaryButtonGradient,
                                   borderRadius: BorderRadius.circular(15),
-                                  border: Border.all(
-                                    color: AppColors.primaryBlue, // Match border to fill
-                                    width: 1,
-                                  ),
                                 ),
                                 alignment: Alignment.center,
                                 child: _isLoading
@@ -321,9 +317,9 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                   'Log In',
                                   style: TextStyle(
                                     fontFamily: 'Inter',
-                                    fontWeight: FontWeight.bold, // Bold 24
+                                    fontWeight: FontWeight.bold,
                                     fontSize: 24,
-                                    color: AppColors.white, // ffffff 100%
+                                    color: AppColors.white,
                                   ),
                                 ),
                               ),

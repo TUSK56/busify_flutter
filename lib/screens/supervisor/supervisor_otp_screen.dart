@@ -200,11 +200,11 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                       height: 45,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: AppColors.primaryBlue, // 214071 100%
+                        gradient: AppColors.primaryButtonGradient,
                         borderRadius: BorderRadius.circular(15),
                       ),
                       child: const Text(
-                        'Verify OTP', // The prompt mentioned a button to click here
+                        'Reset Password',
                         style: TextStyle(
                           fontFamily: 'Inter',
                           fontWeight: FontWeight.w600, // SemiBold

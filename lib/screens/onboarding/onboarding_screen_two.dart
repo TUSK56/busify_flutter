@@ -164,37 +164,35 @@ class OnboardingScreenTwo extends StatelessWidget {
                   // Spacing between Card and Next Button
                   SizedBox(height: screenHeight * 0.055), // ~48px
 
-                  // "Next" Button
+                  // "Next" Button (README: gradient 214071 right, 3f79d7 left)
                   SizedBox(
                     width: effectiveWidth * 0.74 > 291 ? 291 : effectiveWidth * 0.74,
                     height: 62,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue, // Fill
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          side: const BorderSide(
-                            color: AppColors.primaryBlue, // Stroke
-                            width: 1,
-                          ),
-                        ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryButtonGradient,
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          fadeRoute(const OnboardingScreenThree()),
-                        );
-                      },
-                      child: const Text(
-                        'Next',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.bold, // Bold
-                          fontSize: 32,
-                          height: 22 / 32,
-                          letterSpacing: 0,
-                          color: AppColors.white,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.push(context, fadeRoute(const OnboardingScreenThree()));
+                          },
+                          borderRadius: BorderRadius.circular(15),
+                          child: const Center(
+                            child: Text(
+                              'Next',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 32,
+                                height: 22 / 32,
+                                letterSpacing: 0,
+                                color: AppColors.white,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),

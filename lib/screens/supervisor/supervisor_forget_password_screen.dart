@@ -257,16 +257,16 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
                                       height: 62,
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(
-                                        color: AppColors.primaryBlue, // 214071 100%
+                                        gradient: AppColors.primaryButtonGradient,
                                         borderRadius: BorderRadius.circular(15),
                                       ),
                                       child: const Text(
                                         'Get OTP',
                                         style: TextStyle(
                                           fontFamily: 'Inter',
-                                          fontWeight: FontWeight.w600, // SemiBold 24
+                                          fontWeight: FontWeight.w600,
                                           fontSize: 24,
-                                          color: AppColors.white, // ffffff 100%
+                                          color: AppColors.white,
                                         ),
                                       ),
                                     ),

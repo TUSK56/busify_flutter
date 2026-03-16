@@ -257,7 +257,7 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                                       height: 62,
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(
-                                        color: AppColors.primaryBlue, // 214071 100%
+                                        gradient: AppColors.primaryButtonGradient,
                                         borderRadius: BorderRadius.circular(15),
                                       ),
                                       child: const Text(

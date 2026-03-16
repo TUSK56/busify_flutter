@@ -300,12 +300,8 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                                 width: 291 * widthRatio,
                                 height: 62,
                                 decoration: BoxDecoration(
-                                  color: AppColors.primaryBlue, // 214071 100%
+                                  gradient: AppColors.primaryButtonGradient,
                                   borderRadius: BorderRadius.circular(15),
-                                  border: Border.all(
-                                    color: AppColors.primaryBlue, // Match border to fill
-                                    width: 1,
-                                  ),
                                 ),
                                 alignment: Alignment.center,
                                 child: _isLoading

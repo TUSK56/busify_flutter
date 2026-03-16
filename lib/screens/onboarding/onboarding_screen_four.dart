@@ -137,39 +137,34 @@ class OnboardingScreenFour extends StatelessWidget {
                   // Spacing between Card and Action Button
                   SizedBox(height: screenHeight * 0.055),
 
-                  // "Get started" Button
+                  // "Get Started" Button (README: gradient)
                   SizedBox(
                     width: effectiveWidth * 0.74 > 291 ? 291 : effectiveWidth * 0.74,
                     height: 62,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          side: const BorderSide(
-                            color: AppColors.primaryBlue,
-                            width: 1,
-                          ),
-                        ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryButtonGradient,
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          fadeRoute(const RoleSelectionScreen()),
-                        );
-                      },
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: const Text(
-                          'Get started',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.bold, // Bold
-                            fontSize: 32,
-                            height: 22 / 32,
-                            letterSpacing: 0,
-                            color: AppColors.white,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.push(context, fadeRoute(const RoleSelectionScreen()));
+                          },
+                          borderRadius: BorderRadius.circular(15),
+                          child: const Center(
+                            child: Text(
+                              'Get Started',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 32,
+                                height: 22 / 32,
+                                letterSpacing: 0,
+                                color: AppColors.white,
+                              ),
+                            ),
                           ),
                         ),
                       ),

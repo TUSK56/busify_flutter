@@ -270,7 +270,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                                 height: 62,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: AppColors.primaryBlue, // 214071 100%
+                                  gradient: AppColors.primaryButtonGradient,
                                   borderRadius: BorderRadius.circular(15),
                                 ),
                                 child: const Text(
@@ -325,7 +325,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
               height: 24, // Fixed height from Figma
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue, // 214071 100%
+                color: AppColors.primaryBlue,
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Text(

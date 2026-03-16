@@ -36,7 +36,11 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                       ),
                     ),
                     child: Center(
-                      child: Image.asset(AppImages.logo, width: 104, height: 44),
+                      child: Image.asset(
+                        AppImages.logo,
+                        height: 80,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
 
@@ -76,7 +80,11 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                   // Student Name
                   const Text(
                     'Judy Ahmed',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: Colors.black),
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
                   ),
 
                   const SizedBox(height: 20),
@@ -87,43 +95,67 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('• Trip Details :', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                        const Text(
+                          '• Trip Details :',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         const SizedBox(height: 10),
                         _detailRow("Scan Time :", "7:30 AM", Colors.black),
                         _detailRow("Trip Type :", "Morning Trip", Colors.black),
                         _detailRow("Bus :", "#7", Colors.black),
                         const SizedBox(height: 15),
-                        _detailRow("• Boarded Students :", "21", const Color(0xFF18A74A)),
-                        _detailRow("• Remaining :", "4", const Color(0xFFFFCA07)),
+                        _detailRow(
+                          "• Boarded Students :",
+                          "21",
+                          const Color(0xFF18A74A),
+                        ),
+                        _detailRow(
+                          "• Remaining :",
+                          "4",
+                          const Color(0xFFFFCA07),
+                        ),
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 40),
 
-                  // Done Button
+                  // Done Button (README: gradient)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 45),
                     child: SizedBox(
                       width: 291,
                       height: 62,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            fadeRoute(const SupervisorTripScreen()),
-                            (route) => route.isFirst,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryBlue,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: const BorderSide(color: AppColors.white),
-                          ),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: AppColors.primaryButtonGradient,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Text(
-                          'Done',
-                          style: TextStyle(fontSize: 32, fontWeight: FontWeight.w600, color: AppColors.white),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                fadeRoute(const SupervisorTripScreen()),
+                                (route) => route.isFirst,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: const Center(
+                              child: Text(
+                                'Done',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.white,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -144,8 +176,18 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: valueColor)),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: valueColor,
+            ),
+          ),
         ],
       ),
     );

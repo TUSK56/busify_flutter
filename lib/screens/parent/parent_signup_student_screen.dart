@@ -425,7 +425,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                 height: 62,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: AppColors.primaryBlue,
+                                  gradient: AppColors.primaryButtonGradient,
                                   borderRadius: BorderRadius.circular(15),
                                 ),
                                 child: _isLoading

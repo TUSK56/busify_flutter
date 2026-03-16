@@ -1,4 +1,4 @@
-import 'package:application/screens/onboarding/get_started_screen.dart';
+import 'package:application/screens/onboarding/launch_splash_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
@@ -21,7 +21,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Inter',
         scaffoldBackgroundColor: AppColors.scaffoldBackground,
       ),
-      home: const GetStartedScreen(),
+      home: const LaunchSplashScreen(),
     );
   }
 }

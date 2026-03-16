@@ -253,8 +253,8 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
                                   height: 62,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color: AppColors.primaryBlue, // 214071 100%
-                                    borderRadius: BorderRadius.circular(10), // Radius 10
+                                    gradient: AppColors.primaryButtonGradient,
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: _isLoading
                                       ? const SizedBox(
