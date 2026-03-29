@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_trip_screen.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +17,7 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
     double effectiveWidth = size.width > 450 ? 450 : size.width;
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
         child: Center(
           child: SizedBox(
@@ -78,12 +79,12 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                   const SizedBox(height: 10),
 
                   // Student Name
-                  const Text(
+                  Text(
                     'Judy Ahmed',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black,
+                      color: context.appPrimaryText,
                     ),
                   ),
 
@@ -95,24 +96,42 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           '• Trip Details :',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w600,
+                            color: context.appPrimaryText,
                           ),
                         ),
                         const SizedBox(height: 10),
-                        _detailRow("Scan Time :", "7:30 AM", Colors.black),
-                        _detailRow("Trip Type :", "Morning Trip", Colors.black),
-                        _detailRow("Bus :", "#7", Colors.black),
+                        _detailRow(
+                          context,
+                          "Scan Time :",
+                          "7:30 AM",
+                          context.appPrimaryText,
+                        ),
+                        _detailRow(
+                          context,
+                          "Trip Type :",
+                          "Morning Trip",
+                          context.appPrimaryText,
+                        ),
+                        _detailRow(
+                          context,
+                          "Bus :",
+                          "#7",
+                          context.appPrimaryText,
+                        ),
                         const SizedBox(height: 15),
                         _detailRow(
+                          context,
                           "• Boarded Students :",
                           "21",
                           const Color(0xFF18A74A),
                         ),
                         _detailRow(
+                          context,
                           "• Remaining :",
                           "4",
                           const Color(0xFFFFCA07),
@@ -170,7 +189,12 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
     );
   }
 
-  Widget _detailRow(String title, String value, Color valueColor) {
+  Widget _detailRow(
+    BuildContext context,
+    String title,
+    String value,
+    Color valueColor,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -178,7 +202,11 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: context.appPrimaryText,
+            ),
           ),
           Text(
             value,

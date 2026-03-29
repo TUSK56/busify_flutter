@@ -121,6 +121,54 @@ class ParentService {
       throw ParentServiceException(message, statusCode: response.statusCode);
     }
   }
+
+  Map<String, String> _authHeaders() {
+    final token = _tokenStorage.getToken();
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return headers;
+  }
+
+  /// GET /v1/parent/child
+  Future<Map<String, dynamic>> getChildOverview() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/child');
+    final response = await http.get(uri, headers: _authHeaders());
+    if (response.statusCode != 200) {
+      throw ParentServiceException(
+        'Failed to load child data (${response.statusCode})',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// GET /v1/parent/current-trip
+  Future<Map<String, dynamic>> getCurrentTrip() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/current-trip');
+    final response = await http.get(uri, headers: _authHeaders());
+    if (response.statusCode != 200) {
+      throw ParentServiceException(
+        'Failed to load current trip (${response.statusCode})',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// GET /v1/parent/live-location?tripId=...
+  Future<Map<String, dynamic>> getLiveLocation(int tripId) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/live-location?tripId=$tripId');
+    final response = await http.get(uri, headers: _authHeaders());
+    if (response.statusCode != 200) {
+      throw ParentServiceException(
+        'Failed to load live location (${response.statusCode})',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
 }
 
 class ParentServiceException implements Exception {

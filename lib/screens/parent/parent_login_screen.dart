@@ -1,11 +1,11 @@
 import 'dart:ui';
-import 'package:application/helpers/fade_route.dart';
-import 'package:application/screens/parent/parent_home_screen.dart';
+import 'package:application/routes/fade_route.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'parent_forget_password_screen.dart';
+import 'parent_home_screen.dart';
 import 'parent_signup_info_screen.dart';
 
 // Login page for Parent with email/password, forget password, and bottom text

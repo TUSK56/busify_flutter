@@ -4,7 +4,7 @@ import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'parent_success_screen.dart';
+import 'parent_login_screen.dart';
 
 class ParentResetPasswordScreen extends StatefulWidget {
   final String email;
@@ -235,9 +235,10 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
                                       newPassword: password,
                                     );
                                     if (!mounted) return;
-                                    Navigator.push(
+                                    Navigator.pushAndRemoveUntil(
                                       context,
-                                      fadeRoute(const ParentSuccessScreen()),
+                                      fadeRoute(const ParentLoginScreen()),
+                                      (route) => false,
                                     );
                                   } catch (e) {
                                     if (!mounted) return;

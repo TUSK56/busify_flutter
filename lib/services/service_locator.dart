@@ -2,6 +2,7 @@ import 'package:application/services/auth_service.dart';
 import 'package:application/services/parent_service.dart';
 import 'package:application/services/school_service.dart';
 import 'package:application/services/supervisor_service.dart';
+import 'package:application/services/theme_controller.dart';
 import 'package:application/services/token_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,6 +13,7 @@ class ServiceLocator {
   static late SchoolService schoolService;
   static late ParentService parentService;
   static late SupervisorService supervisorService;
+  static late ThemeController themeController;
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -20,5 +22,6 @@ class ServiceLocator {
     schoolService = SchoolService();
     parentService = ParentService(tokenStorage);
     supervisorService = SupervisorService(tokenStorage);
+    themeController = ThemeController(prefs);
   }
 }

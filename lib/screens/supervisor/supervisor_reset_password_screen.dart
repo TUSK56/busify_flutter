@@ -4,7 +4,7 @@ import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'supervisor_success_screen.dart';
+import 'supervisor_login_screen.dart';
 
 class SupervisorResetPasswordScreen extends StatefulWidget {
   final String email;
@@ -235,9 +235,10 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                                       newPassword: password,
                                     );
                                     if (!mounted) return;
-                                    Navigator.push(
+                                    Navigator.pushAndRemoveUntil(
                                       context,
-                                      fadeRoute(const SupervisorSuccessScreen()),
+                                      fadeRoute(const SupervisorLoginScreen()),
+                                      (route) => false,
                                     );
                                   } catch (e) {
                                     if (!mounted) return;

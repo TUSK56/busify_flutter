@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_home_screen.dart';
 import 'package:application/screens/supervisor/supervisor_profile_screen.dart';
@@ -46,7 +47,7 @@ class _SupervisorAttendanceScreenState
     double effectiveWidth = size.width > 450 ? 450 : size.width;
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
         child: Center(
           child: SizedBox(
@@ -277,7 +278,7 @@ class _SupervisorAttendanceScreenState
                   child: Container(
                     height: 70,
                     decoration: BoxDecoration(
-                      color: AppColors.e6e9ed,
+                      color: context.appPanelBackground,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -412,17 +413,19 @@ class _SupervisorAttendanceScreenState
               ? Icon(
                   Icons.person,
                   size: 28,
-                  color: isActive ? AppColors.linkBlue : AppColors.gray333,
+                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
                 )
               : Image.asset(
                   iconPath,
                   width: 28,
                   height: 28,
-                  color: isActive ? AppColors.linkBlue : AppColors.gray333,
+                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
                   errorBuilder: (_, __, ___) => Icon(
                     label == 'Home' ? Icons.home : Icons.fact_check,
                     size: 28,
-                    color: isActive ? AppColors.linkBlue : AppColors.gray333,
+                    color: isActive
+                        ? AppColors.linkBlue
+                        : context.appInactiveNav,
                   ),
                 ),
           const SizedBox(height: 4),
@@ -432,7 +435,7 @@ class _SupervisorAttendanceScreenState
               fontFamily: 'Inter',
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: isActive ? AppColors.linkBlue : AppColors.grayText,
+              color: isActive ? AppColors.linkBlue : context.appSecondaryText,
             ),
           ),
         ],

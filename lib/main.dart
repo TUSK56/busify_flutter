@@ -1,7 +1,7 @@
+import 'package:application/helpers/app_theme.dart';
 import 'package:application/screens/onboarding/launch_splash_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
-import 'package:application/constants/app_colors.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,14 +14,19 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Busify App',
-      theme: ThemeData(
-        fontFamily: 'Inter',
-        scaffoldBackgroundColor: AppColors.scaffoldBackground,
-      ),
-      home: const LaunchSplashScreen(),
+    return AnimatedBuilder(
+      animation: ServiceLocator.themeController,
+      builder: (context, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Busify App',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: ServiceLocator.themeController.themeMode,
+          home: child,
+        );
+      },
+      child: const LaunchSplashScreen(),
     );
   }
 }

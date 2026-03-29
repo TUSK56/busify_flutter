@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show cos, sqrt, asin;
+import 'dart:math' show asin, cos, sqrt;
 
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_attendance_screen.dart';
 import 'package:application/screens/supervisor/supervisor_full_map_screen.dart';
@@ -27,17 +28,26 @@ class SupervisorTripScreen extends StatefulWidget {
   State<SupervisorTripScreen> createState() => _SupervisorTripScreenState();
 }
 
-class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
+class _SupervisorTripScreenState extends State<SupervisorTripScreen>
+    with TickerProviderStateMixin {
   // --- LOGIC VARIABLES ---
   Timer? _locationTimer;
   latlng.LatLng? _currentLocation;
-  String _eta = "Calculating...";
+  String _eta = "-- min";
   List<latlng.LatLng>? _routePoints;
   latlng.LatLng? _lastLocation;
   DateTime? _lastSampleTime;
   DateTime? _lastValidEta;
   Duration _stoppedTime = Duration.zero;
   DateTime? _lastEtaEngineUpdateTime;
+  bool _isMiniMapFollowing = true;
+  double? _smoothedSpeedKmh;
+  double? _routeDistanceKm;
+  double? _routeDurationSeconds;
+  double? _initialStraightDistanceKm;
+
+  // Realistic default school-bus cruise speed used until live speed stabilizes.
+  static const double _defaultCruiseSpeedKmh = 28.0;
 
   // Student destination (fixed point for now)
   // 30.113451, 31.607125
@@ -47,6 +57,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
   );
 
   final MapController _mapController = MapController();
+  AnimationController? _recenterController;
 
   @override
   void initState() {
@@ -57,7 +68,51 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
   @override
   void dispose() {
     _locationTimer?.cancel(); // Stop tracking when leaving screen
+    _recenterController?.dispose();
+    _recenterController = null;
     super.dispose();
+  }
+
+  void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
+    if (!mounted) return;
+    _recenterController?.stop();
+    _recenterController?.dispose();
+    _recenterController = null;
+
+    final camera = _mapController.camera;
+    final startCenter = camera.center;
+    final endZoom = targetZoom ?? camera.zoom;
+
+    final latTween = Tween<double>(
+      begin: startCenter.latitude,
+      end: target.latitude,
+    );
+    final lngTween = Tween<double>(
+      begin: startCenter.longitude,
+      end: target.longitude,
+    );
+    final zoomTween = Tween<double>(begin: camera.zoom, end: endZoom);
+
+    _recenterController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+
+    final curved = CurvedAnimation(
+      parent: _recenterController!,
+      curve: Curves.easeOutCubic,
+    );
+
+    _recenterController!.addListener(() {
+      if (!mounted) return;
+      final t = curved.value;
+      _mapController.move(
+        latlng.LatLng(latTween.transform(t), lngTween.transform(t)),
+        zoomTween.transform(t),
+      );
+    });
+
+    _recenterController!.forward();
   }
 
   /// 1. Initialize Tracking & Permissions
@@ -72,7 +127,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
           _eta = 'Location services off';
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enable location services to track the trip.')),
+          const SnackBar(
+            content: Text('Please enable location services to track the trip.'),
+          ),
         );
       }
       return;
@@ -87,7 +144,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
             _eta = 'Location permission denied';
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location permission is required to track the trip.')),
+            const SnackBar(
+              content: Text(
+                'Location permission is required to track the trip.',
+              ),
+            ),
           );
         }
         return;
@@ -99,7 +160,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
           _eta = 'Location permanently denied';
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Location permission permanently denied. Enable it from Settings.')),
+          const SnackBar(
+            content: Text(
+              'Location permission permanently denied. Enable it from Settings.',
+            ),
+          ),
         );
       }
       return;
@@ -112,13 +177,21 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
           desiredAccuracy: LocationAccuracy.high,
         );
 
-        final nextLocation =
-            latlng.LatLng(position.latitude, position.longitude);
+        final nextLocation = latlng.LatLng(
+          position.latitude,
+          position.longitude,
+        );
         final now = DateTime.now();
 
-        // Compute speed between last sample and this one (km/h)
-        double speedKmh = 0;
-        if (_lastLocation != null && _lastSampleTime != null) {
+        // Live speed (km/h): sensor first, then coordinate delta fallback.
+        double liveSpeedKmh = 0;
+        if (position.speed.isFinite && position.speed > 0.5) {
+          liveSpeedKmh = position.speed * 3.6;
+        }
+
+        if (_lastLocation != null &&
+            _lastSampleTime != null &&
+            liveSpeedKmh <= 0) {
           final dtSeconds =
               now.difference(_lastSampleTime!).inMilliseconds / 1000.0;
           if (dtSeconds > 0) {
@@ -128,9 +201,19 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
               nextLocation.latitude,
               nextLocation.longitude,
             );
-            speedKmh = (deltaKm / dtSeconds) * 3600.0;
+            liveSpeedKmh = (deltaKm / dtSeconds) * 3600.0;
           }
         }
+
+        liveSpeedKmh = liveSpeedKmh.clamp(0, 90);
+        if (_smoothedSpeedKmh == null) {
+          _smoothedSpeedKmh = liveSpeedKmh;
+        } else {
+          const alpha = 0.35;
+          _smoothedSpeedKmh =
+              (alpha * liveSpeedKmh) + ((1 - alpha) * _smoothedSpeedKmh!);
+        }
+
         _lastLocation = nextLocation;
         _lastSampleTime = now;
 
@@ -142,7 +225,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
           _studentDestination.longitude,
         );
 
-        final nextEta = _updateEtaEngine(now, remainingKm, speedKmh);
+        final nextEta = _updateRoadBasedEtaEngine(
+          now,
+          remainingKm,
+          _smoothedSpeedKmh ?? 0,
+        );
 
         if (mounted) {
           setState(() {
@@ -160,13 +247,32 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
         await _recordToDatabase(position.latitude, position.longitude);
 
         // 4. Move map camera to follow Supervisor
-        if (_currentLocation != null) {
+        if (_isMiniMapFollowing && _currentLocation != null) {
           _mapController.move(_currentLocation!, _mapController.camera.zoom);
         }
       } catch (e) {
         debugPrint('Error during location tracking loop: $e');
       }
     });
+  }
+
+  Widget _buildLiveLocationDot() {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF2D7CFF),
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.22),
+            offset: const Offset(0, 1),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+    );
   }
 
   /// Send location to backend so it can be stored in DB.
@@ -196,60 +302,89 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
     }
   }
 
-  /// ETA engine implementing the rules:
-  /// - If speed > 2 km/h: fresh ETA from distance / speed, reset stopped time.
-  /// - If speed ≤ 2 km/h: freeze last valid ETA and add stopped time.
-  String _updateEtaEngine(
+  /// ETA engine (Option 1 + Option 2):
+  /// - Use OSRM road duration/distance as the base ETA model.
+  /// - Scale remaining duration by current remaining distance ratio.
+  /// - When moving, correct ETA based on live speed vs route average speed.
+  /// - Fallback to average cruise speed if road metadata is not ready.
+  String _updateRoadBasedEtaEngine(
     DateTime now,
     double remainingDistanceKm,
-    double speedKmh,
+    double liveSpeedKmh,
   ) {
-    const double speedThreshold = 2.0; // km/h
+    const double movingThreshold = 2.0;
 
-    // Delta since last ETA engine update (for stopped time accumulation)
     Duration delta = Duration.zero;
     if (_lastEtaEngineUpdateTime != null) {
       delta = now.difference(_lastEtaEngineUpdateTime!);
     }
     _lastEtaEngineUpdateTime = now;
 
-    if (speedKmh > speedThreshold) {
-      // MOVING
-      _stoppedTime = Duration.zero;
-
-      if (speedKmh <= 0) {
-        // Safety: no division by zero; fall back to last ETA or Calculating
-        if (_lastValidEta != null) {
-          return _formatEta(_lastValidEta!);
-        }
-        return "Calculating...";
-      }
-
-      final travelHours = remainingDistanceKm / speedKmh;
-      final travelSeconds = (travelHours * 3600).clamp(0, double.infinity);
-      final eta = now.add(
-        Duration(seconds: travelSeconds.isFinite ? travelSeconds.round() : 0),
+    if (_routeDurationSeconds != null &&
+        _initialStraightDistanceKm != null &&
+        _initialStraightDistanceKm! > 0) {
+      final ratio = (remainingDistanceKm / _initialStraightDistanceKm!).clamp(
+        0.0,
+        1.5,
+      );
+      double remainingRoadSeconds = (_routeDurationSeconds! * ratio).clamp(
+        0.0,
+        double.infinity,
       );
 
-      _lastValidEta = eta;
-      return _formatEta(eta);
-    } else {
-      // STOPPED
-      if (_lastValidEta == null) {
-        // No valid ETA yet; still calculating
-        return "Calculating...";
+      if (liveSpeedKmh > movingThreshold) {
+        _stoppedTime = Duration.zero;
+
+        // Correct base ETA by comparing route-average speed to current live speed.
+        if (_routeDistanceKm != null &&
+            _routeDurationSeconds != null &&
+            _routeDurationSeconds! > 0) {
+          final routeAvgSpeedKmh =
+              _routeDistanceKm! / (_routeDurationSeconds! / 3600.0);
+          if (routeAvgSpeedKmh.isFinite && routeAvgSpeedKmh > 0) {
+            final speedFactor = (routeAvgSpeedKmh / liveSpeedKmh).clamp(
+              0.55,
+              1.9,
+            );
+            final corrected = remainingRoadSeconds * speedFactor;
+            // Blend to reduce jitter while still reacting to speed changes.
+            remainingRoadSeconds =
+                (0.6 * remainingRoadSeconds) + (0.4 * corrected);
+          }
+        }
+      } else if (_lastValidEta != null) {
+        // Vehicle nearly stopped: keep ETA moving forward with stopped time.
+        _stoppedTime += delta;
+        final pausedEta = _lastValidEta!.add(_stoppedTime);
+        return _formatEta(pausedEta);
       }
 
-      _stoppedTime += delta;
-      final eta = _lastValidEta!.add(_stoppedTime);
+      final eta = now.add(
+        Duration(
+          seconds: remainingRoadSeconds.isFinite
+              ? remainingRoadSeconds.round()
+              : 0,
+        ),
+      );
+      _lastValidEta = eta;
       return _formatEta(eta);
     }
+
+    final fallbackHours = remainingDistanceKm / _defaultCruiseSpeedKmh;
+    final fallbackSeconds = (fallbackHours * 3600).clamp(0, double.infinity);
+    final fallbackEta = now.add(
+      Duration(seconds: fallbackSeconds.isFinite ? fallbackSeconds.round() : 0),
+    );
+    _lastValidEta = fallbackEta;
+    return _formatEta(fallbackEta);
   }
 
   String _formatEta(DateTime eta) {
-    final hh = eta.hour.toString().padLeft(2, '0');
-    final mm = eta.minute.toString().padLeft(2, '0');
-    return "$hh:$mm";
+    final seconds = eta.difference(DateTime.now()).inSeconds;
+    if (seconds <= 0) return "0 min";
+
+    final minutes = (seconds / 60).ceil();
+    return minutes == 1 ? "1 min" : "$minutes mins";
   }
 
   double _coordinateDistance(
@@ -332,9 +467,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('End trip error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('End trip error: $e')));
     }
   }
 
@@ -356,8 +491,24 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final routes = data['routes'] as List<dynamic>?;
       if (routes == null || routes.isEmpty) return;
-      final geometry =
-          (routes.first as Map<String, dynamic>)['geometry'] as Map<String, dynamic>?;
+      final firstRoute = routes.first as Map<String, dynamic>;
+
+      final distanceMeters = firstRoute['distance'];
+      final durationSeconds = firstRoute['duration'];
+      if (distanceMeters is num) {
+        _routeDistanceKm = distanceMeters.toDouble() / 1000.0;
+      }
+      if (durationSeconds is num) {
+        _routeDurationSeconds = durationSeconds.toDouble();
+      }
+      _initialStraightDistanceKm = _coordinateDistance(
+        start.latitude,
+        start.longitude,
+        destination.latitude,
+        destination.longitude,
+      );
+
+      final geometry = firstRoute['geometry'] as Map<String, dynamic>?;
       if (geometry == null) return;
       final coords = geometry['coordinates'] as List<dynamic>?;
       if (coords == null) return;
@@ -387,7 +538,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
     double effectiveWidth = size.width > 450 ? 450 : size.width;
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
         child: Center(
           child: SizedBox(
@@ -603,17 +754,17 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                             vertical: 10,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.appCardBackground,
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Text(
                             _currentLocation == null
                                 ? 'Current Location: waiting for GPS...'
                                 : 'Current Location: ${_currentLocation!.latitude.toStringAsFixed(6)}, ${_currentLocation!.longitude.toStringAsFixed(6)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF333333),
+                              color: context.appPrimaryText,
                             ),
                           ),
                         ),
@@ -639,6 +790,16 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                                             initialZoom: 15,
                                             maxZoom: 18,
                                             minZoom: 3,
+                                            onMapEvent: (event) {
+                                              if (event is MapEventMove ||
+                                                  event is MapEventRotate) {
+                                                if (_isMiniMapFollowing) {
+                                                  setState(() {
+                                                    _isMiniMapFollowing = false;
+                                                  });
+                                                }
+                                              }
+                                            },
                                           ),
                                           children: [
                                             TileLayer(
@@ -648,42 +809,77 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                                               userAgentPackageName:
                                                   'com.example.application',
                                             ),
-                                      MarkerLayer(
-                                        markers: [
-                                          Marker(
-                                            point: _currentLocation!,
-                                            width: 40,
-                                            height: 40,
-                                            child: const Icon(
-                                              Icons.directions_bus_filled,
-                                              color: Colors.blueAccent,
-                                              size: 32,
+                                            MarkerLayer(
+                                              markers: [
+                                                Marker(
+                                                  point: _currentLocation!,
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      _buildLiveLocationDot(),
+                                                ),
+                                                Marker(
+                                                  point: _studentDestination,
+                                                  width: 40,
+                                                  height: 40,
+                                                  child: const Icon(
+                                                    Icons.location_pin,
+                                                    color: Colors.red,
+                                                    size: 36,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                          Marker(
-                                            point: _studentDestination,
-                                            width: 40,
-                                            height: 40,
-                                            child: const Icon(
-                                              Icons.location_pin,
-                                              color: Colors.red,
-                                              size: 36,
-                                            ),
+                                            if (_routePoints != null)
+                                              PolylineLayer(
+                                                polylines: [
+                                                  Polyline(
+                                                    points: _routePoints!,
+                                                    color:
+                                                        Colors.deepPurpleAccent,
+                                                    strokeWidth: 4,
+                                                  ),
+                                                ],
+                                              ),
+                                          ],
+                                        ),
+                                ),
+                                Positioned(
+                                  left: 12,
+                                  bottom: 12,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      if (_currentLocation == null) return;
+                                      setState(() {
+                                        _isMiniMapFollowing = true;
+                                      });
+                                      _animateMapTo(
+                                        _currentLocation!,
+                                        targetZoom: 16.0,
+                                      );
+                                    },
+                                    child: Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color:
+                                            context.appOverlayButtonBackground,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: context.appShadow,
+                                            offset: const Offset(0, 2),
+                                            blurRadius: 4,
                                           ),
                                         ],
                                       ),
-                                      if (_routePoints != null)
-                                        PolylineLayer(
-                                          polylines: [
-                                            Polyline(
-                                              points: _routePoints!,
-                                              color: Colors.deepPurpleAccent,
-                                              strokeWidth: 4,
-                                            ),
-                                          ],
-                                        ),
-                                          ],
-                                        ),
+                                      child: Icon(
+                                        Icons.my_location,
+                                        color: context.appOverlayButtonIcon,
+                                        size: 22,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                                 Positioned(
                                   right: 12,
@@ -693,7 +889,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                                     height: 30,
                                     child: DecoratedBox(
                                       decoration: BoxDecoration(
-                                        color: AppColors.e6e9ed,
+                                        color: context.appPanelBackground,
                                         borderRadius: BorderRadius.circular(25),
                                         border: Border.all(
                                           color: AppColors.primaryBlue,
@@ -706,13 +902,15 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                                           onTap: () {
                                             Navigator.push(
                                               context,
-                                              fadeRoute(const SupervisorFullMapScreen()),
+                                              fadeRoute(
+                                                const SupervisorFullMapScreen(),
+                                              ),
                                             );
                                           },
                                           borderRadius: BorderRadius.circular(
                                             25,
                                           ),
-                                          child: const Center(
+                                          child: Center(
                                             child: Text(
                                               'View Full Map',
                                               style: TextStyle(
@@ -720,7 +918,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                                                 fontSize: 15,
                                                 fontWeight: FontWeight.w500,
                                                 height: 22 / 15,
-                                                color: AppColors.primaryBlue97,
+                                                color: context.isDarkMode
+                                                    ? Colors.white
+                                                    : AppColors.primaryBlue97,
                                               ),
                                             ),
                                           ),
@@ -741,12 +941,12 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                           height: 104,
                           padding: const EdgeInsets.fromLTRB(21, 7, 21, 7),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE6E9ED),
+                            color: context.appPanelBackground,
                             borderRadius: BorderRadius.circular(15),
                           ),
                           child: Column(
                             children: [
-                              const Row(
+                              Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
@@ -755,6 +955,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w500,
                                       fontSize: 16,
+                                      color: context.appPrimaryText,
                                     ),
                                   ),
                                   Text(
@@ -762,6 +963,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 16,
+                                      color: context.appPrimaryText,
                                     ),
                                   ),
                                 ],
@@ -775,7 +977,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                                   child: Stack(
                                     children: [
                                       Container(
-                                        color: const Color(0xBCD4D4D4),
+                                        color: context.appProgressTrack,
                                       ),
                                       FractionallySizedBox(
                                         widthFactor: 20 / 25,
@@ -789,31 +991,33 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              const Row(
+                              Row(
                                 children: [
-                                  CircleAvatar(
+                                  const CircleAvatar(
                                     backgroundColor: Color(0xFF18A74A),
                                     radius: 10,
                                   ),
-                                  SizedBox(width: 8),
+                                  const SizedBox(width: 8),
                                   Text(
                                     'Boarded 20',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w500,
+                                      color: context.appPrimaryText,
                                     ),
                                   ),
-                                  SizedBox(width: 30),
-                                  CircleAvatar(
+                                  const SizedBox(width: 30),
+                                  const CircleAvatar(
                                     backgroundColor: Color(0x87FFCA07),
                                     radius: 10,
                                   ),
-                                  SizedBox(width: 8),
+                                  const SizedBox(width: 8),
                                   Text(
                                     'Remaining 5',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w500,
+                                      color: context.appPrimaryText,
                                     ),
                                   ),
                                 ],
@@ -890,7 +1094,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
       child: Container(
         height: 70,
         decoration: BoxDecoration(
-          color: AppColors.e6e9ed,
+          color: context.appPanelBackground,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -942,19 +1146,19 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
               ? Icon(
                   Icons.person,
                   size: 28,
-                  color: isActive ? AppColors.linkBlue : AppColors.gray333,
+                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
                 )
               : Image.asset(
                   iconPath,
                   width: 28,
                   height: 28,
-                  color: isActive ? AppColors.linkBlue : AppColors.gray333,
+                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
                   errorBuilder: (_, __, ___) => Icon(
-                    label == 'Home'
-                        ? Icons.home
-                        : Icons.fact_check_outlined,
+                    label == 'Home' ? Icons.home : Icons.fact_check_outlined,
                     size: 28,
-                    color: isActive ? AppColors.linkBlue : AppColors.gray333,
+                    color: isActive
+                        ? AppColors.linkBlue
+                        : context.appInactiveNav,
                   ),
                 ),
           const SizedBox(height: 4),
@@ -964,7 +1168,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen> {
               fontFamily: 'Inter',
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: isActive ? AppColors.linkBlue : AppColors.grayText,
+              color: isActive ? AppColors.linkBlue : context.appSecondaryText,
             ),
           ),
         ],

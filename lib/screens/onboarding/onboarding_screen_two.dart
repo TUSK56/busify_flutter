@@ -45,17 +45,8 @@ class OnboardingScreenTwo extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Back Vector Path
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pop(context); // Goes back to the previous screen
-                          },
-                          child: const Icon(
-                            Icons.arrow_back_ios, // Using standard iOS back arrow for the vector
-                            color: Colors.white,
-                            size: 22.5,
-                          ),
-                        ),
+                        // Back arrow hidden on first onboarding screen (nothing to go back to)
+                        const SizedBox(width: 22.5),
                         // Skip Text
                         GestureDetector(
                           onTap: () {

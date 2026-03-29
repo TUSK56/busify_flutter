@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_profile_screen.dart';
 import 'package:application/screens/supervisor/supervisor_trip_screen.dart';
@@ -13,7 +14,7 @@ import 'package:flutter/material.dart';
 class SupervisorHomeScreen extends StatelessWidget {
   const SupervisorHomeScreen({super.key});
 
-  static const int _fallbackBusId = 7;
+  static const int _fallbackBusId = 1;
 
   Map<String, String> _buildHeaders() {
     final token = ServiceLocator.tokenStorage.getToken();
@@ -183,7 +184,7 @@ class SupervisorHomeScreen extends StatelessWidget {
     if (effectiveWidth > 450) effectiveWidth = 450;
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
         child: Center(
           child: SizedBox(
@@ -256,7 +257,7 @@ class SupervisorHomeScreen extends StatelessWidget {
                                           height: 52,
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
-                                            color: Colors.grey[300],
+                                            color: context.appAvatarPlaceholder,
                                           ),
                                           child: ClipOval(
                                             child: Image.asset(
@@ -290,9 +291,7 @@ class SupervisorHomeScreen extends StatelessWidget {
                                       width: double.infinity,
                                       height: 188,
                                       decoration: BoxDecoration(
-                                        color: AppColors.d9d9d9.withOpacity(
-                                          0.49,
-                                        ),
+                                        color: context.appCardBackground,
                                         borderRadius: BorderRadius.circular(29),
                                       ),
                                       child: const _StatusCardContent(),
@@ -349,7 +348,7 @@ class SupervisorHomeScreen extends StatelessWidget {
                                 Container(
                                   height: 70,
                                   decoration: BoxDecoration(
-                                    color: AppColors.e6e9ed,
+                                    color: context.appPanelBackground,
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Row(
@@ -357,18 +356,21 @@ class SupervisorHomeScreen extends StatelessWidget {
                                         MainAxisAlignment.spaceEvenly,
                                     children: [
                                       _buildNavItem(
+                                        context: context,
                                         iconPath: AppImages.navbarHomeActive,
                                         label: 'Home',
                                         isActive: true,
                                         onTap: () {},
                                       ),
                                       _buildNavItem(
+                                        context: context,
                                         iconPath: AppImages.navbarAttendance,
                                         label: 'Attendance',
                                         isActive: false,
                                         onTap: () => _handleStartTrip(context),
                                       ),
                                       _buildNavItem(
+                                        context: context,
                                         iconPath: AppImages.navbarProfile,
                                         label: 'Profile',
                                         isActive: false,
@@ -401,6 +403,7 @@ class SupervisorHomeScreen extends StatelessWidget {
   }
 
   Widget _buildNavItem({
+    required BuildContext context,
     required String iconPath,
     required String label,
     required bool isActive,
@@ -415,19 +418,19 @@ class SupervisorHomeScreen extends StatelessWidget {
               ? Icon(
                   Icons.person,
                   size: 28,
-                  color: isActive ? AppColors.linkBlue : AppColors.gray333,
+                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
                 )
               : Image.asset(
                   iconPath,
                   width: 28,
                   height: 28,
-                  color: isActive ? AppColors.linkBlue : AppColors.gray333,
+                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
                   errorBuilder: (_, __, ___) => Icon(
-                    label == 'Home'
-                        ? Icons.home
-                        : Icons.grid_view_rounded,
+                    label == 'Home' ? Icons.home : Icons.grid_view_rounded,
                     size: 28,
-                    color: isActive ? AppColors.linkBlue : AppColors.gray333,
+                    color: isActive
+                        ? AppColors.linkBlue
+                        : context.appInactiveNav,
                   ),
                 ),
           const SizedBox(height: 4),
@@ -437,7 +440,7 @@ class SupervisorHomeScreen extends StatelessWidget {
               fontFamily: 'Inter',
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: isActive ? AppColors.linkBlue : AppColors.grayText,
+              color: isActive ? AppColors.linkBlue : context.appSecondaryText,
             ),
           ),
         ],
@@ -456,7 +459,7 @@ class _StatusCardContent extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
       child: Stack(
         children: [
-          const Positioned(
+          Positioned(
             left: 0,
             top: 0,
             child: Text(
@@ -465,11 +468,11 @@ class _StatusCardContent extends StatelessWidget {
                 fontFamily: 'Inter',
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                color: context.appPrimaryText,
               ),
             ),
           ),
-          const Positioned(
+          Positioned(
             right: 0,
             top: 0,
             child: Text(
@@ -478,7 +481,7 @@ class _StatusCardContent extends StatelessWidget {
                 fontFamily: 'Inter',
                 fontSize: 20,
                 fontWeight: FontWeight.w500,
-                color: Colors.black,
+                color: context.appPrimaryText,
               ),
             ),
           ),
@@ -487,7 +490,7 @@ class _StatusCardContent extends StatelessWidget {
             left: 0,
             right: 0,
             top: 38,
-            child: Container(height: 1, color: const Color(0x8A000000)),
+            child: Container(height: 1, color: context.appLine),
           ),
           // Statistics Row
           Positioned(
@@ -497,11 +500,11 @@ class _StatusCardContent extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildStat('25', 'Assigned'),
+                _buildStat(context, '25', 'Assigned'),
                 _buildVerticalDivider(),
-                _buildStat('0', 'Boarded'),
+                _buildStat(context, '0', 'Boarded'),
                 _buildVerticalDivider(),
-                _buildStat('25', 'Not Yet'),
+                _buildStat(context, '25', 'Not Yet'),
               ],
             ),
           ),
@@ -510,26 +513,26 @@ class _StatusCardContent extends StatelessWidget {
     );
   }
 
-  Widget _buildStat(String value, String label) {
+  Widget _buildStat(BuildContext context, String value, String label) {
     return Column(
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'Inter',
             fontSize: 24,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            color: context.appPrimaryText,
           ),
         ),
         const SizedBox(height: 10),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'Inter',
             fontSize: 20,
             fontWeight: FontWeight.w500,
-            color: Colors.black,
+            color: context.appPrimaryText,
           ),
         ),
       ],
@@ -537,7 +540,10 @@ class _StatusCardContent extends StatelessWidget {
   }
 
   Widget _buildVerticalDivider() {
-    return Container(width: 1, height: 96, color: const Color(0x8A000000));
+    return Builder(
+      builder: (context) =>
+          Container(width: 1, height: 96, color: context.appLine),
+    );
   }
 }
 
