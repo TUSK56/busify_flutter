@@ -4,7 +4,6 @@ import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
 import 'parent_forget_password_screen.dart';
 import 'parent_home_screen.dart';
 import 'parent_signup_info_screen.dart';
@@ -36,6 +35,13 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
+    // Cap the width for tablet/iPad support
+    double effectiveWidth = size.width;
+    if (effectiveWidth > 450) effectiveWidth = 450;
+
+    // Calculate dynamic scaling ratios based on standard 390 width from Figma
+    final double widthRatio = effectiveWidth / 390;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -52,12 +58,23 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
             child: SizedBox(
               width: double.infinity,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   SizedBox(height: screenHeight * 0.02),
 
                   // Top Logo (2.png)
-                  ParentBrandLogo.image(AppImages.logo),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 47 * widthRatio),
+                      child: Image.asset(
+                        AppImages.logo,
+                        width: 104 * widthRatio,
+                        height: 100 * widthRatio,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
 
                   SizedBox(height: screenHeight * 0.01),
 
@@ -65,7 +82,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 24),
+                      padding: EdgeInsets.only(left: 24 * widthRatio),
                       child: GestureDetector(
                         onTap: () {
                           Navigator.pop(context); // Go back
@@ -89,7 +106,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 40),
+                      padding: EdgeInsets.only(left: 40 * widthRatio),
                       child: Text(
                         'Login',
                         style: TextStyle(
@@ -110,13 +127,11 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                     borderRadius: BorderRadius.circular(30),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0), // Background blur
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 331),
-                        child: Container(
-                          width: double.infinity,
-                          height: 400, // Fixed height from Figma
+                      child: Container(
+                        width: 331 * widthRatio,
+                        height: 400, // Fixed height from Figma
                         padding: EdgeInsets.symmetric(
-                            horizontal: 20,
+                            horizontal: 20 * widthRatio,
                             vertical: 24
                         ),
                         decoration: BoxDecoration(
@@ -147,7 +162,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
                             // Email TextField Container
                             _buildTextFieldContainer(
-                              width: 291,
+                              width: 291 * widthRatio,
                               child: TextField(
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
@@ -188,7 +203,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
                             // Password TextField Container
                             _buildTextFieldContainer(
-                              width: 291,
+                              width: 291 * widthRatio,
                               child: TextField(
                                 controller: _passwordController,
                                 obscureText: _isObscured,
@@ -231,7 +246,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                               child: GestureDetector(
                                 onTap: () {
                                   // Navigate to Forget Password Screen
-                                Navigator.push(
+                                  Navigator.push(
                                     context,
                                     fadeRoute(const ParentForgetPasswordScreen()),
                                   );
@@ -282,7 +297,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                                 }
                               },
                               child: Container(
-                                width: 291,
+                                width: 291 * widthRatio,
                                 height: 62,
                                 decoration: BoxDecoration(
                                   gradient: AppColors.primaryButtonGradient,
@@ -291,13 +306,13 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                                 alignment: Alignment.center,
                                 child: _isLoading
                                     ? const SizedBox(
-                                        height: 24,
-                                        width: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
+                                  height: 24,
+                                  width: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
                                     : const Text(
                                   'Log In',
                                   style: TextStyle(
@@ -312,7 +327,6 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                           ],
                         ),
                       ),
-                    ),
                     ),
                   ),
 
