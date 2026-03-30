@@ -9,7 +9,7 @@ class AppColors {
   static const Color cardBackground = Color(0xFFE6E9ED);
   static const Color greenStatus = Color(0xFF156E1B);
   /// Figma “On the way” / success accent (#1BD95D)
-  static const Color greenStatusBright = Color(0xFF1BD95D);
+  static const Color greenStatusBright = Color(0xFF156E1B);
   /// Divider stroke rgba(51,51,51,0.54)
   static const Color divider = Color(0x8A333333);
   /// Track bus status card inner divider rgba(51,51,51,0.1)
@@ -41,7 +41,7 @@ class AppColors {
 
   static const Color e6e9ed = Color(0xFFE6E9ED);
   /// Track bus floating card base (#F7F9FB @ 56% opacity)
-  static const Color trackBusCardTint = Color(0x8FF7F9FB);
+  static const Color trackBusCardTint = Color(0xFFF7F9FB);
   /// Track bus card stroke (#595959 @ 57%)
   static Color get trackBusCardStroke => grayText.withValues(alpha: 0.57);
   /// Drop shadow rgba(0,0,0,0.25)

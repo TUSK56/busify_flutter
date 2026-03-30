@@ -43,15 +43,12 @@ class _SupervisorAttendanceScreenState
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    double effectiveWidth = size.width > 450 ? 450 : size.width;
-
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
         child: Center(
           child: SizedBox(
-            width: effectiveWidth,
+            width: double.infinity,
             child: Column(
               children: [
                 // Header (Figma Position x:-16 y:-14)

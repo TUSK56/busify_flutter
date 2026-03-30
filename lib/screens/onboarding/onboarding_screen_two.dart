@@ -15,10 +15,6 @@ class OnboardingScreenTwo extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -41,7 +37,7 @@ class OnboardingScreenTwo extends StatelessWidget {
 
                   // Header (Back Arrow & Skip Text)
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: effectiveWidth * 0.06), // ~24px
+                    padding: const EdgeInsets.symmetric(horizontal: 24), // ~24px
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -80,73 +76,76 @@ class OnboardingScreenTwo extends StatelessWidget {
                     borderRadius: BorderRadius.circular(30),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0), // Background blur effect
-                      child: Container(
-                        width: effectiveWidth * 0.85, // ~331 max
-                        // height scales responsively but maintains the general proportion
-                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-                        decoration: BoxDecoration(
-                          color: AppColors.white.withOpacity(0.14), // ffffff 14%
-                          borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                            color: AppColors.white.withOpacity(0.76), // ffffff 76% stroke
-                            width: 1, // inside weight 1
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 331),
+                        child: Container(
+                          width: double.infinity,
+                          // height scales responsively but maintains the general proportion
+                          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+                          decoration: BoxDecoration(
+                            color: AppColors.white.withOpacity(0.14), // ffffff 14%
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: AppColors.white.withOpacity(0.76), // ffffff 76% stroke
+                              width: 1, // inside weight 1
+                            ),
                           ),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min, // Hugs the content
-                          children: [
-                            // Image 3.png
-                            Image.asset(
-                              AppImages.onboardingBus,
-                              width: effectiveWidth * 0.74, // ~290 max
-                              height: screenHeight * 0.23, // ~196 max
-                              fit: BoxFit.contain,
-                            ),
-
-                            SizedBox(height: screenHeight * 0.03), // Spacing
-
-                            // Title Text
-                            const Text(
-                              'School Bus on the way',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontWeight: FontWeight.w600, // SemiBold
-                                fontSize: 24,
-                                height: 22 / 24,
-                                letterSpacing: 0,
-                                color: AppColors.white,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min, // Hugs the content
+                            children: [
+                              // Image 3.png
+                              Image.asset(
+                                AppImages.onboardingBus,
+                                width: 290, // ~290 max
+                                height: 196, // ~196 max
+                                fit: BoxFit.contain,
                               ),
-                            ),
 
-                            SizedBox(height: screenHeight * 0.03), // Spacing
+                              SizedBox(height: screenHeight * 0.03), // Spacing
 
-                            // Divider Line (w: 254, weight: 2)
-                            Container(
-                              width: effectiveWidth * 0.65, // ~254 max
-                              height: 2, // weight: 2
-                              color: AppColors.white.withOpacity(0.66), // ffffff 66%
-                            ),
-
-                            SizedBox(height: screenHeight * 0.025), // Spacing
-
-                            // Subtitle Text
-                            const Text(
-                              'Track the bus in real-time as it heads to school.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontWeight: FontWeight.w400, // Regular
-                                fontSize: 16,
-                                height: 22 / 16,
-                                letterSpacing: 0,
-                                color: AppColors.white,
+                              // Title Text
+                              const Text(
+                                'School Bus on the way',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontWeight: FontWeight.w600, // SemiBold
+                                  fontSize: 24,
+                                  height: 22 / 24,
+                                  letterSpacing: 0,
+                                  color: AppColors.white,
+                                ),
                               ),
-                            ),
 
-                            // Extra padding at the bottom of the card
-                            SizedBox(height: screenHeight * 0.01),
-                          ],
+                              SizedBox(height: screenHeight * 0.03), // Spacing
+
+                              // Divider Line (w: 254, weight: 2)
+                              Container(
+                                width: 254, // ~254 max
+                                height: 2, // weight: 2
+                                color: AppColors.white.withOpacity(0.66), // ffffff 66%
+                              ),
+
+                              SizedBox(height: screenHeight * 0.025), // Spacing
+
+                              // Subtitle Text
+                              const Text(
+                                'Track the bus in real-time as it heads to school.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontWeight: FontWeight.w400, // Regular
+                                  fontSize: 16,
+                                  height: 22 / 16,
+                                  letterSpacing: 0,
+                                  color: AppColors.white,
+                                ),
+                              ),
+
+                              // Extra padding at the bottom of the card
+                              SizedBox(height: screenHeight * 0.01),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -157,7 +156,7 @@ class OnboardingScreenTwo extends StatelessWidget {
 
                   // "Next" Button (README: gradient 214071 right, 3f79d7 left)
                   SizedBox(
-                    width: effectiveWidth * 0.74 > 291 ? 291 : effectiveWidth * 0.74,
+                    width: 291,
                     height: 62,
                     child: DecoratedBox(
                       decoration: BoxDecoration(

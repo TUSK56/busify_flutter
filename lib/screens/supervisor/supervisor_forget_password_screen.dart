@@ -27,13 +27,6 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on standard 390 width from Figma
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Container(
@@ -64,11 +57,11 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Padding(
-                            padding: EdgeInsets.only(left: 47 * widthRatio),
+                            padding: EdgeInsets.only(left: 47),
                             child: Image.asset(
                               AppImages.logo,
-                              width: 144 * widthRatio,
-                              height: 100 * widthRatio,
+                              width: 144,
+                              height: 100,
                               fit: BoxFit.contain,
                             ),
                           ),
@@ -80,7 +73,7 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Padding(
-                            padding: EdgeInsets.only(left: 24 * widthRatio),
+                            padding: EdgeInsets.only(left: 24),
                             child: GestureDetector(
                               onTap: () {
                                 Navigator.pop(context); // Go back
@@ -130,8 +123,8 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
                                 children: [
                                   // Lock Image (6.png)
                                   Container(
-                                    width: 128 * widthRatio,
-                                    height: 128 * widthRatio,
+                                    width: 128,
+                                    height: 128,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(15),
                                       border: Border.all(
@@ -170,7 +163,7 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
 
                                   // Subtitle
                                   Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 14 * widthRatio),
+                                    padding: EdgeInsets.symmetric(horizontal: 14),
                                     child: Text(
                                       'Enter your email to receive a password reset link.',
                                       textAlign: TextAlign.center,
@@ -189,7 +182,7 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
                                   Align(
                                     alignment: Alignment.centerLeft,
                                     child: Padding(
-                                      padding: EdgeInsets.only(left: 45 * widthRatio),
+                                      padding: EdgeInsets.only(left: 45),
                                       child: Text(
                                         'Email',
                                         style: TextStyle(
@@ -206,7 +199,7 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
 
                                   // Email TextField Container
                                   Container(
-                                    width: 291 * widthRatio,
+                                    width: 291,
                                     height: 62,
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
@@ -253,7 +246,7 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
                                       );
                                     },
                                     child: Container(
-                                      width: 291 * widthRatio,
+                                      width: 291,
                                       height: 62,
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(

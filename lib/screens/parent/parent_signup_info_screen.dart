@@ -5,6 +5,7 @@ import 'package:application/screens/parent/parent_signup_student_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/widgets/parent/parent_brand_logo.dart';
 
 class ParentSignupInfoScreen extends StatefulWidget {
   const ParentSignupInfoScreen({super.key});
@@ -42,13 +43,6 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on standard 390 width from Figma
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Container(
@@ -60,25 +54,15 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
             fit: BoxFit.cover,
           ),
         ),
-        child: SafeArea(
-          bottom: false, // Let the bottom sheet extend to the very bottom
-          child: Column(
-            children: [
+          child: SafeArea(
+            bottom: false, // Let the bottom sheet extend to the very bottom
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               SizedBox(height: screenHeight * 0.01),
 
               // Top Logo (2.png)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(left: 47 * widthRatio),
-                  child: Image.asset(
-                    AppImages.logo,
-                    width: 104 * widthRatio,
-                    height: 44 * widthRatio,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
+              ParentBrandLogo.image(AppImages.logo),
 
               SizedBox(height: screenHeight * 0.02),
 
@@ -88,7 +72,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                 children: [
                   // Back Button (Chevron Backward)
                   Padding(
-                    padding: EdgeInsets.only(left: 24 * widthRatio),
+                    padding: EdgeInsets.only(left: 24),
                     child: GestureDetector(
                       onTap: () {
                         Navigator.pop(context); // Go back
@@ -159,7 +143,6 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
 
                             // 1. Parent Name
                             _buildInputField(
-                              widthRatio: widthRatio,
                               label: 'Parent Name',
                               hintText: 'Enter your name',
                               controller: _nameController,
@@ -167,7 +150,6 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
 
                             // 2. Email
                             _buildInputField(
-                              widthRatio: widthRatio,
                               label: 'Email',
                               hintText: 'Enter your email',
                               keyboardType: TextInputType.emailAddress,
@@ -176,7 +158,6 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
 
                             // 3. Mobile Number
                             _buildInputField(
-                              widthRatio: widthRatio,
                               label: 'Mobile Number',
                               hintText: 'Enter your mobile number',
                               keyboardType: TextInputType.phone,
@@ -185,7 +166,6 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
 
                             // 4. Address
                             _buildInputField(
-                              widthRatio: widthRatio,
                               label: 'Address',
                               hintText: 'Enter your address',
                               controller: _addressController,
@@ -193,7 +173,6 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
 
                             // 5. Password
                             _buildInputField(
-                              widthRatio: widthRatio,
                               label: 'Password',
                               hintText: 'Enter password',
                               isPassword: true,
@@ -208,7 +187,6 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
 
                             // 6. Confirm Password
                             _buildInputField(
-                              widthRatio: widthRatio,
                               label: 'Confirm password',
                               hintText: 'Confirm your password',
                               isPassword: true,
@@ -266,7 +244,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                                 );
                               },
                               child: Container(
-                                width: 291 * widthRatio,
+                                width: 291,
                                 height: 62,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
@@ -303,7 +281,6 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
 
   // Reusable builder for the complex Label + Text Field combination
   Widget _buildInputField({
-    required double widthRatio,
     required String label,
     required String hintText,
     TextEditingController? controller,
@@ -319,9 +296,9 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
         children: [
           // The Pill-shaped Label
           Padding(
-            padding: EdgeInsets.only(left: 19 * widthRatio), // Offsets the label perfectly over the field
+            padding: EdgeInsets.only(left: 19), // Offsets the label perfectly over the field
             child: Container(
-              width: 154 * widthRatio, // Fixed width from Figma
+              width: 154, // Fixed width from Figma
               height: 24, // Fixed height from Figma
               alignment: Alignment.center,
               decoration: BoxDecoration(
@@ -344,7 +321,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
 
           // The Input Field
           Container(
-            width: 291 * widthRatio,
+            width: 291,
             height: 40, // Height restricted to 40 per Figma spec
             alignment: Alignment.center,
             decoration: BoxDecoration(

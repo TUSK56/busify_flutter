@@ -14,15 +14,11 @@ class GetStartedScreen extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // We cap the maximum width at 450 so it doesn't look stretched on tablets/iPads
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Mathematical proportions based exactly on your Figma dimensions
-    final double img1Width = effectiveWidth * 0.66; // 260 / 390
-    final double img2Width = effectiveWidth * 0.59; // 231 / 390
-    final double img2TopOffset = img1Width * 0.688; // 179 / 260
-    final double totalStackHeight = img1Width * 1.57; // 410 / 260
+    // Figma reference dimensions (260 / 390 bus, 231 wordmark, stack ~410 tall)
+    const double img1Width = 260;
+    const double img2Width = 231;
+    const double img2TopOffset = 179;
+    const double totalStackHeight = 410;
 
     return Scaffold(
       body: Container(
@@ -78,7 +74,7 @@ class GetStartedScreen extends StatelessWidget {
 
                   // "Get Started" Button (Width scales, but caps at 291 max)
                   SizedBox(
-                    width: effectiveWidth * 0.74 > 291 ? 291 : effectiveWidth * 0.74,
+                    width: 291,
                     height: 62,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(

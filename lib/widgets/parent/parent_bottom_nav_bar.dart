@@ -10,14 +10,12 @@ enum ParentNavTab { home, trackBus, profile }
 class ParentBottomNavBar extends StatelessWidget {
   const ParentBottomNavBar({
     super.key,
-    required this.scale,
     required this.activeTab,
     required this.onHomeTap,
     required this.onTrackBusTap,
     required this.onProfileTap,
   });
 
-  final double scale;
   final ParentNavTab activeTab;
   final VoidCallback onHomeTap;
   final VoidCallback onTrackBusTap;
@@ -28,37 +26,37 @@ class ParentBottomNavBar extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: Container(
-        height: 84 * scale,
+        height: 84,
         width: double.infinity,
         decoration: BoxDecoration(
           color: context.appPanelBackground,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20 * scale)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _item(
               asset: AppImages.profileScreenNavHome,
               label: 'Home',
-              iconW: 32 * scale,
-              iconH: 35 * scale,
+              iconW: 32,
+              iconH: 35,
               active: activeTab == ParentNavTab.home,
               onTap: onHomeTap,
             ),
             _item(
               asset: AppImages.profileScreenNavTrack,
               label: 'Track Bus',
-              iconW: 36 * scale,
-              iconH: 36 * scale,
+              iconW: 36,
+              iconH: 36,
               active: activeTab == ParentNavTab.trackBus,
               onTap: onTrackBusTap,
             ),
             _item(
               asset: AppImages.profileScreenNavProfileActive,
               label: 'Profile',
-              iconW: 26.25 * scale,
-              iconH: 26.25 * scale,
+              iconW: 26.25,
+              iconH: 26.25,
               active: activeTab == ParentNavTab.profile,
               onTap: onProfileTap,
             ),
@@ -92,7 +90,7 @@ class ParentBottomNavBar extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 6 * scale, horizontal: 4 * scale),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -104,11 +102,11 @@ class ParentBottomNavBar extends StatelessWidget {
               color: iconColor,
               fit: BoxFit.contain,
             ),
-            SizedBox(height: 4 * scale),
+            const SizedBox(height: 4),
             Text(
               label,
               style: GoogleFonts.inter(
-                fontSize: 12 * scale,
+                fontSize: 12,
                 fontWeight: FontWeight.w500,
                 height: 22 / 12,
                 color: labelColor,

@@ -36,13 +36,6 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on standard 390 width from Figma
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -66,11 +59,11 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 47 * widthRatio),
+                      padding: EdgeInsets.only(left: 47),
                       child: Image.asset(
                         AppImages.logo,
-                        width: 104 * widthRatio,
-                        height: 100 * widthRatio,
+                        width: 104,
+                        height: 100,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -82,7 +75,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 24 * widthRatio),
+                      padding: EdgeInsets.only(left: 24),
                       child: GestureDetector(
                         onTap: () {
                           Navigator.pop(context); // Go back
@@ -104,7 +97,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
 
                   // Instruction Text
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 45 * widthRatio),
+                    padding: EdgeInsets.symmetric(horizontal: 45),
                     child: Text(
                       'Please enter your new password to secure your account.',
                       textAlign: TextAlign.center,
@@ -125,11 +118,13 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                     borderRadius: BorderRadius.circular(30),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0), // Background blur
-                      child: Container(
-                        width: 331 * widthRatio,
-                        height: 400, // Fixed height per Figma
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 331),
+                        child: Container(
+                          width: double.infinity,
+                          height: 400, // Fixed height per Figma
                         padding: EdgeInsets.symmetric(
-                          horizontal: 18 * widthRatio,
+                          horizontal: 18,
                           vertical: 36, // Adjust padding to match Figma inner Y coordinates
                         ),
                         decoration: BoxDecoration(
@@ -146,7 +141,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
 
                             // Password Label
                             Padding(
-                              padding: EdgeInsets.only(left: 10 * widthRatio, bottom: 8.0),
+                              padding: EdgeInsets.only(left: 10, bottom: 8.0),
                               child: Text(
                                 'Password',
                                 style: TextStyle(
@@ -160,7 +155,6 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
 
                             // Password Input Box
                             _buildPasswordField(
-                              widthRatio: widthRatio,
                               controller: _passwordController,
                               isObscured: _obscurePassword,
                               strokeOpacity: 0.18,
@@ -175,7 +169,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
 
                             // Confirm Password Label
                             Padding(
-                              padding: EdgeInsets.only(left: 10 * widthRatio, bottom: 8.0),
+                              padding: EdgeInsets.only(left: 10, bottom: 8.0),
                               child: Text(
                                 'Confirm Password',
                                 style: TextStyle(
@@ -189,7 +183,6 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
 
                             // Confirm Password Input Box
                             _buildPasswordField(
-                              widthRatio: widthRatio,
                               controller: _confirmPasswordController,
                               isObscured: _obscureConfirmPassword,
                               strokeOpacity: 0.25,
@@ -250,7 +243,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                                   }
                                 },
                                 child: Container(
-                                  width: 291 * widthRatio,
+                                  width: 291,
                                   height: 62,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
@@ -282,6 +275,7 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                         ),
                       ),
                     ),
+                    ),
                   ),
 
                   // Bottom padding for safe area
@@ -296,14 +290,13 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
   }
 
   Widget _buildPasswordField({
-    required double widthRatio,
     TextEditingController? controller,
     required bool isObscured,
     required double strokeOpacity,
     required VoidCallback onToggleVisibility,
   }) {
     return Container(
-      width: 294 * widthRatio,
+      width: 294,
       height: 49, // Exact height from Figma
       alignment: Alignment.center,
       padding: const EdgeInsets.only(left: 16),

@@ -33,13 +33,6 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on standard 390 width from Figma
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -64,11 +57,11 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 47 * widthRatio),
+                      padding: EdgeInsets.only(left: 47),
                       child: Image.asset(
                         AppImages.logo,
-                        width: 104 * widthRatio,
-                        height: 100 * widthRatio,
+                        width: 104,
+                        height: 100,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -80,7 +73,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 24 * widthRatio),
+                      padding: EdgeInsets.only(left: 24),
                       child: GestureDetector(
                         onTap: () {
                           Navigator.pop(context); // Go back
@@ -104,7 +97,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 40 * widthRatio),
+                      padding: EdgeInsets.only(left: 40),
                       child: Text(
                         'Login',
                         style: TextStyle(
@@ -125,11 +118,13 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                     borderRadius: BorderRadius.circular(30),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0), // Background blur
-                      child: Container(
-                        width: 331 * widthRatio,
-                        height: 400, // Fixed height from Figma
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 331),
+                        child: Container(
+                          width: double.infinity,
+                          height: 400, // Fixed height from Figma
                         padding: EdgeInsets.symmetric(
-                            horizontal: 20 * widthRatio,
+                            horizontal: 20,
                             vertical: 24
                         ),
                         decoration: BoxDecoration(
@@ -160,7 +155,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
 
                             // Email TextField Container
                             _buildTextFieldContainer(
-                              width: 291 * widthRatio,
+                              width: 291,
                               child: TextField(
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
@@ -201,7 +196,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
 
                             // Password TextField Container
                             _buildTextFieldContainer(
-                              width: 291 * widthRatio,
+                              width: 291,
                               child: TextField(
                                 controller: _passwordController,
                                 obscureText: _isObscured,
@@ -297,7 +292,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                 }
                               },
                               child: Container(
-                                width: 291 * widthRatio,
+                                width: 291,
                                 height: 62,
                                 decoration: BoxDecoration(
                                   gradient: AppColors.primaryButtonGradient,
@@ -327,6 +322,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                           ],
                         ),
                       ),
+                    ),
                     ),
                   ),
 

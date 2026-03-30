@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/widgets/parent/parent_brand_logo.dart';
 import 'parent_reset_password_screen.dart';
 
 class ParentOtpScreen extends StatefulWidget {
@@ -65,13 +66,6 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on standard 390 width
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -87,23 +81,12 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
             child: SizedBox(
               width: double.infinity,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   SizedBox(height: screenHeight * 0.02),
 
                   // Top Logo (2.png)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: EdgeInsets.only(left: 47 * widthRatio),
-                      child: Image.asset(
-                        AppImages.logo,
-                        width: 104 * widthRatio,
-                        height: 100 * widthRatio,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
+                  ParentBrandLogo.image(AppImages.logo),
 
                   SizedBox(height: screenHeight * 0.01),
 
@@ -111,7 +94,7 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 24 * widthRatio),
+                      padding: EdgeInsets.only(left: 24),
                       child: GestureDetector(
                         onTap: () {
                           Navigator.pop(context); // Go back
@@ -163,7 +146,7 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
 
                   // 4 OTP Boxes Frame (Width 288, Gap 16)
                   SizedBox(
-                    width: 288 * widthRatio,
+                    width: 288,
                     height: 60,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -196,7 +179,7 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
                   GestureDetector(
                     onTap: _verifyOtp,
                     child: Container(
-                      width: 221 * widthRatio,
+                      width: 221,
                       height: 45,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(

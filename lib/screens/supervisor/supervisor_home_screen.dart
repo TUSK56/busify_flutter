@@ -179,16 +179,12 @@ class SupervisorHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
         child: Center(
           child: SizedBox(
-            width: effectiveWidth,
+            width: double.infinity,
             child: Column(
               children: [
                 Expanded(

@@ -65,13 +65,6 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on standard 390 width
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -95,11 +88,11 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 47 * widthRatio),
+                      padding: EdgeInsets.only(left: 47),
                       child: Image.asset(
                         AppImages.logo,
-                        width: 104 * widthRatio,
-                        height: 100 * widthRatio,
+                        width: 104,
+                        height: 100,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -111,7 +104,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 24 * widthRatio),
+                      padding: EdgeInsets.only(left: 24),
                       child: GestureDetector(
                         onTap: () {
                           Navigator.pop(context); // Go back
@@ -163,7 +156,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
 
                   // 4 OTP Boxes Frame (Width 288, Gap 16)
                   SizedBox(
-                    width: 288 * widthRatio,
+                    width: 288,
                     height: 60,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -196,7 +189,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                   GestureDetector(
                     onTap: _verifyOtp,
                     child: Container(
-                      width: 221 * widthRatio,
+                      width: 221,
                       height: 45,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(

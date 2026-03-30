@@ -14,10 +14,6 @@ class OnboardingScreenFour extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -40,7 +36,7 @@ class OnboardingScreenFour extends StatelessWidget {
 
                   // Header (Back Arrow Only - Skip is removed on this screen)
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: effectiveWidth * 0.06),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: GestureDetector(
@@ -64,9 +60,11 @@ class OnboardingScreenFour extends StatelessWidget {
                     borderRadius: BorderRadius.circular(30),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                      child: Container(
-                        width: effectiveWidth * 0.85, // ~331 max
-                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 331),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
                         decoration: BoxDecoration(
                           color: AppColors.white.withOpacity(0.14), // ffffff 14%
                           borderRadius: BorderRadius.circular(30),
@@ -81,8 +79,8 @@ class OnboardingScreenFour extends StatelessWidget {
                             // Image 5.png
                             Image.asset(
                               AppImages.onboardingParentTrack,
-                              width: effectiveWidth * 0.74, // ~290 max
-                              height: screenHeight * 0.23, // ~196 max
+                              width: 290, // ~290 max
+                              height: 196, // ~196 max
                               fit: BoxFit.contain,
                             ),
 
@@ -106,7 +104,7 @@ class OnboardingScreenFour extends StatelessWidget {
 
                             // Divider Line (w: 254, weight: 2)
                             Container(
-                              width: effectiveWidth * 0.65, // ~254 max
+                              width: 254, // ~254 max
                               height: 2,
                               color: AppColors.white.withOpacity(0.66), // ffffff 66%
                             ),
@@ -132,6 +130,7 @@ class OnboardingScreenFour extends StatelessWidget {
                         ),
                       ),
                     ),
+                    ),
                   ),
 
                   // Spacing between Card and Action Button
@@ -139,7 +138,7 @@ class OnboardingScreenFour extends StatelessWidget {
 
                   // "Get Started" Button (README: gradient)
                   SizedBox(
-                    width: effectiveWidth * 0.74 > 291 ? 291 : effectiveWidth * 0.74,
+                    width: 291,
                     height: 62,
                     child: DecoratedBox(
                       decoration: BoxDecoration(

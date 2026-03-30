@@ -39,9 +39,6 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeController = ServiceLocator.themeController;
-    final size = MediaQuery.of(context).size;
-    double effectiveWidth = size.width > 450 ? 450 : size.width;
     final avatarImageCacheSize = (80 * MediaQuery.of(context).devicePixelRatio)
         .round();
 
@@ -50,7 +47,7 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
       body: SafeArea(
         child: Center(
           child: SizedBox(
-            width: effectiveWidth,
+            width: double.infinity,
             child: Column(
               children: [
                 Expanded(

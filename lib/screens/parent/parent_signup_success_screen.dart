@@ -14,13 +14,6 @@ class ParentSignupSuccessScreen extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on standard 390 width from Figma
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -44,7 +37,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 24 * widthRatio),
+                      padding: EdgeInsets.only(left: 24),
                       child: GestureDetector(
                         onTap: () {
                           Navigator.pop(context); // Go back
@@ -73,9 +66,11 @@ class ParentSignupSuccessScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(30),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0), // Background blur
-                      child: Container(
-                        width: 331 * widthRatio,
-                        height: 426, // Exact height from Figma
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 331),
+                        child: Container(
+                          width: double.infinity,
+                          height: 426, // Exact height from Figma
                         decoration: BoxDecoration(
                           color: AppColors.white.withOpacity(0.27), // ffffff 27%
                           borderRadius: BorderRadius.circular(30),
@@ -93,7 +88,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
 
                             // Success Image (7.png)
                             Container(
-                              width: 173 * widthRatio,
+                              width: 173,
                               height: 128,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(15),
@@ -109,7 +104,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
 
                             // Success Text
                             SizedBox(
-                              width: 210 * widthRatio, // Constrained width from Figma
+                              width: 210, // Constrained width from Figma
                               child: const Text(
                                 'Change password successfully!',
                                 textAlign: TextAlign.center,
@@ -136,7 +131,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
                                 );
                               },
                               child: Container(
-                                width: 291 * widthRatio,
+                                width: 291,
                                 height: 62,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
@@ -160,6 +155,7 @@ class ParentSignupSuccessScreen extends StatelessWidget {
                           ],
                         ),
                       ),
+                    ),
                     ),
                   ),
 

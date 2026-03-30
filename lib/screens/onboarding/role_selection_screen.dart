@@ -15,13 +15,6 @@ class RoleSelectionScreen extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on your 390 width
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -46,11 +39,11 @@ class RoleSelectionScreen extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 47 * widthRatio),
+                      padding: EdgeInsets.only(left: 47),
                       child: Image.asset(
                         AppImages.logo,
-                        width: 144 * widthRatio, // Scales from 144 max
-                        height: 115 * widthRatio,
+                        width: 144, // Scales from 144 max
+                        height: 115,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -60,7 +53,7 @@ class RoleSelectionScreen extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 24 * widthRatio),
+                      padding: EdgeInsets.only(left: 24),
                       child: GestureDetector(
                         onTap: () {
                           Navigator.pop(context); // Go back

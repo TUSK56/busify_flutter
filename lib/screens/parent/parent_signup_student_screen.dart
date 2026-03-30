@@ -8,6 +8,7 @@ import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/widgets/parent/parent_brand_logo.dart';
 
 class ParentSignupStudentScreen extends StatefulWidget {
   final ParentSignupData parentData;
@@ -47,13 +48,6 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on standard 390 width from Figma
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Container(
@@ -68,22 +62,12 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
         child: SafeArea(
           bottom: false, // Let the bottom sheet extend to the very bottom
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(height: screenHeight * 0.01),
 
               // Top Logo (2.png)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(left: 47 * widthRatio),
-                  child: Image.asset(
-                    AppImages.logo,
-                    width: 104 * widthRatio,
-                    height: 44 * widthRatio,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
+              ParentBrandLogo.image(AppImages.logo),
 
               SizedBox(height: screenHeight * 0.01),
 
@@ -93,7 +77,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                 children: [
                   // Back Button (Chevron Backward)
                   Padding(
-                    padding: EdgeInsets.only(left: 24 * widthRatio),
+                    padding: EdgeInsets.only(left: 24),
                     child: GestureDetector(
                       onTap: () {
                         Navigator.pop(context); // Go back
@@ -134,7 +118,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
               // Subtitle Text
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 43 * widthRatio),
+                padding: EdgeInsets.symmetric(horizontal: 43),
                 child: Text(
                   'Please enter the student’s information to link the account.',
                   textAlign: TextAlign.center,
@@ -182,7 +166,6 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
                             // 1. Student's Full Name Text Field
                             _buildInputWrapper(
-                              widthRatio: widthRatio,
                               label: 'Student’s Full Name',
                               child: TextField(
                                 controller: _studentNameController,
@@ -211,7 +194,6 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
                             // 2. Select School Dropdown (FutureBuilder from API)
                             _buildInputWrapper(
-                              widthRatio: widthRatio,
                               label: 'School Name',
                               child: FutureBuilder<List<School>>(
                                 future: _schoolsFuture,
@@ -285,7 +267,6 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
                             // 2b. Birthdate
                             _buildInputWrapper(
-                              widthRatio: widthRatio,
                               label: 'Birthdate (yyyy-MM-dd)',
                               child: TextField(
                                 controller: _birthdateController,
@@ -314,7 +295,6 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
                             // 3. Select Grade Dropdown
                             _buildInputWrapper(
-                              widthRatio: widthRatio,
                               label: 'Grade',
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
@@ -421,7 +401,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                 }
                               },
                               child: Container(
-                                width: 291 * widthRatio,
+                                width: 291,
                                 height: 62,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
@@ -465,12 +445,11 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
   // A helper method that builds the deep-blue text label over the specific 55px text field container
   Widget _buildInputWrapper({
-    required double widthRatio,
     required String label,
     required Widget child,
   }) {
     return SizedBox(
-      width: 291 * widthRatio, // Constrains the label to align perfectly with the input box
+      width: 291, // Constrains the label to align perfectly with the input box
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -490,7 +469,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
           // The Input Box (TextField or Dropdown)
           Container(
-            width: 291 * widthRatio,
+            width: 291,
             height: 55, // Fixed height per Figma
             alignment: Alignment.center,
             decoration: BoxDecoration(

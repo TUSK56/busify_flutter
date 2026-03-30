@@ -4,6 +4,7 @@ import 'package:application/screens/parent/parent_otp_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/widgets/parent/parent_brand_logo.dart';
 
 class ParentForgetPasswordScreen extends StatefulWidget {
   const ParentForgetPasswordScreen({super.key});
@@ -27,13 +28,6 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;
 
-    // Cap the width for tablet/iPad support
-    double effectiveWidth = size.width;
-    if (effectiveWidth > 450) effectiveWidth = 450;
-
-    // Calculate dynamic scaling ratios based on standard 390 width from Figma
-    final double widthRatio = effectiveWidth / 390;
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Container(
@@ -56,23 +50,12 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                   ),
                   child: IntrinsicHeight(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         SizedBox(height: screenHeight * 0.02),
 
                         // Top Logo (2.png)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Padding(
-                            padding: EdgeInsets.only(left: 47 * widthRatio),
-                            child: Image.asset(
-                              AppImages.logo,
-                              width: 144 * widthRatio,
-                              height: 100 * widthRatio,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
+                        ParentBrandLogo.image(AppImages.logo),
 
                         SizedBox(height: screenHeight * 0.01),
 
@@ -80,7 +63,7 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Padding(
-                            padding: EdgeInsets.only(left: 24 * widthRatio),
+                            padding: EdgeInsets.only(left: 24),
                             child: GestureDetector(
                               onTap: () {
                                 Navigator.pop(context); // Go back
@@ -130,8 +113,8 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                                 children: [
                                   // Lock Image (6.png)
                                   Container(
-                                    width: 128 * widthRatio,
-                                    height: 128 * widthRatio,
+                                    width: 128,
+                                    height: 128,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(15),
                                       border: Border.all(
@@ -170,7 +153,7 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
 
                                   // Subtitle
                                   Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 14 * widthRatio),
+                                    padding: EdgeInsets.symmetric(horizontal: 14),
                                     child: Text(
                                       'Enter your email to receive a password reset link.',
                                       textAlign: TextAlign.center,
@@ -189,7 +172,7 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                                   Align(
                                     alignment: Alignment.centerLeft,
                                     child: Padding(
-                                      padding: EdgeInsets.only(left: 45 * widthRatio),
+                                      padding: EdgeInsets.only(left: 45),
                                       child: Text(
                                         'Email',
                                         style: TextStyle(
@@ -206,7 +189,7 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
 
                                   // Email TextField Container
                                   Container(
-                                    width: 291 * widthRatio,
+                                    width: 291,
                                     height: 62,
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
@@ -253,7 +236,7 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                                       );
                                     },
                                     child: Container(
-                                      width: 291 * widthRatio,
+                                      width: 291,
                                       height: 62,
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(

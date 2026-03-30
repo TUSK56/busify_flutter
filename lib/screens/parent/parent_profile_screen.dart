@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'package:application/core/layout/app_layout.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/screens/onboarding/role_selection_screen.dart';
@@ -11,10 +10,39 @@ import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_track_bus_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
+import 'package:application/widgets/parent/parent_brand_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Parent profile — Figma frame **390×1240**, unified [AppLayout] scaling.
+/// أبعاد ومسافات موحّدة لكل بطاقات شاشة البروفايل — عدّل هنا للتحكم في الشكل كله.
+abstract final class _ParentProfileCards {
+  _ParentProfileCards._();
+
+  /// أقصى عرض للبطاقة؛ على الشاشات الأضيق تقل تلقائياً مع هامش جانبي.
+  static const double maxCardWidth = 380;
+  static const double horizontalScreenInset = 24;
+  static const double logoutHorizontalInset = 16;
+
+  /// حشوة داخلية موحّدة لكل البطاقات (يمين/شمال + يمكن تخصيص عمودي لكل بطاقة).
+  static const double innerHorizontalPadding = 18;
+
+  static const double cardRadius = 15;
+  static const double dividerMaxWidth = 320;
+
+  static double cardWidth(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    return math.min(maxCardWidth, w - 2 * horizontalScreenInset);
+  }
+
+  static double logoutWidth(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    return math.min(maxCardWidth, w - 2 * logoutHorizontalInset);
+  }
+
+  static double innerContentWidth(double cardWidth) =>
+      cardWidth - 2 * innerHorizontalPadding;
+}
+
 class ParentProfileScreen extends StatefulWidget {
   const ParentProfileScreen({super.key});
 
@@ -44,12 +72,13 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
       parent: _entranceController,
       curve: Curves.easeOutCubic,
     );
-    _entranceSlide = Tween<Offset>(
-      begin: const Offset(0, 0.05),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _entranceController, curve: Curves.easeOutCubic),
-    );
+    _entranceSlide =
+        Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _entranceController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
     _entranceController.forward();
   }
 
@@ -62,9 +91,8 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
 
   @override
   Widget build(BuildContext context) {
-    final m = AppLayout.metricsOf(context);
-    final layout = m.scale;
-    final cappedW = m.cappedWidth;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final cardW = _ParentProfileCards.cardWidth(context);
 
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
@@ -75,7 +103,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.only(bottom: 24 * layout + m.bottomInset),
+                padding: EdgeInsets.only(bottom: 24 + bottomInset),
                 child: FadeTransition(
                   opacity: _entranceFade,
                   child: SlideTransition(
@@ -83,16 +111,16 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        buildHeader(context, layout, layout),
-                        Center(child: buildProfilePicture(layout, layout)),
-                        SizedBox(height: 15 * layout),
-                        _buildRoundedContentSheet(context, layout, layout, cappedW),
-                        SizedBox(height: 14 * layout),
-                        Center(child: buildSettingsCard(context, layout, layout, cappedW)),
-                        SizedBox(height: 24 * layout),
-                        Center(child: buildSupportAboutCards(context, layout, layout, cappedW)),
-                        SizedBox(height: 17 * layout),
-                        Center(child: buildLogoutButton(context, layout, layout, cappedW)),
+                        _buildHeader(context),
+                        const Center(child: _ProfileAvatar()),
+                        const SizedBox(height: 15),
+                        _buildRoundedContentSheet(context, cardW),
+                        const SizedBox(height: 14),
+                        Center(child: _buildSettingsCard(context, cardW)),
+                        const SizedBox(height: 24),
+                        Center(child: _buildSupportCard(context, cardW)),
+                        const SizedBox(height: 17),
+                        Center(child: _buildLogoutButton(context)),
                       ],
                     ),
                   ),
@@ -100,7 +128,6 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               ),
             ),
             ParentBottomNavBar(
-              scale: layout,
               activeTab: ParentNavTab.profile,
               onHomeTap: () {
                 Navigator.of(context).pushAndRemoveUntil(
@@ -122,47 +149,41 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     );
   }
 
-  /// Header **390×128**, bottom radius **22**, fill **214071 @ 97%**.
-  Widget buildHeader(BuildContext context, double wr, double layout) {
+  Widget _buildHeader(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.only(
-        bottomLeft: Radius.circular(22 * wr),
-        bottomRight: Radius.circular(22 * wr),
+      borderRadius: const BorderRadius.only(
+        bottomLeft: Radius.circular(22),
+        bottomRight: Radius.circular(22),
       ),
       child: SizedBox(
-        height: 128 * layout,
+        height: 128,
         width: double.infinity,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            const Positioned.fill(child: ColoredBox(color: AppColors.primaryBlue97)),
+            const Positioned.fill(
+              child: ColoredBox(color: AppColors.primaryBlue97),
+            ),
+            Positioned.fill(
+              child: ParentBrandLogo.headerImage(AppImages.logo),
+            ),
             Positioned(
-              left: 15 * wr,
-              top: 11.25 * layout,
+              left: 15,
+              top: 11.25,
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () => Navigator.of(context).maybePop(),
-                  child: SizedBox(
-                    width: 13.88 * wr,
-                    height: 22.5 * layout,
+                  child: const SizedBox(
+                    width: 13.88,
+                    height: 22.5,
                     child: Icon(
-                    Icons.arrow_back_ios,
-                    color: AppColors.white,
-                    size: 22.5 * wr,
-                  ),
+                      Icons.arrow_back_ios,
+                      color: AppColors.white,
+                      size: 22.5,
                     ),
                   ),
                 ),
-              ),
-            Positioned(
-              left: 132 * wr,
-              top: 62 * layout,
-              child: Image.asset(
-                AppImages.logo,
-                width: 126 * wr,
-                height: 54 * layout,
-                fit: BoxFit.contain,
               ),
             ),
           ],
@@ -171,52 +192,19 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     );
   }
 
-  /// **91×78**, full ellipse clip + thin white border (matches reference).
-  Widget buildProfilePicture(double wr, double layout) {
+  Widget _buildRoundedContentSheet(BuildContext context, double cardW) {
     return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.all(Radius.circular(999 * wr)),
-        border: Border.all(color: AppColors.white, width: 2 * wr),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.gray333.withValues(alpha: 0.08),
-            blurRadius: 6 * wr,
-            offset: Offset(0, 2 * layout),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.all(Radius.circular(999 * wr)),
-        child: Image.asset(
-          AppImages.parentProfilePic,
-          width: 91 * wr,
-          height: 78 * layout,
-          fit: BoxFit.cover,
-        ),
-      ),
-    );
-  }
-
-  /// Rounded **#F5F5F5** sheet (radius **40**): name + Account + Linked Student.
-  Widget _buildRoundedContentSheet(
-    BuildContext context,
-    double wr,
-    double layout,
-    double cappedW,
-  ) {
-    final cardW = math.min(342.0 * wr, cappedW - 48 * wr);
-
-    return Container(
-      width: cappedW,
-      margin: EdgeInsets.symmetric(
-        horizontal: math.max(0, (cappedW - AppLayout.designWidth * wr) / 2),
-      ),
+      width: double.infinity,
       decoration: BoxDecoration(
         color: context.appScaffoldBackground,
-        borderRadius: BorderRadius.circular(40 * wr),
+        borderRadius: BorderRadius.circular(40),
       ),
       child: Padding(
-        padding: EdgeInsets.only(top: 0, left: 24 * wr, right: 24 * wr, bottom: 11 * layout),
+        padding: const EdgeInsets.only(
+          left: _ParentProfileCards.horizontalScreenInset,
+          right: _ParentProfileCards.horizontalScreenInset,
+          bottom: 11,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -226,44 +214,45 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                 'Omar Khaled',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                  fontSize: 24 * wr,
+                  fontSize: 24,
                   fontWeight: FontWeight.w600,
                   height: 22 / 24,
                   color: context.appPrimaryText,
                 ),
               ),
             ),
-            SizedBox(height: 14 * layout),
-            buildAccountInfoCard(context, wr, layout, cardW),
-            SizedBox(height: 32 * layout),
-            buildLinkedStudentCard(context, wr, layout, cardW),
+            const SizedBox(height: 14),
+            _buildAccountInfoCard(context, cardW),
+            const SizedBox(height: 32),
+            _buildLinkedStudentCard(context, cardW),
           ],
         ),
       ),
     );
   }
 
-  Widget _dividerLine(BuildContext context, double scale, double innerW) {
+  Widget _dividerLine(BuildContext context, double innerW) {
     return Center(
       child: Container(
-        width: math.min(320 * scale, innerW),
+        width: math.min(_ParentProfileCards.dividerMaxWidth, innerW),
         height: 1,
         color: context.appDivider,
       ),
     );
   }
 
-  /// **342×189** min — card uses supervisor-aligned [BuildContext.appCardBackground].
-  Widget buildAccountInfoCard(BuildContext context, double scale, double layout, double cardW) {
-    final hPad = 27 * scale;
-    return Container(
+  Widget _buildAccountInfoCard(BuildContext context, double cardW) {
+    final innerW = _ParentProfileCards.innerContentWidth(cardW);
+    const vPad = EdgeInsets.fromLTRB(
+      _ParentProfileCards.innerHorizontalPadding,
+      16,
+      _ParentProfileCards.innerHorizontalPadding,
+      14,
+    );
+
+    return _ProfileCard(
       width: cardW,
-      constraints: BoxConstraints(minHeight: 189 * layout),
-      padding: EdgeInsets.fromLTRB(hPad, 16 * layout, hPad, 14 * layout),
-      decoration: BoxDecoration(
-        color: context.appCardBackground,
-        borderRadius: BorderRadius.circular(15 * scale),
-      ),
+      padding: vPad,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -271,30 +260,30 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           Text(
             'Account Info',
             style: GoogleFonts.inter(
-              fontSize: 16 * scale,
+              fontSize: 16,
               fontWeight: FontWeight.w600,
               height: 22 / 16,
               color: context.appSecondaryText,
             ),
           ),
-          SizedBox(height: 10 * layout),
-          _dividerLine(context, scale, cardW - 2 * hPad),
-          SizedBox(height: 8 * layout),
+          const SizedBox(height: 10),
+          _dividerLine(context, innerW),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Image.asset(
                 AppImages.phone,
-                width: 19.5 * scale,
-                height: 18.42 * layout,
+                width: 19.5,
+                height: 18.42,
                 fit: BoxFit.contain,
               ),
-              SizedBox(width: 12 * scale),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   '01223100458',
                   style: GoogleFonts.inter(
-                    fontSize: 15 * scale,
+                    fontSize: 15,
                     fontWeight: FontWeight.w400,
                     height: 1.35,
                     color: context.appPrimaryText,
@@ -303,24 +292,24 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               ),
             ],
           ),
-          SizedBox(height: 8 * layout),
-          _dividerLine(context, scale, cardW - 2 * hPad),
-          SizedBox(height: 8 * layout),
+          const SizedBox(height: 8),
+          _dividerLine(context, innerW),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Image.asset(
                 AppImages.email,
-                width: 21.67 * scale,
-                height: 17.33 * layout,
+                width: 21.67,
+                height: 17.33,
                 fit: BoxFit.contain,
               ),
-              SizedBox(width: 12 * scale),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   'omar@email.com',
                   style: GoogleFonts.inter(
-                    fontSize: 15 * scale,
+                    fontSize: 15,
                     fontWeight: FontWeight.w500,
                     height: 22 / 15,
                     color: context.appPrimaryText,
@@ -329,23 +318,23 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               ),
             ],
           ),
-          SizedBox(height: 8 * layout),
-          _dividerLine(context, scale, cardW - 2 * hPad),
-          SizedBox(height: 8 * layout),
+          const SizedBox(height: 8),
+          _dividerLine(context, innerW),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Image.asset(
                 AppImages.homeParentProfile,
-                width: 17.5 * scale,
-                height: 18.75 * layout,
+                width: 17.5,
+                height: 18.75,
                 fit: BoxFit.contain,
               ),
-              SizedBox(width: 12 * scale),
+              const SizedBox(width: 12),
               Text(
                 'Cairo',
                 style: GoogleFonts.inter(
-                  fontSize: 15 * scale,
+                  fontSize: 15,
                   fontWeight: FontWeight.w500,
                   height: 22 / 15,
                   color: context.appPrimaryText,
@@ -358,130 +347,116 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     );
   }
 
-  /// **342×189** min, “Linked Student”, avatar **38×37**, grade + bus rows.
-  Widget buildLinkedStudentCard(
-      BuildContext context,
-      double wr,
-      double layout,
-      double cardW,
-      ) {
-    final hPad = 14 * wr;
-    final lineW = cardW - 2 * hPad;
+  Widget _buildLinkedStudentCard(BuildContext context, double cardW) {
+    final innerW = _ParentProfileCards.innerContentWidth(cardW);
+    const vPad = EdgeInsets.fromLTRB(
+      _ParentProfileCards.innerHorizontalPadding,
+      10,
+      _ParentProfileCards.innerHorizontalPadding,
+      12,
+    );
 
-    return Container(
+    return _ProfileCard(
       width: cardW,
-      constraints: BoxConstraints(minHeight: 189 * layout),
-      padding: EdgeInsets.fromLTRB(hPad, 10 * layout, hPad, 12 * layout),
-      decoration: BoxDecoration(
-        color: context.appCardBackground,
-        borderRadius: BorderRadius.circular(15 * wr),
-      ),
+      padding: vPad,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.only(left: 7 * wr),
+            padding: const EdgeInsets.only(left: 7),
             child: Text(
               'Linked Student',
               style: GoogleFonts.inter(
-                fontSize: 16 * wr,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
                 height: 22 / 16,
                 color: context.appSecondaryText,
               ),
             ),
           ),
-          SizedBox(height: 8 * layout),
-          _dividerLine(context, wr, lineW),
-          SizedBox(height: 8 * layout),
-
-          // Student Info Row
-          Row(
+          const SizedBox(height: 8),
+          _dividerLine(context, innerW),
+          const SizedBox(height: 8),
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipOval(
-                child: Image.asset(
-                  AppImages.parentProfile,
-                  width: 38 * wr,
-                  height: 37 * layout,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              SizedBox(width: 7 * wr),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ClipOval(
+                    child: Image.asset(
+                      AppImages.parentProfile,
+                      width: 38,
+                      height: 37,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
                       'Adam Omar Ahmed',
                       style: GoogleFonts.inter(
-                        fontSize: 16 * wr,
+                        fontSize: 16,
                         fontWeight: FontWeight.w500,
                         height: 35 / 16,
                         color: context.appPrimaryText,
                       ),
                     ),
-                    SizedBox(height: 10 * layout),
-
-                    // Grade Row - Extreme Left
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                       crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          AppImages.winParentProfile,
-                          width: 21 * wr,
-                          height: 21 * layout,
-                          fit: BoxFit.contain,
-                        ),
-                        SizedBox(width: 5 * wr),
-                        Text(
-                          'Grade 6',
-                          style: GoogleFonts.inter(
-                            fontSize: 16 * wr,
-                            fontWeight: FontWeight.w600,
-                            height: 22 / 16,
-                            color: context.appPrimaryText,
-                          ),
-                        ),
-                      ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    AppImages.winParentProfile,
+                    width: 21,
+                    height: 21,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Grade 6',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      height: 22 / 16,
+                      color: context.appPrimaryText,
                     ),
-
-                    SizedBox(height: 6 * layout),
-
-                    // Bus Row - Extreme Left
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          AppImages.busParentProfile,
-                          width: 21 * wr,
-                          height: 21 * layout,
-                          fit: BoxFit.contain,
-                        ),
-                        SizedBox(width: 5 * wr),
-                        Text(
-                          'Bus #7',
-                          style: GoogleFonts.inter(
-                            fontSize: 16 * wr,
-                            fontWeight: FontWeight.w600,
-                            height: 35 / 16,
-                            color: context.appPrimaryText.withValues(alpha: 0.85),
-                          ),
-                        ),
-                      ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    AppImages.busParentProfile,
+                    width: 21,
+                    height: 21,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Bus #7',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      height: 35 / 16,
+                      color: context.appPrimaryText.withValues(
+                        alpha: 0.85,
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
-
-          SizedBox(height: 10 * layout),
+          const SizedBox(height: 10),
           Center(
             child: TextButton(
               onPressed: () {
@@ -491,14 +466,14 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               },
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.primaryBlue,
-                padding: EdgeInsets.symmetric(vertical: 4 * layout),
+                padding: const EdgeInsets.symmetric(vertical: 4),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
                 '➕ Add Another Child',
                 style: GoogleFonts.inter(
-                  fontSize: 20 * wr,
+                  fontSize: 20,
                   fontWeight: FontWeight.w500,
                   height: 22 / 20,
                   color: AppColors.primaryBlue,
@@ -511,21 +486,17 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     );
   }
 
-  /// **342×184** min, custom **66×28** pill toggle (**595959 @ 33%** track, white thumb **25**).
-  Widget buildSettingsCard(BuildContext context, double wr, double layout, double cappedW) {
-    final cardW = math.min(342.0 * wr, cappedW - 48 * wr);
+  Widget _buildSettingsCard(BuildContext context, double cardW) {
+    final innerW = _ParentProfileCards.innerContentWidth(cardW);
     final darkOn = Theme.of(context).brightness == Brightness.dark;
-    final hPad = 18 * wr;
-    final lineW = cardW - 2 * hPad;
+    const vPad = EdgeInsets.symmetric(
+      horizontal: _ParentProfileCards.innerHorizontalPadding,
+      vertical: 12,
+    );
 
-    return Container(
+    return _ProfileCard(
       width: cardW,
-      constraints: BoxConstraints(minHeight: 184 * layout),
-      padding: EdgeInsets.fromLTRB(hPad, 12 * layout, hPad, 12 * layout),
-      decoration: BoxDecoration(
-        color: context.appCardBackground,
-        borderRadius: BorderRadius.circular(15 * wr),
-      ),
+      padding: vPad,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,78 +504,79 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           Text(
             'Settings',
             style: GoogleFonts.inter(
-              fontSize: 20 * wr,
+              fontSize: 20,
               fontWeight: FontWeight.w600,
               height: 22 / 20,
               color: context.appPrimaryText,
             ),
           ),
-          SizedBox(height: 10 * layout),
-          _dividerLine(context, wr, lineW),
-          SizedBox(height: 10 * layout),
+          const SizedBox(height: 10),
+          _dividerLine(context, innerW),
+          const SizedBox(height: 10),
           Row(
             children: [
               Image.asset(
                 AppImages.moon,
-                width: 18.32 * wr,
-                height: 18.32 * layout,
+                width: 18.32,
+                height: 18.32,
                 fit: BoxFit.contain,
               ),
-              SizedBox(width: 10 * wr),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Dark Mode',
                   style: GoogleFonts.inter(
-                    fontSize: 16 * wr,
+                    fontSize: 16,
                     fontWeight: FontWeight.w500,
                     height: 22 / 16,
                     color: context.appPrimaryText,
                   ),
                 ),
               ),
-              SizedBox(width: 10 * wr),
+              const SizedBox(width: 10),
               _FigmaPillToggle(
                 value: darkOn,
-                wr: wr,
-                layout: layout,
-                onChanged: (v) => ServiceLocator.themeController.setDarkEnabled(v),
+                onChanged: (v) =>
+                    ServiceLocator.themeController.setDarkEnabled(v),
               ),
             ],
           ),
-          SizedBox(height: 10 * layout),
-          _dividerLine(context, wr, lineW),
-          SizedBox(height: 8 * layout),
+          const SizedBox(height: 10),
+          _dividerLine(context, innerW),
+          const SizedBox(height: 8),
           InkWell(
             onTap: () {
-              Navigator.of(context).push(fadeRoute(const ParentEditProfileScreen()));
+              Navigator.of(context).push(
+                fadeRoute(const ParentEditProfileScreen()),
+              );
             },
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 4 * layout),
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Image.asset(
                     AppImages.lock,
-                    width: 15.6 * wr,
-                    height: 20.8 * layout,
+                    width: 15.6,
+                    height: 20.8,
                     fit: BoxFit.contain,
                   ),
-                  SizedBox(width: 10 * wr),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Change Password',
                       style: GoogleFonts.inter(
-                        fontSize: 16 * wr,
+                        fontSize: 16,
                         fontWeight: FontWeight.w500,
                         height: 22 / 16,
                         color: context.appPrimaryText,
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.chevron_right,
-                    color: context.appSecondaryText,
-                    size: 14.5 * wr,
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    color: AppColors.white,
+                    size: 14.5,
                   ),
                 ],
               ),
@@ -615,62 +587,55 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     );
   }
 
-  /// **342×158** min, “Support” header + Help + About; icons **214071**.
-  Widget buildSupportAboutCards(
-    BuildContext context,
-    double wr,
-    double layout,
-    double cappedW,
-  ) {
-    final cardW = math.min(342.0 * wr, cappedW - 48 * wr);
-    final hPad = 14 * wr;
-    final lineW = cardW - 2 * hPad;
+  Widget _buildSupportCard(BuildContext context, double cardW) {
+    final innerW = _ParentProfileCards.innerContentWidth(cardW);
+    const vPad = EdgeInsets.fromLTRB(
+      _ParentProfileCards.innerHorizontalPadding,
+      14,
+      _ParentProfileCards.innerHorizontalPadding,
+      12,
+    );
 
-    return Container(
+    return _ProfileCard(
       width: cardW,
-      constraints: BoxConstraints(minHeight: 158 * layout),
-      padding: EdgeInsets.fromLTRB(hPad, 14 * layout, hPad, 12 * layout),
-      decoration: BoxDecoration(
-        color: context.appCardBackground,
-        borderRadius: BorderRadius.circular(15 * wr),
-      ),
+      padding: vPad,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.only(left: 7 * wr),
+            padding: const EdgeInsets.only(left: 7),
             child: Text(
               'Support',
               style: GoogleFonts.inter(
-                fontSize: 16 * wr,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
                 height: 22 / 16,
                 color: context.appSecondaryText,
               ),
             ),
           ),
-          SizedBox(height: 10 * layout),
-          _dividerLine(context, wr, lineW),
+          const SizedBox(height: 10),
+          _dividerLine(context, innerW),
           InkWell(
             onTap: () {},
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 10 * layout),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 children: [
-                  SizedBox(width: 6 * wr),
+                  const SizedBox(width: 6),
                   Image.asset(
                     AppImages.questionMark,
-                    width: 22 * wr,
-                    height: 22 * layout,
+                    width: 22,
+                    height: 22,
                     fit: BoxFit.contain,
                     color: AppColors.primaryBlue,
                   ),
-                  SizedBox(width: 13 * wr),
+                  const SizedBox(width: 13),
                   Text(
                     'Help & Support',
                     style: GoogleFonts.inter(
-                      fontSize: 16 * wr,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                       height: 22 / 16,
                       color: context.appPrimaryText,
@@ -680,26 +645,25 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               ),
             ),
           ),
-          _dividerLine(context, wr, lineW),
           InkWell(
             onTap: () {},
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 10 * layout),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 children: [
-                  SizedBox(width: 4 * wr),
+                  const SizedBox(width: 4),
                   Image.asset(
                     AppImages.aboutMark,
-                    width: 23.33 * wr,
-                    height: 23.33 * layout,
+                    width: 23.33,
+                    height: 23.33,
                     fit: BoxFit.contain,
                     color: AppColors.primaryBlue,
                   ),
-                  SizedBox(width: 13 * wr),
+                  const SizedBox(width: 13),
                   Text(
                     'About Busify',
                     style: GoogleFonts.inter(
-                      fontSize: 16 * wr,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                       height: 22 / 16,
                       color: context.appPrimaryText,
@@ -714,9 +678,8 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     );
   }
 
-  /// **341×46** min, radius **33**, gradient; centered icon + label (avoids padding overflow).
-  Widget buildLogoutButton(BuildContext context, double wr, double layout, double cappedW) {
-    final w = math.min(341 * wr, cappedW - 32 * wr);
+  Widget _buildLogoutButton(BuildContext context) {
+    final w = _ParentProfileCards.logoutWidth(context);
 
     return Material(
       color: Colors.transparent,
@@ -727,12 +690,12 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             (route) => false,
           );
         },
-        borderRadius: BorderRadius.circular(33 * wr),
+        borderRadius: BorderRadius.circular(33),
         child: Ink(
           width: w,
-          padding: EdgeInsets.symmetric(horizontal: 20 * wr, vertical: 10 * layout),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(33 * wr),
+            borderRadius: BorderRadius.circular(33),
             gradient: AppColors.primaryButtonGradient,
           ),
           child: Row(
@@ -741,15 +704,15 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             children: [
               Image.asset(
                 AppImages.logoutParentProfile,
-                width: 26 * wr,
-                height: 26 * layout,
+                width: 26,
+                height: 26,
                 fit: BoxFit.contain,
               ),
-              SizedBox(width: 12 * wr),
+              const SizedBox(width: 12),
               Text(
                 'Log Out',
                 style: GoogleFonts.inter(
-                  fontSize: 20 * wr,
+                  fontSize: 20,
                   fontWeight: FontWeight.w500,
                   height: 22 / 20,
                   color: AppColors.white,
@@ -761,21 +724,69 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
       ),
     );
   }
-
 }
 
-/// Figma toggle: **66×28**, radius **33**, track **595959 33%**, thumb **25** white.
-class _FigmaPillToggle extends StatelessWidget {
-  const _FigmaPillToggle({
-    required this.value,
-    required this.wr,
-    required this.layout,
-    required this.onChanged,
+/// غلاف موحّد لكل بطاقات المحتوى — الارتفاع حسب المحتوى فقط.
+class _ProfileCard extends StatelessWidget {
+  const _ProfileCard({
+    required this.width,
+    required this.padding,
+    required this.child,
   });
 
+  final double width;
+  final EdgeInsetsGeometry padding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      padding: padding,
+      alignment: Alignment.topCenter,
+      decoration: BoxDecoration(
+        color: context.appCardBackground,
+        borderRadius: BorderRadius.circular(_ParentProfileCards.cardRadius),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.all(Radius.circular(999)),
+        border: Border.all(color: AppColors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.gray333.withValues(alpha: 0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.all(Radius.circular(999)),
+        child: Image.asset(
+          AppImages.parentProfilePic,
+          width: 91,
+          height: 78,
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+}
+
+class _FigmaPillToggle extends StatelessWidget {
+  const _FigmaPillToggle({required this.value, required this.onChanged});
+
   final bool value;
-  final double wr;
-  final double layout;
   final ValueChanged<bool> onChanged;
 
   @override
@@ -783,10 +794,10 @@ class _FigmaPillToggle extends StatelessWidget {
     return GestureDetector(
       onTap: () => onChanged(!value),
       child: Container(
-        width: 66 * wr,
-        height: 28 * layout,
+        width: 66,
+        height: 28,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(33 * wr),
+          borderRadius: BorderRadius.circular(33),
           color: AppColors.toggleTrackMuted,
         ),
         child: Stack(
@@ -796,10 +807,10 @@ class _FigmaPillToggle extends StatelessWidget {
               curve: Curves.easeOutCubic,
               alignment: value ? Alignment.centerRight : Alignment.centerLeft,
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 1 * wr, vertical: 1 * layout),
+                padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
                 child: Container(
-                  width: 25 * wr,
-                  height: 25 * layout,
+                  width: 25,
+                  height: 25,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppColors.white,

@@ -34,8 +34,6 @@ class _SupervisorChangePasswordScreenState
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    double effectiveWidth = size.width > 450 ? 450 : size.width;
     final actionButtonGradient = LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
@@ -52,7 +50,7 @@ class _SupervisorChangePasswordScreenState
       body: SafeArea(
         child: Center(
           child: SizedBox(
-            width: effectiveWidth,
+            width: double.infinity,
             child: Column(
               children: [
                 Expanded(

@@ -81,21 +81,15 @@ class _LaunchSplashScreenState extends State<LaunchSplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    const designWidth = 390.0;
-    const designHeight = 844.0;
-    final widthRatio = size.width / designWidth;
-    final heightRatio = size.height / designHeight;
+    const topX = 65.0;
+    const topY = 165.0;
+    const topWidth = 260.0;
+    const topHeight = 260.0;
 
-    final topX = 65 * widthRatio;
-    final topY = 165 * heightRatio;
-    final topWidth = 260 * widthRatio;
-    final topHeight = 260 * heightRatio;
-
-    final bottomX = 59 * widthRatio;
-    final bottomY = 425 * heightRatio;
-    final bottomWidth = 271 * widthRatio;
-    final bottomHeight = 231 * heightRatio;
+    const bottomX = 59.0;
+    const bottomY = 425.0;
+    const bottomWidth = 271.0;
+    const bottomHeight = 231.0;
 
     return Scaffold(
       body: Container(

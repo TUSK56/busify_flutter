@@ -5,7 +5,6 @@ class AppImages {
   static const String busIcon = 'assets/images/1.png';
   static const String logo = 'assets/images/2.png';
 
-  /// Parent home — Figma asset names (paths under assets/images/)
   static const String parentHomeLogo = logo;
   static const String parentHomePerson = 'assets/images/parent_person.png';
   static const String parentHomeStudentAvatar = 'assets/images/parent_profile.png';
