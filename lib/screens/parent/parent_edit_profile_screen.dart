@@ -8,7 +8,6 @@ import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_profile_screen.dart';
 import 'package:application/screens/parent/parent_track_bus_screen.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -136,12 +135,17 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
         child: Stack(
           children: [
             const Positioned.fill(child: ColoredBox(color: AppColors.primaryBlue97)),
-            Positioned(
-              left: 0,
-              right: 0,
+            Positioned.fill(
               top: 40,
               bottom: 72,
-              child: ParentBrandLogo.headerImage(AppImages.logo),
+              child: Center(
+                child: Image.asset(
+                  AppImages.logo,
+                  width: 126,
+                  height: 54,
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
             Positioned(
               left: 15,

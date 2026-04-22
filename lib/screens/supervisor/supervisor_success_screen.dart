@@ -1,15 +1,134 @@
 import 'dart:ui';
+import 'dart:io';
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/helpers/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'supervisor_login_screen.dart';
 // this page after conforming the new password
 class SupervisorSuccessScreen extends StatelessWidget {
-  const SupervisorSuccessScreen({super.key});
+  final bool isAttendanceFlow;
+  final String? imagePath;
+  final String? studentName;
+  final String? studentGrade;
+  final String? studentBirthdate;
+  final int? boarded;
+  final int? remaining;
+
+  const SupervisorSuccessScreen({super.key})
+      : isAttendanceFlow = false,
+        imagePath = null,
+        studentName = null,
+        studentGrade = null,
+        studentBirthdate = null,
+        boarded = null,
+        remaining = null;
+
+  const SupervisorSuccessScreen.attendance({
+    super.key,
+    required this.imagePath,
+    required this.studentName,
+    required this.studentGrade,
+    required this.studentBirthdate,
+    required this.boarded,
+    required this.remaining,
+  }) : isAttendanceFlow = true;
 
   @override
   Widget build(BuildContext context) {
+    if (isAttendanceFlow) {
+      return Scaffold(
+        backgroundColor: context.appScaffoldBackground,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                height: 140,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryBlue,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(40),
+                    bottomRight: Radius.circular(40),
+                  ),
+                ),
+                child: Center(
+                  child: Image.asset(AppImages.logo, height: 80, fit: BoxFit.contain),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Attendance Saved',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.linkBlue,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (imagePath != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(File(imagePath!), width: 120, height: 120, fit: BoxFit.cover),
+                ),
+              const SizedBox(height: 12),
+              Text(
+                studentName ?? 'Student',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: context.appPrimaryText,
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (studentGrade != null && studentBirthdate != null)
+                Text(
+                  'Grade: $studentGrade    •    Birthdate: $studentBirthdate',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: context.appPrimaryText,
+                  ),
+                ),
+              const SizedBox(height: 20),
+              Text(
+                'Boarded: ${boarded ?? 0}    Remaining: ${remaining ?? 0}',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  color: context.appPrimaryText,
+                ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlue,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text(
+                      'Back To Trip',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     // Screen dimensions for responsive layout
     final size = MediaQuery.of(context).size;
     final screenHeight = size.height;

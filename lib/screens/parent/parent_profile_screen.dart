@@ -10,7 +10,6 @@ import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_track_bus_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -55,6 +54,46 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
   late final AnimationController _entranceController;
   late final Animation<double> _entranceFade;
   late final Animation<Offset> _entranceSlide;
+  late Future<Map<String, dynamic>> _childOverviewFuture;
+  String _parentName = '';
+  String _parentPhone = '';
+  String _parentEmail = '';
+  String _parentGovernorate = '';
+
+  Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return value.map((k, v) => MapEntry(k.toString(), v));
+    return null;
+  }
+
+  List<Map<String, dynamic>> _asMapList(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .map((e) => _asMap(e))
+        .whereType<Map<String, dynamic>>()
+        .toList();
+  }
+
+  String? _readStringAnyKey(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value != null) {
+        final text = value.toString().trim();
+        if (text.isNotEmpty) return text;
+      }
+    }
+    final lowered = <String, dynamic>{};
+    data.forEach((k, v) => lowered[k.toString().toLowerCase()] = v);
+    for (final key in keys) {
+      final value = lowered[key.toLowerCase()];
+      if (value != null) {
+        final text = value.toString().trim();
+        if (text.isNotEmpty) return text;
+      }
+    }
+    return null;
+  }
+
 
   void _onThemeChanged() {
     if (mounted) setState(() {});
@@ -79,7 +118,69 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             curve: Curves.easeOutCubic,
           ),
         );
+    _childOverviewFuture = ServiceLocator.parentService.getChildOverview();
     _entranceController.forward();
+    _loadParentOverview();
+  }
+
+  Future<void> _loadParentOverview() async {
+    final cachedName = ServiceLocator.tokenStorage.getUserName();
+    final cachedEmail = ServiceLocator.tokenStorage.getUserEmail();
+    final cachedPhone = ServiceLocator.tokenStorage.getUserPhone();
+    if (mounted) {
+      setState(() {
+        if (cachedName != null && cachedName.isNotEmpty) {
+          _parentName = cachedName;
+        }
+        if (cachedEmail != null && cachedEmail.isNotEmpty) {
+          _parentEmail = cachedEmail;
+        }
+        if (cachedPhone != null && cachedPhone.isNotEmpty) {
+          _parentPhone = cachedPhone;
+        }
+      });
+    }
+    try {
+      final profile = await ServiceLocator.parentService.getProfile();
+      if (!mounted) return;
+      setState(() {
+        final name = _readStringAnyKey(profile, const ['name']);
+        final phone = _readStringAnyKey(
+          profile,
+          const ['phone', 'phoneNumber', 'mobile'],
+        );
+        final email = _readStringAnyKey(profile, const ['email']);
+        final governorate = _readStringAnyKey(profile, const ['governorate']);
+        if (name != null && name.isNotEmpty) _parentName = name;
+        if (phone != null && phone.isNotEmpty) _parentPhone = phone;
+        if (email != null && email.isNotEmpty) _parentEmail = email;
+        if (governorate != null && governorate.isNotEmpty) {
+          _parentGovernorate = governorate;
+        }
+      });
+    } catch (_) {}
+    try {
+      final data = await ServiceLocator.parentService.getChildOverview();
+      final parent = _asMap(data['parent'] ?? data['Parent']);
+      if (!mounted) return;
+      setState(() {
+        if (parent != null) {
+          final name = _readStringAnyKey(parent, const ['name']);
+          final phone = _readStringAnyKey(
+            parent,
+            const ['phone', 'phoneNumber', 'mobile'],
+          );
+          final email = _readStringAnyKey(parent, const ['email']);
+          final governorate = _readStringAnyKey(parent, const ['governorate']);
+          if (name != null && name.isNotEmpty) _parentName = name;
+          if (phone != null && phone.isNotEmpty) _parentPhone = phone;
+          if (email != null && email.isNotEmpty) _parentEmail = email;
+          if (governorate != null && governorate.isNotEmpty) {
+            _parentGovernorate = governorate;
+          }
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -165,7 +266,14 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               child: ColoredBox(color: AppColors.primaryBlue97),
             ),
             Positioned.fill(
-              child: ParentBrandLogo.headerImage(AppImages.logo),
+              child: Center(
+                child: Image.asset(
+                  AppImages.logo,
+                  width: 126,
+                  height: 54,
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
             Positioned(
               left: 15,
@@ -211,7 +319,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           children: [
             Center(
               child: Text(
-                'Omar Khaled',
+                _parentName.isEmpty ? '—' : _parentName,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 24,
@@ -281,7 +389,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  '01223100458',
+                  _parentPhone.isEmpty ? '—' : _parentPhone,
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.w400,
@@ -307,7 +415,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'omar@email.com',
+                  _parentEmail.isEmpty ? '—' : _parentEmail,
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
@@ -332,7 +440,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               ),
               const SizedBox(width: 12),
               Text(
-                'Cairo',
+                _parentGovernorate.isEmpty ? '—' : _parentGovernorate,
                 style: GoogleFonts.inter(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
@@ -378,92 +486,120 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           const SizedBox(height: 8),
           _dividerLine(context, innerW),
           const SizedBox(height: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  ClipOval(
-                    child: Image.asset(
-                      AppImages.parentProfile,
-                      width: 38,
-                      height: 37,
-                      fit: BoxFit.cover,
-                    ),
+          FutureBuilder<Map<String, dynamic>>(
+            future: _childOverviewFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: CircularProgressIndicator(),
+                );
+              }
+              if (!snapshot.hasData || snapshot.data == null) {
+                return const SizedBox.shrink();
+              }
+              final data = snapshot.data!;
+              final students = _asMapList(data['students'] ?? data['Students']);
+              if (students.isEmpty) {
+                return Text(
+                  'No linked students yet',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: context.appSecondaryText,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Adam Omar Ahmed',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        height: 35 / 16,
-                        color: context.appPrimaryText,
+                );
+              }
+              final first = students.first;
+              final name = (first['name'] ?? first['Name'])?.toString() ?? '';
+              final grade =
+                  (first['grade'] ?? first['Grade'])?.toString() ?? '';
+              final busId = first['busId'] ?? first['BusId'];
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      ClipOval(
+                        child: Image.asset(
+                          AppImages.parentProfile,
+                          width: 38,
+                          height: 37,
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    AppImages.winParentProfile,
-                    width: 21,
-                    height: 21,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Grade 6',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      height: 22 / 16,
-                      color: context.appPrimaryText,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    AppImages.busParentProfile,
-                    width: 21,
-                    height: 21,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Bus #7',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      height: 35 / 16,
-                      color: context.appPrimaryText.withValues(
-                        alpha: 0.85,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            height: 35 / 16,
+                            color: context.appPrimaryText,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        AppImages.winParentProfile,
+                        width: 21,
+                        height: 21,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        grade.isEmpty ? 'Grade' : grade,
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          height: 22 / 16,
+                          color: context.appPrimaryText,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        AppImages.busParentProfile,
+                        width: 21,
+                        height: 21,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        busId == null ? 'Bus' : 'Bus #$busId',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          height: 35 / 16,
+                          color: context.appPrimaryText.withValues(
+                            alpha: 0.85,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
           const SizedBox(height: 10),
           Center(
             child: TextButton(
-              onPressed: () {
-                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                  const SnackBar(content: Text('Add another child')),
-                );
-              },
+              onPressed: () => _showAddChildDialog(context),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.primaryBlue,
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -483,6 +619,95 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           ),
         ],
       ),
+    );
+  }
+
+  void _showAddChildDialog(BuildContext context) {
+    final nameController = TextEditingController();
+    final dobController = TextEditingController();
+    final gradeController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Add Another Child'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Student Name'),
+                ),
+                TextField(
+                  controller: dobController,
+                  decoration: const InputDecoration(labelText: 'Date of Birth (yyyy-MM-dd)'),
+                ),
+                TextField(
+                  controller: gradeController,
+                  decoration: const InputDecoration(labelText: 'Grade'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final dob = dobController.text.trim();
+                final grade = gradeController.text.trim();
+                if (name.isEmpty || dob.isEmpty || grade.isEmpty) {
+                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                    const SnackBar(content: Text('Please fill all fields')),
+                  );
+                  return;
+                }
+                try {
+                  // We need parentId; reuse overview call to keep client simple.
+                  final overview =
+                      await ServiceLocator.parentService.getChildOverview();
+                  final parent =
+                      _asMap(overview['parent'] ?? overview['Parent']) ?? {};
+                  final parentId = (parent['id'] ?? parent['Id']) as int? ??
+                      ServiceLocator.tokenStorage.getUserId();
+                  if (parentId == null) {
+                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      const SnackBar(content: Text('Could not detect parent account')),
+                    );
+                    return;
+                  }
+                  await ServiceLocator.parentService.addChild(
+                    name: name,
+                    birthdate: dob,
+                    grade: grade,
+                    parentId: parentId,
+                  );
+                  if (!mounted) return;
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                    const SnackBar(content: Text('Child added successfully')),
+                  );
+                  // Trigger UI refresh for linked students
+                  setState(() {
+                    _childOverviewFuture =
+                        ServiceLocator.parentService.getChildOverview();
+                  });
+                } catch (e) {
+                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                    SnackBar(content: Text('Failed to add child: $e')),
+                  );
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
     );
   }
 

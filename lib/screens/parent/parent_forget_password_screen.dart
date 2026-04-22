@@ -4,7 +4,6 @@ import 'package:application/screens/parent/parent_otp_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
 
 class ParentForgetPasswordScreen extends StatefulWidget {
   const ParentForgetPasswordScreen({super.key});
@@ -50,12 +49,23 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                   ),
                   child: IntrinsicHeight(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         SizedBox(height: screenHeight * 0.02),
 
-                        // Top Logo (2.png)
-                        ParentBrandLogo.image(AppImages.logo),
+                        // Top Logo (2.png) - match supervisor layout
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: EdgeInsets.only(left: 47),
+                            child: Image.asset(
+                              AppImages.logo,
+                              width: 144,
+                              height: 100,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
 
                         SizedBox(height: screenHeight * 0.01),
 

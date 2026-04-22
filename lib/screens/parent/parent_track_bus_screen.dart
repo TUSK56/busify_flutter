@@ -1,13 +1,18 @@
 import 'dart:math' as math;
+import 'dart:async';
+import 'dart:convert';
 
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart' as latlng;
+import 'package:application/services/service_locator.dart';
 
 import 'parent_home_screen.dart';
 import 'parent_profile_screen.dart';
@@ -39,6 +44,20 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   late final AnimationController _entranceController;
   late final Animation<double> _entranceFade;
   late final Animation<Offset> _entranceSlide;
+  Timer? _pollTimer;
+  latlng.LatLng? _busLocation;
+  latlng.LatLng? _destination;
+  String _statusText = 'Loading';
+  String _etaText = '--';
+  String _studentName = '';
+  String _busNumber = '--';
+  List<latlng.LatLng> _polyline = [];
+  bool _hasActiveTrip = true;
+  final MapController _mapController = MapController();
+  int _routeProgressIndex = 0;
+  String _routeDestinationKey = '';
+  bool _isMiniMapFollowing = true;
+  AnimationController? _recenterController;
 
   @override
   void initState() {
@@ -58,10 +77,263 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       CurvedAnimation(parent: _entranceController, curve: Curves.easeOutCubic),
     );
     _entranceController.forward();
+    _loadStudentOverview();
+    _bootstrapLiveTracking();
+  }
+
+  Future<void> _loadStudentOverview() async {
+    try {
+      final data = await ServiceLocator.parentService.getChildOverview();
+      final students =
+          ((data['students'] ?? data['Students']) as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      if (students.isEmpty || !mounted) return;
+      final first = students.first;
+      final name = (first['name'] ?? first['Name'])?.toString();
+      if (name != null && name.isNotEmpty) {
+        setState(() {
+          _studentName = name;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _bootstrapLiveTracking() async {
+    await _refreshLiveData();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _refreshLiveData();
+    });
+  }
+
+  void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
+    if (!mounted) return;
+    _recenterController?.stop();
+    _recenterController?.dispose();
+    _recenterController = null;
+
+    final camera = _mapController.camera;
+    final startCenter = camera.center;
+    final endZoom = targetZoom ?? camera.zoom;
+
+    final latTween = Tween<double>(
+      begin: startCenter.latitude,
+      end: target.latitude,
+    );
+    final lngTween = Tween<double>(
+      begin: startCenter.longitude,
+      end: target.longitude,
+    );
+    final zoomTween = Tween<double>(begin: camera.zoom, end: endZoom);
+
+    _recenterController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    final curved = CurvedAnimation(
+      parent: _recenterController!,
+      curve: Curves.easeOutCubic,
+    );
+    _recenterController!.addListener(() {
+      if (!mounted) return;
+      final t = curved.value;
+      _mapController.move(
+        latlng.LatLng(latTween.transform(t), lngTween.transform(t)),
+        zoomTween.transform(t),
+      );
+    });
+    _recenterController!.forward();
+  }
+
+  Future<void> _refreshLiveData() async {
+    try {
+      final current = await ServiceLocator.parentService.getCurrentTrip();
+      final hasActive = current['has_active_trip'] == true;
+      if (!hasActive) {
+        if (!mounted) return;
+        setState(() {
+          _hasActiveTrip = false;
+          _statusText = 'No active trip';
+          _etaText = '--';
+          _busNumber = '--';
+          _busLocation = null;
+          _destination = null;
+          _polyline = [];
+          _routeDestinationKey = '';
+          _routeProgressIndex = 0;
+        });
+        return;
+      }
+
+      final trip = (current['trip'] as Map<String, dynamic>? ?? {});
+      final tripId = (trip['id'] as num?)?.toInt();
+      if (tripId == null) return;
+
+      latlng.LatLng? target;
+      final destination = current['destination'] as Map<String, dynamic>? ?? {};
+      final destType = destination['destination_type']?.toString();
+      final destLat = (destination['latitude'] as num?)?.toDouble();
+      final destLng = (destination['longitude'] as num?)?.toDouble();
+      if (destLat != null && destLng != null) {
+        target = latlng.LatLng(destLat, destLng);
+      }
+
+      final busInfo = current['bus'] as Map<String, dynamic>?;
+      final stops = current['stops'] as List<dynamic>? ?? const [];
+      String? resolvedStudentName;
+      if (stops.isNotEmpty) {
+        final first = stops.firstWhere(
+          (s) => s is Map<String, dynamic>,
+          orElse: () => stops.first,
+        );
+        if (first is Map<String, dynamic>) {
+          resolvedStudentName =
+              (first['student_name'] ?? first['studentName'] ?? first['StudentName'])
+                  ?.toString();
+        }
+      }
+
+      final live = await ServiceLocator.parentService.getLiveLocation(tripId);
+      final latest = live['latest'] as Map<String, dynamic>?;
+      final lat = (latest?['latitude'] as num?)?.toDouble();
+      final lng = (latest?['longitude'] as num?)?.toDouble();
+      if (lat == null || lng == null) return;
+      final bus = latlng.LatLng(lat, lng);
+
+      if (!mounted) return;
+
+      // Only refetch route when destination changes.
+      final destKey = target == null
+          ? ''
+          : '${target.latitude.toStringAsFixed(5)},${target.longitude.toStringAsFixed(5)}';
+      bool destinationChanged = destKey != _routeDestinationKey;
+
+      if (target == null) {
+        _polyline = [];
+        _routeDestinationKey = '';
+        _routeProgressIndex = 0;
+      } else if (destinationChanged || _polyline.isEmpty) {
+        final line = await _fetchRoute(bus, target);
+        if (!mounted) return;
+        _polyline = line;
+        _routeDestinationKey = destKey;
+        _routeProgressIndex = _polyline.isNotEmpty
+            ? _closestRouteIndex(bus, _polyline)
+            : 0;
+      } else if (_polyline.isNotEmpty) {
+        _routeProgressIndex = _closestRouteIndex(bus, _polyline);
+      }
+
+      setState(() {
+        _hasActiveTrip = true;
+        _busLocation = bus;
+        _destination = target;
+        _statusText = destType == 'school' ? 'Completed' : 'On the way';
+        _etaText = _computeEta(bus, target);
+        if (resolvedStudentName != null && resolvedStudentName.isNotEmpty) {
+          _studentName = resolvedStudentName;
+        }
+        if (busInfo != null) {
+          final busNumber =
+              busInfo['busNumber'] ?? busInfo['BusNumber'] ?? busInfo['id'];
+          if (busNumber != null) {
+            _busNumber = busNumber.toString();
+          }
+        }
+      });
+
+      // Follow bus automatically unless user moved the map.
+      if (_isMiniMapFollowing) {
+        _mapController.move(bus, _mapController.camera.zoom);
+      }
+    } catch (_) {}
+  }
+
+  Future<List<latlng.LatLng>> _fetchRoute(
+    latlng.LatLng from,
+    latlng.LatLng to,
+  ) async {
+    final uri = Uri.parse(
+      'https://router.project-osrm.org/route/v1/driving/${from.longitude},${from.latitude};${to.longitude},${to.latitude}?overview=full&geometries=geojson',
+    );
+    final resp = await http.get(uri);
+    if (resp.statusCode != 200) return [];
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final routes = data['routes'] as List<dynamic>? ?? const [];
+    if (routes.isEmpty) return [];
+    final geometry = (routes.first as Map<String, dynamic>)['geometry'] as Map<String, dynamic>?;
+    final coords = geometry?['coordinates'] as List<dynamic>? ?? const [];
+    return coords
+        .whereType<List<dynamic>>()
+        .where((c) => c.length >= 2)
+        .map((c) => latlng.LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
+        .toList();
+  }
+
+  String _computeEta(latlng.LatLng bus, latlng.LatLng? dest) {
+    if (dest == null) return '--';
+    final dKm = _distanceKm(bus.latitude, bus.longitude, dest.latitude, dest.longitude);
+    final mins = ((dKm / 28.0) * 60).ceil();
+    if (mins <= 0) return '0 min';
+    return '$mins min';
+  }
+
+  double _distanceKm(double lat1, double lon1, double lat2, double lon2) {
+    const p = 0.017453292519943295;
+    final a = 0.5 -
+        math.cos((lat2 - lat1) * p) / 2 +
+        math.cos(lat1 * p) * math.cos(lat2 * p) * (1 - math.cos((lon2 - lon1) * p)) / 2;
+    return 12742 * math.asin(math.sqrt(a));
+  }
+
+  int _closestRouteIndex(latlng.LatLng current, List<latlng.LatLng> points) {
+    var bestIdx = 0;
+    var bestDist = double.infinity;
+    for (var i = 0; i < points.length; i++) {
+      final p = points[i];
+      final d = _distanceKm(current.latitude, current.longitude, p.latitude, p.longitude);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  List<Polyline> _buildColoredRoutePolylines() {
+    if (_polyline.isEmpty || _polyline.length < 2) return const [];
+
+    final idx = _routeProgressIndex.clamp(0, _polyline.length - 1);
+    final split = math.max(1, math.min(idx + 1, _polyline.length - 1));
+    final passed = _polyline.sublist(0, split);
+    final remaining = _polyline.sublist(split - 1);
+
+    final polylines = <Polyline>[];
+    if (passed.length > 1) {
+      polylines.add(
+        Polyline(
+          points: passed,
+          color: Colors.grey.shade400,
+          strokeWidth: 4,
+        ),
+      );
+    }
+    if (remaining.length > 1) {
+      polylines.add(
+        Polyline(
+          points: remaining,
+          color: const Color(0xFF2563EB),
+          strokeWidth: 4,
+        ),
+      );
+    }
+    return polylines;
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
+    _recenterController?.dispose();
     _entranceController.dispose();
     super.dispose();
   }
@@ -145,7 +417,14 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
               color: AppColors.primaryBlue,
             ),
             Positioned.fill(
-              child: ParentBrandLogo.headerImage(AppImages.trackBusLogo),
+              child: Center(
+                child: Image.asset(
+                  AppImages.trackBusLogo,
+                  width: 126,
+                  height: 54,
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
             Positioned(
               left: 15,
@@ -178,12 +457,90 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     return SizedBox(
       width: double.infinity,
       height: 442,
-      child: Image.asset(
-        AppImages.trackBusMap,
-        width: double.infinity,
-        height: 442,
-        fit: BoxFit.cover,
-      ),
+      child: _busLocation == null
+          ? Center(
+              child: _hasActiveTrip
+                  ? const CircularProgressIndicator()
+                  : const Text(
+                      'There is no trip going right now.',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+            )
+          : Stack(
+              children: [
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _busLocation!,
+                    initialZoom: 14,
+                    maxZoom: 18,
+                    minZoom: 3,
+                    onMapEvent: (event) {
+                      if (event is MapEventMove || event is MapEventRotate) {
+                        if (_isMiniMapFollowing) {
+                          setState(() => _isMiniMapFollowing = false);
+                        }
+                      }
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      subdomains: const ['a', 'b', 'c'],
+                      userAgentPackageName: 'com.example.application',
+                    ),
+                    if (_polyline.isNotEmpty)
+                      PolylineLayer(
+                        polylines: _buildColoredRoutePolylines(),
+                      ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: _busLocation!,
+                          width: 34,
+                          height: 34,
+                      child: const Icon(Icons.directions_car_filled, color: Colors.blue, size: 30),
+                        ),
+                        if (_destination != null)
+                          Marker(
+                            point: _destination!,
+                            width: 34,
+                            height: 34,
+                            child: const Icon(Icons.location_pin, color: Colors.red, size: 30),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                Positioned(
+                  left: 12,
+                  bottom: 12,
+                  child: GestureDetector(
+                    onTap: () {
+                      if (_busLocation == null) return;
+                      setState(() => _isMiniMapFollowing = true);
+                      _animateMapTo(_busLocation!, targetZoom: 16);
+                    },
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            offset: const Offset(0, 2),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.my_location, color: AppColors.primaryBlue),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -232,7 +589,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Adam Omar',
+                        _studentName.isEmpty ? '—' : _studentName,
                         style: GoogleFonts.inter(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -253,7 +610,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
                           ),
                           Flexible(
                             child: Text(
-                              'On the way',
+                              _statusText,
                               style: GoogleFonts.inter(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -276,7 +633,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
                           ),
                           SizedBox(width: _TrackBusLayout.etaLabelToTimeGap),
                           Text(
-                            '7 minutes',
+                            _etaText,
                             style: GoogleFonts.inter(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -303,7 +660,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
                     children: [
                       _infoLine(context, 'Driver:', 'Ahmed Ali'),
                       const SizedBox(height: 5),
-                      _infoLine(context, 'Bus:', '7'),
+                      _infoLine(context, 'Bus:', _busNumber),
                     ],
                   ),
                 ),

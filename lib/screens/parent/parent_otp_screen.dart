@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
 import 'parent_reset_password_screen.dart';
 
 class ParentOtpScreen extends StatefulWidget {
@@ -81,12 +80,23 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
             child: SizedBox(
               width: double.infinity,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   SizedBox(height: screenHeight * 0.02),
 
-                  // Top Logo (2.png)
-                  ParentBrandLogo.image(AppImages.logo),
+                  // Top Logo (2.png) – match supervisor layout
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 47),
+                      child: Image.asset(
+                        AppImages.logo,
+                        width: 104,
+                        height: 100,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
 
                   SizedBox(height: screenHeight * 0.01),
 

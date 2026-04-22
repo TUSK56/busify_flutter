@@ -5,7 +5,7 @@ import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
+import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -54,6 +54,10 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   late final AnimationController _entranceController;
   late final Animation<double> _entranceFade;
   late final Animation<Offset> _entranceSlide;
+  String _parentName = '';
+  String _studentName = '';
+  String _studentGrade = '';
+  String _busNumber = '--';
 
   @override
   void initState() {
@@ -74,6 +78,65 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
           ),
         );
     _entranceController.forward();
+    _loadParentOverview();
+  }
+
+  Future<void> _loadParentOverview() async {
+    final cachedName = ServiceLocator.tokenStorage.getUserName();
+    if (cachedName != null && cachedName.isNotEmpty && mounted) {
+      setState(() {
+        _parentName = cachedName;
+      });
+    }
+    try {
+      final profile = await ServiceLocator.parentService.getProfile();
+      final name = (profile['name'] ?? profile['Name'])?.toString();
+      if (name != null && name.isNotEmpty && mounted) {
+        setState(() {
+          _parentName = name;
+        });
+      }
+    } catch (_) {}
+    try {
+      final data = await ServiceLocator.parentService.getChildOverview();
+      final parent =
+          (data['parent'] ?? data['Parent']) as Map<String, dynamic>?;
+      final students =
+          ((data['students'] ?? data['Students']) as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      setState(() {
+        if (parent != null) {
+          final name = (parent['name'] ?? parent['Name'])?.toString();
+          if (name != null && name.isNotEmpty) {
+            _parentName = name;
+          }
+        }
+        if (students.isNotEmpty) {
+          final s = students.first;
+          final sName = (s['name'] ?? s['Name'])?.toString();
+          final sGrade = (s['grade'] ?? s['Grade'])?.toString();
+          if (sName != null && sName.isNotEmpty) {
+            _studentName = sName;
+          }
+          if (sGrade != null && sGrade.isNotEmpty) {
+            _studentGrade = sGrade;
+          }
+        }
+      });
+    } catch (_) {}
+    try {
+      final current = await ServiceLocator.parentService.getCurrentTrip();
+      final bus = current['bus'] as Map<String, dynamic>?;
+      if (bus != null) {
+        final busNumber = bus['busNumber'] ?? bus['BusNumber'] ?? bus['id'];
+        if (busNumber != null && mounted) {
+          setState(() {
+            _busNumber = busNumber.toString();
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -159,7 +222,14 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
               color: AppColors.primaryBlue,
             ),
             Positioned.fill(
-              child: ParentBrandLogo.headerImage(AppImages.parentHomeLogo),
+              child: Center(
+                child: Image.asset(
+                  AppImages.parentHomeLogo,
+                  width: 126,
+                  height: 54,
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
           ],
         ),
@@ -180,7 +250,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                'Hello , Omar',
+                _parentName.isEmpty ? 'Hello' : 'Hello , $_parentName',
                 style: GoogleFonts.inter(
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
@@ -261,7 +331,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Adam Omar',
+                              _studentName.isEmpty ? '—' : _studentName,
                               style: GoogleFonts.inter(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w600,
@@ -270,7 +340,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                               ),
                             ),
                             Text(
-                              'Grade 6',
+                              _studentGrade.isEmpty ? '—' : _studentGrade,
                               style: GoogleFonts.inter(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
@@ -329,7 +399,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Bus #7',
+                          _busNumber.isEmpty ? 'Bus' : 'Bus #$_busNumber',
                           style: GoogleFonts.inter(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,

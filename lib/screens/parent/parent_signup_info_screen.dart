@@ -1,11 +1,13 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/models/parent_signup_data.dart';
 import 'package:application/screens/parent/parent_signup_student_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 
 class ParentSignupInfoScreen extends StatefulWidget {
   const ParentSignupInfoScreen({super.key});
@@ -25,6 +27,74 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
   final _addressController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool _isResolvingLocation = false;
+  double? _latitude;
+  double? _longitude;
+  String? _governorate;
+  String? _street;
+  Future<void> _pickLocationFromGps() async {
+    setState(() => _isResolvingLocation = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Please enable location services.');
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission is required to continue.');
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
+      );
+
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?lat=${position.latitude}&lon=${position.longitude}&format=jsonv2',
+      );
+      final response = await http.get(
+        url,
+        headers: const {'User-Agent': 'busify-parent-signup/1.0'},
+      );
+      if (response.statusCode != 200) {
+        throw Exception('Could not resolve address from location.');
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final address = (data['address'] as Map<String, dynamic>?) ?? const {};
+      final governorate =
+          (address['state'] ?? address['city'] ?? address['county'] ?? '')
+              .toString()
+              .trim();
+      final street =
+          (address['road'] ?? address['suburb'] ?? address['neighbourhood'] ?? '')
+              .toString()
+              .trim();
+      if (governorate.isEmpty || street.isEmpty) {
+        throw Exception('Could not detect governorate/street from GPS.');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _governorate = governorate;
+        _street = street;
+        _addressController.text = '$governorate, $street';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _isResolvingLocation = false);
+    }
+  }
+
 
   @override
   void dispose() {
@@ -62,7 +132,12 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
               SizedBox(height: screenHeight * 0.01),
 
               // Top Logo (2.png)
-              ParentBrandLogo.image(AppImages.logo),
+              Image.asset(
+                AppImages.logo,
+                width: 126,
+                height: 150,
+                fit: BoxFit.contain,
+              ),
 
               SizedBox(height: screenHeight * 0.02),
 
@@ -167,8 +242,23 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                             // 4. Address
                             _buildInputField(
                               label: 'Address',
-                              hintText: 'Enter your address',
+                              hintText: 'Use GPS icon to detect address',
                               controller: _addressController,
+                              readOnly: true,
+                              customSuffixIcon: _isResolvingLocation
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : GestureDetector(
+                                      onTap: _pickLocationFromGps,
+                                      child: Icon(
+                                        Icons.my_location,
+                                        color: AppColors.white.withOpacity(0.8),
+                                        size: 20,
+                                      ),
+                                    ),
                             ),
 
                             // 5. Password
@@ -218,6 +308,17 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                                   );
                                   return;
                                 }
+                                if (_latitude == null ||
+                                    _longitude == null ||
+                                    _governorate == null ||
+                                    _street == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Please use the location icon to get your exact address.'),
+                                    ),
+                                  );
+                                  return;
+                                }
                                 if (password != confirm) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text('Passwords do not match.')),
@@ -236,6 +337,10 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                                   email: email,
                                   phone: phone,
                                   address: address,
+                                  latitude: _latitude!,
+                                  longitude: _longitude!,
+                                  governorate: _governorate!,
+                                  street: _street!,
                                   password: password,
                                 );
                                 Navigator.push(
@@ -288,6 +393,8 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
     bool obscureText = false,
     VoidCallback? onToggleVisibility,
     TextInputType keyboardType = TextInputType.text,
+    bool readOnly = false,
+    Widget? customSuffixIcon,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20.0), // Spacing between each input block
@@ -336,6 +443,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
               controller: controller,
               obscureText: obscureText,
               keyboardType: keyboardType,
+              readOnly: readOnly,
               style: const TextStyle(color: Colors.white, fontSize: 16),
               decoration: InputDecoration(
                 border: InputBorder.none,
@@ -349,7 +457,8 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                   color: AppColors.white.withOpacity(0.50), // Subtle hint text
                 ),
                 // Only show suffix icon if it's a password field
-                suffixIcon: isPassword
+                suffixIcon: customSuffixIcon ??
+                    (isPassword
                     ? GestureDetector(
                   onTap: onToggleVisibility,
                   child: Icon(
@@ -358,7 +467,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                     size: 20,
                   ),
                 )
-                    : null,
+                    : null),
               ),
             ),
           ),

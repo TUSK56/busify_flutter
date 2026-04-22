@@ -3,13 +3,32 @@ import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/fade_route.dart';
-import 'package:application/screens/supervisor/supervisor_trip_screen.dart';
+import 'package:application/screens/supervisor/supervisor_success_screen.dart';
 import 'package:flutter/material.dart';
 
 class SupervisorQrConfirmationScreen extends StatelessWidget {
   final String imagePath;
+  final String studentName;
+  final String studentGrade;
+  final String studentBirthdate;
+  final String busNumber;
+  final int boarded;
+  final int remaining;
+  final int tripId;
+  final int studentId;
 
-  const SupervisorQrConfirmationScreen({super.key, required this.imagePath});
+  const SupervisorQrConfirmationScreen({
+    super.key,
+    required this.imagePath,
+    required this.studentName,
+    required this.studentGrade,
+    required this.studentBirthdate,
+    required this.busNumber,
+    required this.boarded,
+    required this.remaining,
+    required this.tripId,
+    required this.studentId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +96,7 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
 
                   // Student Name
                   Text(
-                    'Judy Ahmed',
+                    studentName,
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
@@ -117,20 +136,33 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                         _detailRow(
                           context,
                           "Bus :",
-                          "#7",
+                          '#$busNumber',
+                          context.appPrimaryText,
+                        ),
+                        const SizedBox(height: 10),
+                        _detailRow(
+                          context,
+                          "Grade :",
+                          studentGrade,
+                          context.appPrimaryText,
+                        ),
+                        _detailRow(
+                          context,
+                          "Birthdate :",
+                          studentBirthdate,
                           context.appPrimaryText,
                         ),
                         const SizedBox(height: 15),
                         _detailRow(
                           context,
                           "• Boarded Students :",
-                          "21",
+                          '$boarded',
                           const Color(0xFF18A74A),
                         ),
                         _detailRow(
                           context,
                           "• Remaining :",
-                          "4",
+                          '$remaining',
                           const Color(0xFFFFCA07),
                         ),
                       ],
@@ -153,11 +185,22 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: () {
-                              Navigator.of(context).pushAndRemoveUntil(
-                                fadeRoute(const SupervisorTripScreen()),
-                                (route) => route.isFirst,
+                            onTap: () async {
+                              final ok = await Navigator.of(context).push<bool>(
+                                fadeRoute(
+                                  SupervisorSuccessScreen.attendance(
+                                    imagePath: imagePath,
+                                    studentName: studentName,
+                                    studentGrade: studentGrade,
+                                    studentBirthdate: studentBirthdate,
+                                    boarded: boarded,
+                                    remaining: remaining,
+                                  ),
+                                ),
                               );
+                              if (context.mounted && ok == true) {
+                                Navigator.of(context).pop(true);
+                              }
                             },
                             borderRadius: BorderRadius.circular(10),
                             child: const Center(

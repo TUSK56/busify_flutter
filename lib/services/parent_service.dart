@@ -21,7 +21,10 @@ class ParentService {
     required String phone,
     required String email,
     required String password,
-    required String address,
+    required double latitude,
+    required double longitude,
+    required String governorate,
+    required String street,
     required List<Child> children,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/register');
@@ -30,7 +33,9 @@ class ParentService {
       'phone': phone,
       'email': email,
       'password': password,
-      'address': address,
+      'address': '$latitude,$longitude',
+      'governorate': governorate,
+      'street': street,
       // NOTE: Backend currently validates parent-level schoolId.
       // We derive it from the selected child's schoolId.
       if (children.isNotEmpty) 'schoolId': children.first.schoolId,
@@ -87,6 +92,12 @@ class ParentService {
       jsonDecode(response.body) as Map<String, dynamic>,
     );
     await _tokenStorage.saveToken(loginResponse.token);
+    await _tokenStorage.saveUser(
+      id: loginResponse.user.id,
+      name: loginResponse.user.name,
+      email: loginResponse.user.email,
+      phone: loginResponse.user.phone,
+    );
     return loginResponse;
   }
 
@@ -140,6 +151,55 @@ class ParentService {
         'Failed to load child data (${response.statusCode})',
         statusCode: response.statusCode,
       );
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// GET /v1/parent/profile
+  Future<Map<String, dynamic>> getProfile() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/profile');
+    final response = await http.get(uri, headers: _authHeaders());
+    if (response.statusCode != 200) {
+      throw ParentServiceException(
+        'Failed to load parent profile (${response.statusCode})',
+        statusCode: response.statusCode,
+      );
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// POST /v1/parent/child
+  /// Creates a new child (student) for the logged-in parent.
+  Future<Map<String, dynamic>> addChild({
+    required String name,
+    required String birthdate, // yyyy-MM-dd
+    required String grade,
+    required int parentId,
+    int? busId,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/child');
+    final body = {
+      'name': name,
+      'birthdate': birthdate,
+      'grade': grade,
+      'parentId': parentId,
+      if (busId != null) 'busId': busId,
+    };
+    final response = await http.post(
+      uri,
+      headers: _authHeaders(),
+      body: jsonEncode(body),
+    );
+    if (response.statusCode != 200 &&
+        response.statusCode != 201 &&
+        response.statusCode != 204) {
+      throw ParentServiceException(
+        'Failed to add child (${response.statusCode})',
+        statusCode: response.statusCode,
+      );
+    }
+    if (response.body.isEmpty) {
+      return const <String, dynamic>{};
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }

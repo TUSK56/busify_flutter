@@ -4,7 +4,6 @@ import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
 import 'parent_login_screen.dart';
 
 class ParentResetPasswordScreen extends StatefulWidget {
@@ -52,12 +51,23 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
             child: SizedBox(
               width: double.infinity,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   SizedBox(height: screenHeight * 0.02),
 
-                  // Top Logo (2.png)
-                  ParentBrandLogo.image(AppImages.logo),
+                  // Top Logo (2.png) – match supervisor layout
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 47),
+                      child: Image.asset(
+                        AppImages.logo,
+                        width: 104,
+                        height: 100,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
 
                   SizedBox(height: screenHeight * 0.01),
 
@@ -113,158 +123,157 @@ class _ParentResetPasswordScreenState extends State<ParentResetPasswordScreen> {
                         child: Container(
                           width: double.infinity,
                           height: 400, // Fixed height per Figma
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 36, // Adjust padding to match Figma inner Y coordinates
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.white.withOpacity(0.27), // ffffff 27%
-                          borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                            color: AppColors.white.withOpacity(0.50), // ffffff 50%
-                            width: 1,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 36, // Adjust padding to match Figma inner Y coordinates
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.white.withOpacity(0.27), // ffffff 27%
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: AppColors.white.withOpacity(0.50), // ffffff 50%
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Password Label
+                              Padding(
+                                padding: EdgeInsets.only(left: 10, bottom: 8.0),
+                                child: Text(
+                                  'Password',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontWeight: FontWeight.w500, // Medium 24
+                                    fontSize: 24,
+                                    color: AppColors.white.withOpacity(0.90), // ffffff 90%
+                                  ),
+                                ),
+                              ),
+
+                              // Password Input Box
+                              _buildPasswordField(
+                                controller: _passwordController,
+                                isObscured: _obscurePassword,
+                                strokeOpacity: 0.18,
+                                onToggleVisibility: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+
+                              const SizedBox(height: 24),
+
+                              // Confirm Password Label
+                              Padding(
+                                padding: EdgeInsets.only(left: 10, bottom: 8.0),
+                                child: Text(
+                                  'Confirm Password',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontWeight: FontWeight.w500, // Medium 24
+                                    fontSize: 24,
+                                    color: AppColors.white.withOpacity(0.90), // ffffff 90%
+                                  ),
+                                ),
+                              ),
+
+                              // Confirm Password Input Box
+                              _buildPasswordField(
+                                controller: _confirmPasswordController,
+                                isObscured: _obscureConfirmPassword,
+                                strokeOpacity: 0.25,
+                                onToggleVisibility: () {
+                                  setState(() {
+                                    _obscureConfirmPassword = !_obscureConfirmPassword;
+                                  });
+                                },
+                              ),
+
+                              const Spacer(),
+
+                              // Create New Password Button
+                              Align(
+                                alignment: Alignment.center,
+                                child: GestureDetector(
+                                  onTap: _isLoading ? null : () async {
+                                    final password = _passwordController.text;
+                                    final confirm = _confirmPasswordController.text;
+                                    if (password.isEmpty || confirm.isEmpty) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Please fill both fields.')),
+                                      );
+                                      return;
+                                    }
+                                    if (password != confirm) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Passwords do not match.')),
+                                      );
+                                      return;
+                                    }
+                                    if (password.length < 6) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Password must be at least 6 characters.')),
+                                      );
+                                      return;
+                                    }
+                                    setState(() => _isLoading = true);
+                                    try {
+                                      await ServiceLocator.parentService.resetPassword(
+                                        email: widget.email,
+                                        otp: widget.otp,
+                                        newPassword: password,
+                                      );
+                                      if (!mounted) return;
+                                      Navigator.pushAndRemoveUntil(
+                                        context,
+                                        fadeRoute(const ParentLoginScreen()),
+                                        (route) => false,
+                                      );
+                                    } catch (e) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(e.toString())),
+                                      );
+                                    } finally {
+                                      if (mounted) setState(() => _isLoading = false);
+                                    }
+                                  },
+                                  child: Container(
+                                    width: 291,
+                                    height: 62,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      gradient: AppColors.primaryButtonGradient,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: _isLoading
+                                        ? const SizedBox(
+                                            height: 24,
+                                            width: 24,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Text(
+                                            'Create New Password',
+                                            style: TextStyle(
+                                              fontFamily: 'Inter',
+                                              fontWeight: FontWeight.w600, // SemiBold 20
+                                              fontSize: 20,
+                                              color: AppColors.white, // ffffff 100%
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-
-                            // Password Label
-                            Padding(
-                              padding: EdgeInsets.only(left: 10, bottom: 8.0),
-                              child: Text(
-                                'Password',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontWeight: FontWeight.w500, // Medium 24
-                                  fontSize: 24,
-                                  color: AppColors.white.withOpacity(0.90), // ffffff 90%
-                                ),
-                              ),
-                            ),
-
-                            // Password Input Box
-                            _buildPasswordField(
-                              controller: _passwordController,
-                              isObscured: _obscurePassword,
-                              strokeOpacity: 0.18,
-                              onToggleVisibility: () {
-                                setState(() {
-                                  _obscurePassword = !_obscurePassword;
-                                });
-                              },
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // Confirm Password Label
-                            Padding(
-                              padding: EdgeInsets.only(left: 10, bottom: 8.0),
-                              child: Text(
-                                'Confirm Password',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontWeight: FontWeight.w500, // Medium 24
-                                  fontSize: 24,
-                                  color: AppColors.white.withOpacity(0.90), // ffffff 90%
-                                ),
-                              ),
-                            ),
-
-                            // Confirm Password Input Box
-                            _buildPasswordField(
-                              controller: _confirmPasswordController,
-                              isObscured: _obscureConfirmPassword,
-                              strokeOpacity: 0.25,
-                              onToggleVisibility: () {
-                                setState(() {
-                                  _obscureConfirmPassword = !_obscureConfirmPassword;
-                                });
-                              },
-                            ),
-
-                            const Spacer(),
-
-                            // Create New Password Button
-                            Align(
-                              alignment: Alignment.center,
-                              child: GestureDetector(
-                                onTap: _isLoading ? null : () async {
-                                  final password = _passwordController.text;
-                                  final confirm = _confirmPasswordController.text;
-                                  if (password.isEmpty || confirm.isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Please fill both fields.')),
-                                    );
-                                    return;
-                                  }
-                                  if (password != confirm) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Passwords do not match.')),
-                                    );
-                                    return;
-                                  }
-                                  if (password.length < 6) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Password must be at least 6 characters.')),
-                                    );
-                                    return;
-                                  }
-                                  setState(() => _isLoading = true);
-                                  try {
-                                    await ServiceLocator.parentService.resetPassword(
-                                      email: widget.email,
-                                      otp: widget.otp,
-                                      newPassword: password,
-                                    );
-                                    if (!mounted) return;
-                                    Navigator.pushAndRemoveUntil(
-                                      context,
-                                      fadeRoute(const ParentLoginScreen()),
-                                      (route) => false,
-                                    );
-                                  } catch (e) {
-                                    if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(e.toString())),
-                                    );
-                                  } finally {
-                                    if (mounted) setState(() => _isLoading = false);
-                                  }
-                                },
-                                child: Container(
-                                  width: 291,
-                                  height: 62,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    gradient: AppColors.primaryButtonGradient,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: _isLoading
-                                      ? const SizedBox(
-                                          height: 24,
-                                          width: 24,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
-                                        )
-                                      : const Text(
-                                    'Create New Password',
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontWeight: FontWeight.w600, // SemiBold 20
-                                      fontSize: 20,
-                                      color: AppColors.white, // ffffff 100%
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                    ),
                     ),
                   ),
 

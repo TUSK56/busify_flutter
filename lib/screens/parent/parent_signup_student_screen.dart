@@ -1,14 +1,17 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
+
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/models/child.dart';
 import 'package:application/models/parent_signup_data.dart';
 import 'package:application/models/school.dart';
-import 'package:application/screens/parent/parent_signup_success_screen.dart';
+import 'package:application/screens/parent/parent_login_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'package:application/widgets/parent/parent_brand_logo.dart';
 
 class ParentSignupStudentScreen extends StatefulWidget {
   final ParentSignupData parentData;
@@ -28,6 +31,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
   School? _selectedSchool;
   String? _selectedGrade;
   bool _isLoading = false;
+  XFile? _facePhoto;
 
   @override
   void initState() {
@@ -40,6 +44,38 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
     _studentNameController.dispose();
     _birthdateController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickFacePhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    final picker = ImagePicker();
+    final x = await picker.pickImage(
+      source: source,
+      imageQuality: 88,
+      maxWidth: 1280,
+    );
+    if (x == null || !mounted) return;
+    setState(() => _facePhoto = x);
   }
 
   @override
@@ -67,7 +103,12 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
               SizedBox(height: screenHeight * 0.01),
 
               // Top Logo (2.png)
-              ParentBrandLogo.image(AppImages.logo),
+              Image.asset(
+                AppImages.logo,
+                width: 126,
+                height: 150,
+                fit: BoxFit.contain,
+              ),
 
               SizedBox(height: screenHeight * 0.01),
 
@@ -336,6 +377,77 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                               ),
                             ),
 
+                            const SizedBox(height: 24),
+
+                            // 4. Student face photo (same label style as other fields)
+                            SizedBox(
+                              width: 291,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 4, bottom: 8),
+                                    child: Text(
+                                      'Student Face Photo',
+                                      style: const TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 20,
+                                        color: AppColors.primaryBlue,
+                                      ),
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: _pickFacePhoto,
+                                    child: Container(
+                                      width: 291,
+                                      height: 140,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.white.withOpacity(0.21),
+                                        borderRadius: BorderRadius.circular(15),
+                                        border: Border.all(
+                                          color: AppColors.white.withOpacity(0.79),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: _facePhoto == null
+                                          ? Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.face_outlined,
+                                                  size: 40,
+                                                  color: AppColors.grayText.withOpacity(0.72),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'Tap to add a clear face photo',
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    fontFamily: 'Inter',
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: AppColors.grayText.withOpacity(0.68),
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          : ClipRRect(
+                                              borderRadius: BorderRadius.circular(14),
+                                              child: Image.file(
+                                                File(_facePhoto!.path),
+                                                width: 291,
+                                                height: 140,
+                                                fit: BoxFit.cover,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
                             const SizedBox(height: 48), // Spacing before button
 
                             // Sign Up Button
@@ -368,28 +480,40 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                   );
                                   return;
                                 }
+                                if (_facePhoto == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please add a student face photo.')),
+                                  );
+                                  return;
+                                }
 
                                 setState(() => _isLoading = true);
                                 try {
+                                  final bytes = await File(_facePhoto!.path).readAsBytes();
+                                  final b64 = base64Encode(bytes);
                                   final child = Child(
                                     name: studentName,
                                     schoolId: _selectedSchool!.id,
                                     birthdate: birthdate,
                                     grade: _selectedGrade!,
-                                    photoUrl: null,
+                                    photoBase64: b64,
                                   );
                                   await ServiceLocator.parentService.register(
                                     name: widget.parentData.name,
                                     phone: widget.parentData.phone,
                                     email: widget.parentData.email,
                                     password: widget.parentData.password,
-                                    address: widget.parentData.address,
+                                    latitude: widget.parentData.latitude,
+                                    longitude: widget.parentData.longitude,
+                                    governorate: widget.parentData.governorate,
+                                    street: widget.parentData.street,
                                     children: [child],
                                   );
                                   if (!mounted) return;
-                                  Navigator.push(
+                                  Navigator.pushAndRemoveUntil(
                                     context,
-                                    fadeRoute(const ParentSignupSuccessScreen()),
+                                    fadeRoute(const ParentLoginScreen()),
+                                    (route) => false,
                                   );
                                 } catch (e) {
                                   if (!mounted) return;

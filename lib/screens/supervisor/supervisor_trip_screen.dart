@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
 import 'dart:math' show asin, cos, sqrt;
 
 import 'package:application/constants/app_colors.dart';
@@ -50,11 +52,19 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   static const double _defaultCruiseSpeedKmh = 28.0;
 
   // Student destination (fixed point for now)
-  // 30.113451, 31.607125
-  final latlng.LatLng _studentDestination = const latlng.LatLng(
-    30.113451,
-    31.607125,
+  // Dynamic trip destination (next parent stop, then school fallback).
+  latlng.LatLng _currentDestination = const latlng.LatLng(
+    30.127157,
+    31.375660,
   );
+  static const latlng.LatLng _schoolDestination = latlng.LatLng(
+    30.127157,
+    31.375660,
+  );
+  final List<_TripStop> _stops = [];
+  String _busNumber = '7';
+
+  int _routeProgressIndex = 0;
 
   final MapController _mapController = MapController();
   AnimationController? _recenterController;
@@ -62,7 +72,165 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   @override
   void initState() {
     super.initState();
+    _loadTripStops();
     _startTripTracking();
+  }
+
+  Future<void> _loadTripStops() async {
+    final tripId = widget.tripId;
+    if (tripId == null || tripId <= 0) return;
+    try {
+      final uri = Uri.parse(
+        '${ApiConfig.baseUrl}/v1/Supervisor/trip/students?tripId=$tripId',
+      );
+      final token = ServiceLocator.tokenStorage.getToken();
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      final resp = await http.get(uri, headers: headers);
+      if (resp.statusCode != 200) return;
+
+      final body = jsonDecode(resp.body) as Map<String, dynamic>;
+      final tripObj = body['trip'] as Map<String, dynamic>?;
+      final busObj = tripObj?['bus'] as Map<String, dynamic>?;
+      final busNo = (busObj?['busNumber'] ?? busObj?['bus_number'] ?? '').toString().trim();
+      final students = (body['students'] as List<dynamic>? ?? const []);
+      final parsed = <_TripStop>[];
+      for (final raw in students) {
+        if (raw is! Map<String, dynamic>) continue;
+        final sid = _extractStudentId(raw);
+        if (sid <= 0) continue;
+        final point = _extractStudentPoint(raw);
+        parsed.add(
+          _TripStop(
+            studentId: sid,
+            studentName: (raw['name'] ?? 'Student').toString(),
+            studentGrade: (raw['grade'] ?? raw['studentGrade'] ?? '').toString(),
+            studentBirthdate:
+                (raw['birthdate'] ?? raw['studentBirthdate'] ?? '').toString(),
+            // Keep stop even if address parsing fails, so attendance works anywhere.
+            location: point ?? _currentLocation ?? _schoolDestination,
+          ),
+        );
+      }
+      if (!mounted || parsed.isEmpty) return;
+      setState(() {
+        _stops
+          ..clear()
+          ..addAll(parsed);
+        _currentDestination = parsed.first.location;
+        if (busNo.isNotEmpty) _busNumber = busNo;
+        _routeProgressIndex = 0;
+      });
+      _recomputeNearestNextStop();
+    } catch (_) {}
+  }
+
+  int _extractStudentId(Map<String, dynamic> raw) {
+    final keys = ['id', 'studentId', 'student_id'];
+    for (final k in keys) {
+      final v = raw[k];
+      if (v is num) return v.toInt();
+      final parsed = int.tryParse(v?.toString() ?? '');
+      if (parsed != null) return parsed;
+    }
+    return 0;
+  }
+
+  double? _toDouble(dynamic v) {
+    if (v is num) return v.toDouble();
+    return double.tryParse(v?.toString() ?? '');
+  }
+
+  latlng.LatLng? _extractStudentPoint(Map<String, dynamic> raw) {
+    final parent = raw['parent'] is Map<String, dynamic>
+        ? raw['parent'] as Map<String, dynamic>
+        : null;
+
+    final latCandidates = [
+      raw['parent_latitude'],
+      raw['parentLatitude'],
+      raw['latitude'],
+      parent?['latitude'],
+      parent?['lat'],
+    ];
+    final lngCandidates = [
+      raw['parent_longitude'],
+      raw['parentLongitude'],
+      raw['longitude'],
+      parent?['longitude'],
+      parent?['lng'],
+    ];
+
+    for (final latV in latCandidates) {
+      final lat = _toDouble(latV);
+      if (lat == null) continue;
+      for (final lngV in lngCandidates) {
+        final lng = _toDouble(lngV);
+        if (lng == null) continue;
+        return latlng.LatLng(lat, lng);
+      }
+    }
+
+    final address = (parent?['address'] ??
+            raw['parentAddress'] ??
+            raw['parent_address'] ??
+            raw['address'] ??
+            '')
+        .toString()
+        .trim();
+    return _parseLatLngAddress(address);
+  }
+
+  latlng.LatLng? _parseLatLngAddress(String address) {
+    final text = address.trim();
+    if (text.isEmpty) return null;
+    final matches = RegExp(
+      r'[-+]?\d+(?:\.\d+)?',
+    ).allMatches(text).toList(growable: false);
+    if (matches.length < 2) return null;
+    final lat = double.tryParse(matches[0].group(0)!);
+    final lng = double.tryParse(matches[1].group(0)!);
+    if (lat == null || lng == null) return null;
+    return latlng.LatLng(lat, lng);
+  }
+
+  void _recomputeNearestNextStop() {
+    if (_currentLocation == null || _stops.isEmpty) return;
+    final remaining = <int>[];
+    for (var i = 0; i < _stops.length; i++) {
+      if (!_stops[i].completed) remaining.add(i);
+    }
+    if (remaining.isEmpty) {
+      setState(() {
+        _currentDestination = _schoolDestination;
+        _routePoints = null;
+        _routeProgressIndex = 0;
+      });
+      return;
+    }
+
+    var bestIndex = remaining.first;
+    var bestDistance = double.infinity;
+    for (final idx in remaining) {
+      final stop = _stops[idx];
+      final d = _coordinateDistance(
+        _currentLocation!.latitude,
+        _currentLocation!.longitude,
+        stop.location.latitude,
+        stop.location.longitude,
+      );
+      if (d < bestDistance) {
+        bestDistance = d;
+        bestIndex = idx;
+      }
+    }
+    setState(() {
+      _currentDestination = _stops[bestIndex].location;
+      _routePoints = null;
+      _routeProgressIndex = 0;
+    });
   }
 
   @override
@@ -221,8 +389,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         final remainingKm = _coordinateDistance(
           nextLocation.latitude,
           nextLocation.longitude,
-          _studentDestination.latitude,
-          _studentDestination.longitude,
+          _currentDestination.latitude,
+          _currentDestination.longitude,
         );
 
         final nextEta = _updateRoadBasedEtaEngine(
@@ -235,12 +403,19 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           setState(() {
             _currentLocation = nextLocation;
             _eta = nextEta;
+            if (_routePoints != null) {
+              _routeProgressIndex =
+                  _closestRouteIndex(nextLocation, _routePoints!);
+            }
           });
+        }
+        if (_stops.isNotEmpty) {
+          _recomputeNearestNextStop();
         }
 
         // Fetch road-based route once when we get the first fix
         if (_routePoints == null) {
-          await _fetchRoute(nextLocation, _studentDestination);
+          await _fetchRoute(nextLocation, _currentDestination);
         }
 
         // 3. Record to backend (DB)
@@ -254,25 +429,6 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         debugPrint('Error during location tracking loop: $e');
       }
     });
-  }
-
-  Widget _buildLiveLocationDot() {
-    return Container(
-      width: 18,
-      height: 18,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFF2D7CFF),
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            offset: const Offset(0, 1),
-            blurRadius: 4,
-          ),
-        ],
-      ),
-    );
   }
 
   /// Send location to backend so it can be stored in DB.
@@ -402,7 +558,57 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     return 12742 * asin(sqrt(a));
   }
 
-  Future<void> _takeAttendance(BuildContext context) async {
+  int _closestRouteIndex(latlng.LatLng current, List<latlng.LatLng> points) {
+    var bestIdx = 0;
+    var bestDist = double.infinity;
+    for (var i = 0; i < points.length; i++) {
+      final p = points[i];
+      final d = _coordinateDistance(
+        current.latitude,
+        current.longitude,
+        p.latitude,
+        p.longitude,
+      );
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  List<Polyline> _buildColoredRoutePolylines() {
+    final points = _routePoints;
+    if (points == null || points.length < 2) return const [];
+
+    final idx = _routeProgressIndex.clamp(0, points.length - 1);
+    final split = math.max(1, math.min(idx + 1, points.length - 1));
+    final passed = points.sublist(0, split);
+    final remaining = points.sublist(split - 1);
+
+    final polylines = <Polyline>[];
+    if (passed.length > 1) {
+      polylines.add(
+        Polyline(
+          points: passed,
+          color: Colors.grey.shade400,
+          strokeWidth: 4,
+        ),
+      );
+    }
+    if (remaining.length > 1) {
+      polylines.add(
+        Polyline(
+          points: remaining,
+          color: const Color(0xFF2563EB),
+          strokeWidth: 4,
+        ),
+      );
+    }
+    return polylines;
+  }
+
+  Future<void> _takeAttendance() async {
     final ImagePicker picker = ImagePicker();
     try {
       final XFile? photo = await picker.pickImage(
@@ -410,14 +616,140 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         imageQuality: 85,
       );
 
-      if (photo != null && context.mounted) {
-        Navigator.push(
-          context,
-          fadeRoute(SupervisorAttendanceScreen(imagePath: photo.path)),
+      if (photo != null && mounted) {
+        final identifyResult = await _identifyStudentFromFace(photo.path);
+        final identified = identifyResult.hit;
+        final matched =
+            identified != null && identified.studentId > 0;
+
+        if (widget.tripId == null || widget.tripId! <= 0) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Trip is not started correctly. Please restart trip.'),
+            ),
+          );
+          return;
+        }
+
+        if (!mounted) return;
+        final nav = Navigator.of(context);
+        final result = await nav.push<bool>(
+          fadeRoute(
+            SupervisorAttendanceScreen(
+              imagePath: photo.path,
+              tripId: widget.tripId,
+              studentId: matched ? identified.studentId : 0,
+              studentName: matched ? identified.studentName : '',
+              studentGrade: matched ? identified.studentGrade : '',
+              studentBirthdate: matched ? identified.studentBirthdate : '',
+              busNumber: _busNumber,
+              faceAttemptId:
+                  matched ? identified.faceAttemptId : identifyResult.attemptId,
+              matchConfidence: matched ? identified.matchConfidence : 0,
+              allowConfirmAttendance: matched,
+              noMatchMessage: matched
+                  ? null
+                  : (identifyResult.message ??
+                      'Face not recognized. Please rescan.'),
+            ),
+          ),
         );
+        if (mounted && result == false) {
+          // User explicitly chose "Rescan" from confirmation page.
+          await _takeAttendance();
+          return;
+        }
+        if (mounted && result == true && matched) {
+          final index =
+              _stops.indexWhere((s) => s.studentId == identified.studentId);
+          if (index >= 0) {
+            setState(() {
+              _stops[index] = _stops[index].copyWith(completed: true);
+            });
+            _recomputeNearestNextStop();
+          }
+        }
       }
     } catch (e) {
       debugPrint('Error opening camera: $e');
+    }
+  }
+
+  /// Only [hit] is set when the API returns a confirmed match (`matchFound` + `matchedStudentId`).
+  /// Never infer a student from `topCandidates` alone — those are hints when similarity is too low.
+  Future<({_FaceIdentifyHit? hit, String? message, int attemptId})>
+      _identifyStudentFromFace(
+    String imagePath,
+  ) async {
+    final tripId = widget.tripId;
+    if (tripId == null || tripId <= 0) {
+      return (hit: null, message: null, attemptId: 0);
+    }
+    if (_stops.isEmpty) {
+      await _loadTripStops();
+    }
+
+    try {
+      final bytes = await File(imagePath).readAsBytes();
+      final imageBase64 = base64Encode(bytes);
+      final uri = Uri.parse('${ApiConfig.baseUrl}/v1/Supervisor/attendance/face-identify');
+      final token = ServiceLocator.tokenStorage.getToken();
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      final payload = jsonEncode({
+        'tripId': tripId,
+        'scanImageBase64': imageBase64,
+        'scanImageUrl': 'captured://${DateTime.now().millisecondsSinceEpoch}.jpg',
+        'scanType': 'IN',
+        'candidateStudentIds': _stops.map((s) => s.studentId).toList(),
+      });
+      final resp = await http.post(uri, headers: headers, body: payload);
+      if (resp.statusCode < 200 || resp.statusCode >= 300) {
+        return (hit: null, message: null, attemptId: 0);
+      }
+
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final matchFound = data['matchFound'] == true;
+      final matchedId = (data['matchedStudentId'] as num?)?.toInt();
+      final attemptId = (data['attemptId'] as num?)?.toInt() ?? 0;
+      final confidence = (data['confidence'] as num?)?.toDouble() ?? 0.0;
+      final apiMessage = (data['message'] as String?)?.trim();
+
+      if (!matchFound || matchedId == null || matchedId <= 0) {
+        return (
+          hit: null,
+          message: (apiMessage != null && apiMessage.isNotEmpty) ? apiMessage : null,
+          attemptId: attemptId,
+        );
+      }
+
+      final student = data['student'] is Map<String, dynamic>
+          ? data['student'] as Map<String, dynamic>
+          : <String, dynamic>{};
+      final stop = _stops.cast<_TripStop?>().firstWhere(
+        (s) => s?.studentId == matchedId,
+        orElse: () => null,
+      );
+
+      return (
+        hit: _FaceIdentifyHit(
+          studentId: matchedId,
+          studentName: (student['name'] ?? stop?.studentName ?? 'Student').toString(),
+          studentGrade: (student['grade'] ?? stop?.studentGrade ?? '').toString(),
+          studentBirthdate: (student['birthdate'] ?? stop?.studentBirthdate ?? '').toString(),
+          faceAttemptId: attemptId,
+          matchConfidence: confidence,
+        ),
+        message: null,
+        attemptId: attemptId,
+      );
+    } catch (e) {
+      debugPrint('Face identify failed: $e');
+      return (hit: null, message: null, attemptId: 0);
     }
   }
 
@@ -525,6 +857,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       if (points.isNotEmpty && mounted) {
         setState(() {
           _routePoints = points;
+          if (_currentLocation != null) {
+            _routeProgressIndex =
+                _closestRouteIndex(_currentLocation!, _routePoints!);
+          }
         });
       }
     } catch (e) {
@@ -812,11 +1148,14 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                                   point: _currentLocation!,
                                                   width: 18,
                                                   height: 18,
-                                                  child:
-                                                      _buildLiveLocationDot(),
+                                                  child: const Icon(
+                                                    Icons.directions_car,
+                                                    color: Color(0xFF2D7CFF),
+                                                    size: 24,
+                                                  ),
                                                 ),
                                                 Marker(
-                                                  point: _studentDestination,
+                                                  point: _currentDestination,
                                                   width: 40,
                                                   height: 40,
                                                   child: const Icon(
@@ -829,14 +1168,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                             ),
                                             if (_routePoints != null)
                                               PolylineLayer(
-                                                polylines: [
-                                                  Polyline(
-                                                    points: _routePoints!,
-                                                    color:
-                                                        Colors.deepPurpleAccent,
-                                                    strokeWidth: 4,
-                                                  ),
-                                                ],
+                                                polylines:
+                                                    _buildColoredRoutePolylines(),
                                               ),
                                           ],
                                         ),
@@ -1037,7 +1370,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: () => _takeAttendance(context),
+                                onTap: _takeAttendance,
                                 borderRadius: BorderRadius.circular(10),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1172,4 +1505,51 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       ),
     );
   }
+}
+
+class _TripStop {
+  final int studentId;
+  final String studentName;
+  final String studentGrade;
+  final String studentBirthdate;
+  final latlng.LatLng location;
+  final bool completed;
+
+  const _TripStop({
+    required this.studentId,
+    required this.studentName,
+    required this.studentGrade,
+    required this.studentBirthdate,
+    required this.location,
+    this.completed = false,
+  });
+
+  _TripStop copyWith({bool? completed}) {
+    return _TripStop(
+      studentId: studentId,
+      studentName: studentName,
+      studentGrade: studentGrade,
+      studentBirthdate: studentBirthdate,
+      location: location,
+      completed: completed ?? this.completed,
+    );
+  }
+}
+
+class _FaceIdentifyHit {
+  final int studentId;
+  final String studentName;
+  final String studentGrade;
+  final String studentBirthdate;
+  final int faceAttemptId;
+  final double matchConfidence;
+
+  const _FaceIdentifyHit({
+    required this.studentId,
+    required this.studentName,
+    required this.studentGrade,
+    required this.studentBirthdate,
+    required this.faceAttemptId,
+    required this.matchConfidence,
+  });
 }

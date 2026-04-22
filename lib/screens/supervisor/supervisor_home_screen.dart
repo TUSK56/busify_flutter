@@ -14,8 +14,6 @@ import 'package:flutter/material.dart';
 class SupervisorHomeScreen extends StatelessWidget {
   const SupervisorHomeScreen({super.key});
 
-  static const int _fallbackBusId = 1;
-
   Map<String, String> _buildHeaders() {
     final token = ServiceLocator.tokenStorage.getToken();
     final headers = <String, String>{'Content-Type': 'application/json'};
@@ -23,11 +21,6 @@ class SupervisorHomeScreen extends StatelessWidget {
       headers['Authorization'] = 'Bearer $token';
     }
     return headers;
-  }
-
-  String _todayDateOnly() {
-    final today = DateTime.now();
-    return '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
   }
 
   String _extractErrorMessage(http.Response resp) {
@@ -87,67 +80,9 @@ class SupervisorHomeScreen extends StatelessWidget {
         tripId: _tryExtractTripId(currentTripResp),
       );
     }
-
-    final startTripUri = Uri.parse(
-      '${ApiConfig.baseUrl}/v1/Supervisor/start-trip',
-    );
-    final modernBody = jsonEncode({
-      'busId': _fallbackBusId,
-      'tripType': 'Morning',
-      'date': _todayDateOnly(),
-    });
-
-    final modernResp = await http.post(
-      startTripUri,
-      headers: headers,
-      body: modernBody,
-    );
-    if (modernResp.statusCode == 200 || modernResp.statusCode == 201) {
-      return _TripStartResult(
-        success: true,
-        tripId: _tryExtractTripId(modernResp),
-      );
-    }
-
-    // Legacy backend compatibility:
-    // Some builds expect the payload wrapped inside "req" and enum values as numeric.
-    final wrappedLegacyBody = jsonEncode({
-      'req': {'busId': _fallbackBusId, 'tripType': 0, 'date': _todayDateOnly()},
-    });
-    final wrappedLegacyResp = await http.post(
-      startTripUri,
-      headers: headers,
-      body: wrappedLegacyBody,
-    );
-    if (wrappedLegacyResp.statusCode == 200 ||
-        wrappedLegacyResp.statusCode == 201) {
-      return _TripStartResult(
-        success: true,
-        tripId: _tryExtractTripId(wrappedLegacyResp),
-      );
-    }
-
-    // Last fallback: unwrapped legacy with numeric enum.
-    final legacyBody = jsonEncode({
-      'busId': _fallbackBusId,
-      'tripType': 0,
-      'date': _todayDateOnly(),
-    });
-    final legacyResp = await http.post(
-      startTripUri,
-      headers: headers,
-      body: legacyBody,
-    );
-    if (legacyResp.statusCode == 200 || legacyResp.statusCode == 201) {
-      return _TripStartResult(
-        success: true,
-        tripId: _tryExtractTripId(legacyResp),
-      );
-    }
-
     return _TripStartResult(
       success: false,
-      message: _extractErrorMessage(legacyResp),
+      message: _extractErrorMessage(currentTripResp),
     );
   }
 
