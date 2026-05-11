@@ -4,6 +4,8 @@ import 'package:application/screens/parent/parent_otp_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/services/service_locator.dart';
+import 'package:application/services/parent_service.dart';
 
 class ParentForgetPasswordScreen extends StatefulWidget {
   const ParentForgetPasswordScreen({super.key});
@@ -232,7 +234,7 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
 
                                   // Get OTP Button
                                   GestureDetector(
-                                    onTap: () {
+                                    onTap: () async {
                                       final email = _emailController.text.trim();
                                       if (email.isEmpty) {
                                         ScaffoldMessenger.of(context).showSnackBar(
@@ -240,10 +242,19 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                                         );
                                         return;
                                       }
-                                      Navigator.push(
-                                        context,
-                                        fadeRoute(ParentOtpScreen(email: email)),
-                                      );
+                                      try {
+                                        await ServiceLocator.parentService.sendPasswordResetOtp(email: email);
+                                        if (!context.mounted) return;
+                                        Navigator.push(
+                                          context,
+                                          fadeRoute(ParentOtpScreen(email: email)),
+                                        );
+                                      } on ParentServiceException catch (e) {
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text(e.message)),
+                                        );
+                                      }
                                     },
                                     child: Container(
                                       width: 291,

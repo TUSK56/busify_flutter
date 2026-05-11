@@ -77,4 +77,11 @@ class AppColors {
     end: Alignment.centerRight,
     colors: [Color(0xFFD9D9D9), Color(0xFF2859C5)],
   );
+
+  /// Supervisor End Trip button gradient (Figma): b8361e → 52180d
+  static const LinearGradient endTripGradient = LinearGradient(
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+    colors: [Color(0xFFB8361E), Color(0xFF52180D)],
+  );
 }

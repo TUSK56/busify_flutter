@@ -33,17 +33,17 @@ class RoleSelectionScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // Top Spacing
-                  SizedBox(height: screenHeight * 0.02),
+                  SizedBox(height: screenHeight * 0.0001),
 
                   // Top Logo (2.png) - Aligned to the left with dynamic padding
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: EdgeInsets.only(left: 47),
+                      padding: EdgeInsets.only(left: 40),
                       child: Image.asset(
                         AppImages.logo,
                         width: 144, // Scales from 144 max
-                        height: 115,
+                        height: 130,
                         fit: BoxFit.contain,
                       ),
                     ),

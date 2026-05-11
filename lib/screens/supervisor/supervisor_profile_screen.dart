@@ -8,6 +8,7 @@ import 'package:application/screens/supervisor/supervisor_home_screen.dart';
 import 'package:application/screens/supervisor/supervisor_trip_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class SupervisorProfileScreen extends StatefulWidget {
   const SupervisorProfileScreen({super.key});
@@ -19,11 +20,34 @@ class SupervisorProfileScreen extends StatefulWidget {
 
 class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
   static const Color _logoutIconColor = Color(0xFFC94A4A);
+  String _name = '';
+  String _email = '';
+  String _phone = '';
+  String _busNumber = '—';
 
   @override
   void initState() {
     super.initState();
     ServiceLocator.themeController.addListener(_handleThemeChanged);
+    _hydrate();
+  }
+
+  Future<void> _hydrate() async {
+    setState(() {
+      _name = ServiceLocator.tokenStorage.getUserName() ?? '';
+      _email = ServiceLocator.tokenStorage.getUserEmail() ?? '';
+      _phone = ServiceLocator.tokenStorage.getUserPhone() ?? '';
+    });
+    try {
+      final me = await ServiceLocator.supervisorService.getMe();
+      if (!mounted) return;
+      setState(() {
+        _name = me.name;
+        _email = me.email;
+        _phone = me.phone;
+        _busNumber = me.busNumber ?? '—';
+      });
+    } catch (_) {}
   }
 
   @override
@@ -51,7 +75,7 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
             child: Column(
               children: [
                 Expanded(
-                  child: Container(
+                  child: SizedBox(
                     width: double.infinity,
                     child: Stack(
                       children: [
@@ -61,10 +85,10 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
                             children: [
                               Container(
                                 width: double.infinity,
-                                height: 173,
+                                height: 130,
                                 padding: const EdgeInsets.fromLTRB(
                                   16,
-                                  12,
+                                  0,
                                   16,
                                   0,
                                 ),
@@ -83,20 +107,20 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
                                       icon: const Icon(
                                         Icons.chevron_left,
                                         color: AppColors.white,
-                                        size: 32,
+                                        size: 35,
                                       ),
                                     ),
                                     Expanded(
                                       child: Center(
                                         child: SizedBox(
-                                          height: 80,
+                                          height: 170,
                                           child: FittedBox(
                                             fit: BoxFit.scaleDown,
                                             child: Image.asset(
                                               AppImages.logo,
-                                              height: 80,
+                                              height: 160,
                                               fit: BoxFit.contain,
-                                              errorBuilder: (_, __, ___) =>
+                                              errorBuilder: (context, error, stackTrace) =>
                                                   const Icon(
                                                     Icons.directions_bus,
                                                     color: AppColors.white,
@@ -132,7 +156,7 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
                                         isAntiAlias: true,
                                         cacheWidth: avatarImageCacheSize,
                                         cacheHeight: avatarImageCacheSize,
-                                        errorBuilder: (_, __, ___) =>
+                                        errorBuilder: (context, error, stackTrace) =>
                                             const Icon(
                                               Icons.person,
                                               size: 42,
@@ -152,7 +176,7 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
                                   child: Column(
                                     children: [
                                       Text(
-                                        'Ali Ahmed',
+                                        _name.isEmpty ? 'Supervisor' : _name,
                                         style: TextStyle(
                                           fontFamily: 'Inter',
                                           fontSize: 24,
@@ -230,17 +254,17 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
           const SizedBox(height: 10),
           _buildInfoRow(
             Icons.phone,
-            '01233470453',
+            _phone.isEmpty ? '—' : _phone,
             iconTint: const Color(0xFF1BD95D),
           ),
           _buildDivider(),
           _buildInfoRow(
             Icons.email_outlined,
-            'ali@busify.com',
+            _email.isEmpty ? '—' : _email,
             iconTint: AppColors.linkBlue,
           ),
           _buildDivider(),
-          _buildInfoRow(Icons.directions_bus_filled, 'Bus #7'),
+          _buildInfoRow(Icons.directions_bus_filled, 'Bus #$_busNumber'),
         ],
       ),
     );
@@ -271,10 +295,13 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Icon(
-                Icons.dark_mode_outlined,
-                size: 22,
-                color: AppColors.linkBlue,
+              Transform.scale(
+                scaleX: -1,
+                child: Icon(
+                  FluentIcons.weather_moon_20_filled,
+                  size: 26,
+                  color: Color(0xFF1E3A8A),
+                ),
               ),
               const SizedBox(width: 18),
               Text(
@@ -358,8 +385,8 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
       colors: [
         context.isDarkMode
             ? const Color(0xFF162233)
-            : AppColors.lightGray.withOpacity(0.49),
-        AppColors.linkBlue.withOpacity(context.isDarkMode ? 0.75 : 0.49),
+            : AppColors.lightGray.withValues(alpha: 0.49),
+        AppColors.linkBlue.withValues(alpha: context.isDarkMode ? 0.75 : 0.49),
       ],
     );
 
@@ -494,7 +521,7 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
                   width: 28,
                   height: 28,
                   color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                  errorBuilder: (_, __, ___) => Icon(
+                  errorBuilder: (context, error, stackTrace) => Icon(
                     label == 'Home' ? Icons.home : Icons.fact_check_outlined,
                     size: 28,
                     color: isActive

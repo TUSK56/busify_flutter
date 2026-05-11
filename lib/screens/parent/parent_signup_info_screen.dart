@@ -132,14 +132,14 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
               SizedBox(height: screenHeight * 0.01),
 
               // Top Logo (2.png)
-              Image.asset(
-                AppImages.logo,
-                width: 126,
-                height: 150,
-                fit: BoxFit.contain,
-              ),
-
-              SizedBox(height: screenHeight * 0.02),
+                SizedBox(
+                  height: 120,
+                  child: Image.asset(
+                    AppImages.logo,
+                    width: 280,
+                    fit: BoxFit.contain,
+                  ),
+                ),
 
               // Header Row: Back Button & Title
               Stack(
@@ -184,7 +184,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                 ],
               ),
 
-              SizedBox(height: screenHeight * 0.03),
+              SizedBox(height: screenHeight * 0.01),
 
               // Expanded Bottom Sheet for inputs
               Expanded(

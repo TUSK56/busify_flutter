@@ -1,13 +1,19 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/supervisor_photo.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+
+
 
 import 'parent_profile_screen.dart';
 import 'parent_track_bus_screen.dart';
@@ -50,7 +56,7 @@ class ParentHomeScreen extends StatefulWidget {
 }
 
 class _ParentHomeScreenState extends State<ParentHomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _entranceController;
   late final Animation<double> _entranceFade;
   late final Animation<Offset> _entranceSlide;
@@ -58,10 +64,102 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   String _studentName = '';
   String _studentGrade = '';
   String _busNumber = '--';
+  int? _studentId;
+
+  String _todayAttendanceLabel = 'Not scanned yet';
+  bool? _todayPresent;
+  int _weekPresentDays = 0;
+
+  String _boardedTimeText = '—';
+  bool _boarded = false;
+  bool _tripActive = false;
+  String? _studentPhotoUrl;
+
+  /// Latest scan for **today** from API: `IN`, `ABSENT`, or null (drives week `x/5` + raw state).
+  String? _todayLatestScanType;
+
+  Timer? _homePollTimer;
+
+  static const Duration _homePollInterval = Duration(seconds: 5);
+
+  bool _isAfternoonTrip = false;
+
+  /// True when afternoon trip completed OUT at home for the linked student (server flag).
+  bool _childAfternoonDroppedOff = false;
+
+  /// Backend serializes [ScanType] as JSON numbers (IN=0, OUT=1, ABSENT=2) unless configured otherwise.
+  static String _normalizeScanType(dynamic v) {
+    if (v == null) return '';
+    if (v is num) {
+      switch (v.toInt()) {
+        case 0:
+          return 'IN';
+        case 1:
+          return 'OUT';
+        case 2:
+          return 'ABSENT';
+      }
+    }
+    return v.toString().toUpperCase();
+  }
+
+  static String? _readPhotoUrl(Map<String, dynamic> m) {
+    for (final k in [
+      'photoUrl',
+      'photo_url',
+      'PhotoUrl',
+    ]) {
+      final s = m[k]?.toString().trim();
+      if (s != null && s.isNotEmpty) return s;
+    }
+    return null;
+  }
+
+  /// API timestamps are UTC; strings without "Z" are treated as UTC for correct local clock.
+  static DateTime? _parseApiTimestampToLocal(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final dt = DateTime.tryParse(raw.trim());
+    if (dt == null) return null;
+    if (dt.isUtc) return dt.toLocal();
+    return DateTime.utc(
+      dt.year,
+      dt.month,
+      dt.day,
+      dt.hour,
+      dt.minute,
+      dt.second,
+      dt.millisecond,
+      dt.microsecond,
+    ).toLocal();
+  }
+
+  static DateTime? _parseTripStartedLocal(Map<String, dynamic>? trip) {
+    if (trip == null) return null;
+    for (final key in [
+      'startedAtUtc',
+      'StartedAtUtc',
+    ]) {
+      final parsed = _parseApiTimestampToLocal(trip[key]?.toString());
+      if (parsed != null) return parsed;
+    }
+    return null;
+  }
+
+  /// TripStatus.NotStarted = 0, Started = 1 (System.Text.Json default for enums).
+  static bool _tripLooksStarted(Map<String, dynamic>? trip) {
+    if (trip == null) return false;
+    final st = trip['status'] ?? trip['Status'];
+    if (st == null) return true;
+    if (st is num) return st.toInt() == 1;
+    final s = st.toString().toLowerCase();
+    return s == '1' || s == 'started';
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _studentPhotoUrl = ServiceLocator.tokenStorage.getStudentPhotoUrl();
     _entranceController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -81,6 +179,16 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     _loadParentOverview();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_loadParentOverview());
+    } else if (state == AppLifecycleState.paused) {
+      _stopHomePolling();
+    }
+  }
+
   Future<void> _loadParentOverview() async {
     final cachedName = ServiceLocator.tokenStorage.getUserName();
     if (cachedName != null && cachedName.isNotEmpty && mounted) {
@@ -91,21 +199,38 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     try {
       final profile = await ServiceLocator.parentService.getProfile();
       final name = (profile['name'] ?? profile['Name'])?.toString();
-      if (name != null && name.isNotEmpty && mounted) {
-        setState(() {
+      final pPhoto = _readPhotoUrl(profile);
+      if (!mounted) return;
+      setState(() {
+        if (name != null && name.isNotEmpty) {
           _parentName = name;
-        });
+        }
+      });
+      if (pPhoto != null && pPhoto.isNotEmpty) {
+        await ServiceLocator.tokenStorage.saveUserPhotoUrl(pPhoto);
       }
     } catch (_) {}
+    String? busFromOverview;
     try {
       final data = await ServiceLocator.parentService.getChildOverview();
       final parent =
           (data['parent'] ?? data['Parent']) as Map<String, dynamic>?;
+      final busMap = data['bus'] as Map<String, dynamic>?;
+      if (busMap != null) {
+        final bn =
+            busMap['busNumber'] ?? busMap['BusNumber'] ?? busMap['bus_number'];
+        if (bn != null && bn.toString().trim().isNotEmpty) {
+          busFromOverview = bn.toString().trim();
+        }
+      }
       final students =
           ((data['students'] ?? data['Students']) as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .toList();
       setState(() {
+        if (busFromOverview != null) {
+          _busNumber = busFromOverview;
+        }
         if (parent != null) {
           final name = (parent['name'] ?? parent['Name'])?.toString();
           if (name != null && name.isNotEmpty) {
@@ -114,33 +239,255 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         }
         if (students.isNotEmpty) {
           final s = students.first;
+          final sid = s['id'] ?? s['Id'];
           final sName = (s['name'] ?? s['Name'])?.toString();
           final sGrade = (s['grade'] ?? s['Grade'])?.toString();
+          final sPhoto = _readPhotoUrl(s);
+          if (sid is int) _studentId = sid;
+          if (sid is num) _studentId = sid.toInt();
           if (sName != null && sName.isNotEmpty) {
             _studentName = sName;
           }
           if (sGrade != null && sGrade.isNotEmpty) {
             _studentGrade = sGrade;
           }
+          if (sPhoto != null && sPhoto.trim().isNotEmpty) {
+            _studentPhotoUrl = sPhoto.trim();
+            unawaited(ServiceLocator.tokenStorage.saveStudentPhotoUrl(_studentPhotoUrl));
+          }
         }
       });
     } catch (_) {}
+
+    await _refreshTripAttendanceState(busFallback: busFromOverview);
+    if (mounted && _studentId != null && _studentId! > 0) {
+      _startHomePolling();
+    }
+  }
+
+  void _startHomePolling() {
+    _homePollTimer?.cancel();
+    _homePollTimer = Timer.periodic(_homePollInterval, (_) {
+      if (!mounted) return;
+      unawaited(_refreshTripAttendanceState());
+    });
+  }
+
+  void _stopHomePolling() {
+    _homePollTimer?.cancel();
+    _homePollTimer = null;
+  }
+
+  /// Refetches active trip + attendance so supervisor scans show up without leaving the screen.
+  Future<void> _refreshTripAttendanceState({String? busFallback}) async {
+    final sid = _studentId;
+    if (sid == null || sid <= 0) return;
+
+    var tripActive = false;
+    DateTime? tripStartedLocal;
+    String? busNoTrip;
+    var isAfternoonTrip = false;
+    var childAfternoonDroppedOff = false;
     try {
       final current = await ServiceLocator.parentService.getCurrentTrip();
+      final trip = current['trip'] as Map<String, dynamic>?;
+      tripStartedLocal = _parseTripStartedLocal(trip);
+      final tripLooksStarted = trip != null ? _tripLooksStarted(trip) : false;
+      isAfternoonTrip = _tripTypeIsAfternoon(trip);
       final bus = current['bus'] as Map<String, dynamic>?;
       if (bus != null) {
-        final busNumber = bus['busNumber'] ?? bus['BusNumber'] ?? bus['id'];
-        if (busNumber != null && mounted) {
-          setState(() {
-            _busNumber = busNumber.toString();
-          });
+        final bn =
+            bus['busNumber'] ?? bus['BusNumber'] ?? bus['bus_number'];
+        if (bn != null && bn.toString().trim().isNotEmpty) {
+          busNoTrip = bn.toString().trim();
         }
       }
+
+      if (!mounted) return;
+
+      tripActive = (current['has_active_trip'] == true ||
+              current['hasActiveTrip'] == true) &&
+          trip != null &&
+          tripLooksStarted;
+      if (isAfternoonTrip) {
+        childAfternoonDroppedOff =
+            current['child_afternoon_dropped_off'] == true ||
+                current['childAfternoonDroppedOff'] == true;
+      }
+    } catch (_) {
+      tripActive = false;
+      isAfternoonTrip = false;
+      childAfternoonDroppedOff = false;
+    }
+
+    await _loadAttendanceSummary();
+
+    if (!mounted) return;
+    _applyTripAndTodayUi(
+      tripActive: tripActive,
+      tripStartedLocal: tripStartedLocal,
+      busNoTrip: busNoTrip,
+      busFallback: busFallback,
+      isAfternoonTrip: isAfternoonTrip,
+      childAfternoonDroppedOff: childAfternoonDroppedOff,
+    );
+  }
+
+  static bool _tripTypeIsAfternoon(Map<String, dynamic>? trip) {
+    if (trip == null) return false;
+    final t =
+        (trip['tripType'] ?? trip['TripType'] ?? '').toString().toLowerCase();
+    return t.contains('afternoon');
+  }
+
+  /// Present only while a trip is active and today's latest scan is IN; absent if marked ABSENT;
+  /// otherwise "Not scanned yet" (including IN from a finished trip when no trip is active).
+  void _applyTripAndTodayUi({
+    required bool tripActive,
+    required DateTime? tripStartedLocal,
+    String? busNoTrip,
+    String? busFallback,
+    bool isAfternoonTrip = false,
+    bool childAfternoonDroppedOff = false,
+  }) {
+    final raw = _todayLatestScanType;
+    final rawIn = raw == 'IN';
+    final rawAbsent = raw == 'ABSENT';
+
+    bool? displayPresent;
+    String label;
+    if (rawAbsent) {
+      displayPresent = false;
+      label = 'Absent';
+    } else if (rawIn && tripActive) {
+      displayPresent = true;
+      label = 'Present';
+    } else {
+      displayPresent = null;
+      label = 'Not scanned yet';
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _tripActive = tripActive;
+      _todayPresent = displayPresent;
+      _todayAttendanceLabel = label;
+      _boarded = tripActive && rawIn;
+      _boardedTimeText = _tripStartTimeLabel(tripActive, tripStartedLocal);
+      _isAfternoonTrip = isAfternoonTrip;
+      _childAfternoonDroppedOff = childAfternoonDroppedOff;
+      if (busNoTrip != null && busNoTrip.isNotEmpty) {
+        _busNumber = busNoTrip;
+      } else if (busFallback != null && busFallback.isNotEmpty) {
+        _busNumber = busFallback;
+      }
+    });
+  }
+
+  /// Line under Bus # below "Boarded Bus" (depends on Morning vs Afternoon trip).
+  String _rideStatusLine() {
+    if (!_tripActive) return '';
+    if (_isAfternoonTrip) {
+      if (_childAfternoonDroppedOff) return 'Arrived home';
+      if (_todayPresent == true) return 'On the way home';
+      return 'On the way';
+    }
+    if (_todayPresent == true) return 'On the way to school';
+    return 'On the way';
+  }
+
+  /// Time next to "Boarded Bus": supervisor trip start only (not student scan time).
+  String _tripStartTimeLabel(bool tripActive, DateTime? tripStartedLocal) {
+    if (tripActive && tripStartedLocal != null) {
+      return _formatTime(tripStartedLocal);
+    }
+    return '—';
+  }
+
+  String _formatYmd(DateTime d) {
+    final yyyy = d.year.toString().padLeft(4, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final dd = d.day.toString().padLeft(2, '0');
+    return '$yyyy-$mm-$dd';
+  }
+
+  String _formatTime(DateTime dt) {
+    final h = dt.hour;
+    final m = dt.minute.toString().padLeft(2, '0');
+    final ampm = h >= 12 ? 'PM' : 'AM';
+    final hh = ((h + 11) % 12) + 1;
+    return '$hh:$m $ampm';
+  }
+
+  DateTime _mondayOfWeek(DateTime d) {
+    final delta = d.weekday - DateTime.monday;
+    return DateTime(d.year, d.month, d.day).subtract(Duration(days: delta));
+  }
+
+  Future<void> _loadAttendanceSummary() async {
+    final sid = _studentId;
+    if (sid == null || sid <= 0) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final monday = _mondayOfWeek(today);
+    final friday = monday.add(const Duration(days: 4));
+    final todayKey = _formatYmd(today);
+
+    try {
+      final week = await ServiceLocator.parentService.getAttendance(
+        studentId: sid,
+        fromDate: _formatYmd(monday.subtract(const Duration(days: 1))),
+        toDate: _formatYmd(friday.add(const Duration(days: 1))),
+      );
+      final latestByDay = <String, ({DateTime ts, String type})>{};
+      for (final a in week) {
+        final scanType = _normalizeScanType(a['scanType'] ?? a['ScanType']);
+        if (scanType != 'IN' && scanType != 'ABSENT') continue;
+        final ts = (a['timestamp'] ?? a['Timestamp'])?.toString();
+        final local = _parseApiTimestampToLocal(ts);
+        if (local == null) continue;
+        final day = DateTime(local.year, local.month, local.day);
+        if (day.isBefore(monday) || day.isAfter(friday)) continue;
+        if (day.weekday < DateTime.monday || day.weekday > DateTime.friday) {
+          continue;
+        }
+        final key = _formatYmd(day);
+        final prev = latestByDay[key];
+        if (prev == null || local.isAfter(prev.ts)) {
+          latestByDay[key] = (ts: local, type: scanType);
+        }
+      }
+
+      final todayRec = latestByDay[todayKey];
+      final latestType =
+          (today.weekday >= DateTime.monday && today.weekday <= DateTime.friday)
+              ? todayRec?.type
+              : null;
+
+      var presentDays = 0;
+      for (var d = monday;
+          !d.isAfter(friday);
+          d = d.add(const Duration(days: 1))) {
+        final key = _formatYmd(d);
+        final v = latestByDay[key];
+        if (v == null) continue;
+        if (v.type == 'IN') {
+          presentDays++;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _todayLatestScanType = latestType;
+        _weekPresentDays = presentDays;
+      });
     } catch (_) {}
   }
 
   @override
   void dispose() {
+    _stopHomePolling();
+    WidgetsBinding.instance.removeObserver(this);
     _entranceController.dispose();
     super.dispose();
   }
@@ -211,7 +558,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         bottomRight: Radius.circular(22),
       ),
       child: SizedBox(
-        height: 139,
+        height: 105,
         width: double.infinity,
         child: Stack(
           alignment: Alignment.center,
@@ -226,7 +573,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                 child: Image.asset(
                   AppImages.parentHomeLogo,
                   width: 126,
-                  height: 54,
+                  height: 126,
                   fit: BoxFit.contain,
                 ),
               ),
@@ -258,12 +605,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                 ),
               ),
               const SizedBox(width: 10),
-              Image.asset(
-                AppImages.parentHomePerson,
-                width: 37,
-                height: 29,
-                fit: BoxFit.contain,
-              ),
+              const _ParentGreetingIcon(),
             ],
           ),
           Text(
@@ -318,12 +660,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(50),
-                        child: Image.asset(
-                          AppImages.parentHomeStudentAvatar,
-                          width: 66,
-                          height: 64,
-                          fit: BoxFit.cover,
-                        ),
+                        child: _StudentAvatar(photoUrl: _studentPhotoUrl, size: const Size(66, 64)),
                       ),
                       const SizedBox(width: 25),
                       Expanded(
@@ -358,10 +695,10 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Image.asset(
-                        AppImages.parentHomeBus,
-                        width: 26,
-                        height: 26,
+                      Icon(
+                        FluentIcons.vehicle_bus_20_filled,
+                        size: 26,
+                        color: Color(0xFF1E3A8A),
                       ),
                       const SizedBox(width: 21),
                       Expanded(
@@ -380,17 +717,18 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                         width: 27,
                         height: 27,
                         fit: BoxFit.contain,
+                        color: _boarded ? null : Colors.transparent,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        '7:30 AM',
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          // height: 22 / 15,
-                          color: AppColors.grayText,
+                      if (_tripActive)
+                        Text(
+                          _boardedTimeText,
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.grayText,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   Padding(
@@ -399,7 +737,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _busNumber.isEmpty ? 'Bus' : 'Bus #$_busNumber',
+                          (_busNumber.isEmpty || _busNumber == '--')
+                              ? 'Bus'
+                              : 'Bus #$_busNumber',
                           style: GoogleFonts.inter(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -407,15 +747,15 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                             color: AppColors.textBlack,
                           ),
                         ),
-                        Text(
-                          'On the way',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            // height: 22 / 16,
-                            color: AppColors.greenStatusBright,
+                        if (_tripActive)
+                          Text(
+                            _rideStatusLine(),
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.greenStatusBright,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -459,10 +799,13 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
               color: AppColors.studentCardHeaderBar,
               child: Row(
                 children: [
-                  Image.asset(
-                    AppImages.parentHomeAttendanceChart,
-                    width: 28,
-                    height: 24.5,
+                  Transform.scale(
+                    scaleX: -1,
+                    child: Icon(
+                      FluentIcons.data_bar_vertical_20_filled,
+                      size: 26,
+                      color: Color(0xFF2F80ED),
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(
@@ -494,26 +837,33 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                         ),
                       ),
                       Text(
-                        'Present',
+                        _todayAttendanceLabel,
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           height: 22 / 16,
-                          color: AppColors.greenStatusBright,
+                          color: _todayPresent == true
+                              ? AppColors.greenStatusBright
+                              : (_todayPresent == false
+                                  ? const Color(0xFFC62828)
+                                  : context.appSecondaryText),
                         ),
                       ),
                       const SizedBox(width: 10),
-                      Image.asset(
-                        AppImages.parentHomeCheckParent,
-                        width: 27,
-                        height: 27,
-                        fit: BoxFit.contain,
-                      ),
+                      if (_todayPresent == true)
+                        Image.asset(
+                          AppImages.parentHomeCheckParent,
+                          width: 27,
+                          height: 27,
+                          fit: BoxFit.contain,
+                        )
+                      else if (_todayPresent == false)
+                        const Icon(Icons.cancel, color: Colors.red, size: 24),
                     ],
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'This Week: 4 / 5 days',
+                    'This week: $_weekPresentDays/5',
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -637,6 +987,52 @@ class _TrackBusButtonState extends State<_TrackBusButton>
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ParentGreetingIcon extends StatelessWidget {
+  const _ParentGreetingIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      AppImages.parentPerson,
+      width: 37,
+      height: 29,
+      fit: BoxFit.contain,
+    );
+  }
+}
+
+class _StudentAvatar extends StatelessWidget {
+  const _StudentAvatar({required this.photoUrl, required this.size});
+
+  final String? photoUrl;
+  final Size size;
+
+  @override
+  Widget build(BuildContext context) {
+    final full = supervisorPhotoFullUrl(photoUrl);
+    if (full != null && full.isNotEmpty) {
+      return Image.network(
+        full,
+        width: size.width,
+        height: size.height,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Image.asset(
+          AppImages.parentHomeStudentAvatar,
+          width: size.width,
+          height: size.height,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+    return Image.asset(
+      AppImages.parentHomeStudentAvatar,
+      width: size.width,
+      height: size.height,
+      fit: BoxFit.cover,
     );
   }
 }

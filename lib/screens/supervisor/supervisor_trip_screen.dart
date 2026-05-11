@@ -63,8 +63,17 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   );
   final List<_TripStop> _stops = [];
   String _busNumber = '7';
+  int? _currentStopIndex;
+
+  int _boardedCount = 0;
+  int _totalCount = 0;
+  int _remainingCount = 0;
+  bool _markingAbsent = false;
+  bool _sendingSos = false;
 
   int _routeProgressIndex = 0;
+
+  String _supervisorName = '';
 
   final MapController _mapController = MapController();
   AnimationController? _recenterController;
@@ -72,8 +81,19 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   @override
   void initState() {
     super.initState();
+    _supervisorName = ServiceLocator.tokenStorage.getUserName() ?? '';
+    _loadSupervisorName();
     _loadTripStops();
     _startTripTracking();
+  }
+
+  Future<void> _loadSupervisorName() async {
+    try {
+      final d = await ServiceLocator.supervisorService.getMe();
+      if (!mounted) return;
+      final n = d.name.trim();
+      if (n.isNotEmpty) setState(() => _supervisorName = n);
+    } catch (_) {}
   }
 
   Future<void> _loadTripStops() async {
@@ -96,12 +116,24 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       final busObj = tripObj?['bus'] as Map<String, dynamic>?;
       final busNo = (busObj?['busNumber'] ?? busObj?['bus_number'] ?? '').toString().trim();
       final students = (body['students'] as List<dynamic>? ?? const []);
+      final summary = (body['attendanceSummary'] ?? body['summary'])
+          as Map<String, dynamic>?;
+      final boarded = (summary?['boarded'] as num?)?.toInt() ?? 0;
+      final total = (summary?['total'] as num?)?.toInt() ?? students.length;
+      final remaining =
+          (summary?['remaining'] as num?)?.toInt() ?? math.max(total - boarded, 0);
       final parsed = <_TripStop>[];
       for (final raw in students) {
         if (raw is! Map<String, dynamic>) continue;
         final sid = _extractStudentId(raw);
         if (sid <= 0) continue;
         final point = _extractStudentPoint(raw);
+        final boardedFlag = raw['boarded'] == true;
+        final absentFlag = raw['absent'] == true;
+        final completedExplicit = raw['completed'];
+        final completedResolved = completedExplicit != null
+            ? completedExplicit == true
+            : (boardedFlag || absentFlag);
         parsed.add(
           _TripStop(
             studentId: sid,
@@ -111,6 +143,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                 (raw['birthdate'] ?? raw['studentBirthdate'] ?? '').toString(),
             // Keep stop even if address parsing fails, so attendance works anywhere.
             location: point ?? _currentLocation ?? _schoolDestination,
+            completed: completedResolved,
           ),
         );
       }
@@ -122,6 +155,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         _currentDestination = parsed.first.location;
         if (busNo.isNotEmpty) _busNumber = busNo;
         _routeProgressIndex = 0;
+        _boardedCount = boarded;
+        _totalCount = total;
+        _remainingCount = remaining;
       });
       _recomputeNearestNextStop();
     } catch (_) {}
@@ -227,10 +263,139 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       }
     }
     setState(() {
+      _currentStopIndex = bestIndex;
       _currentDestination = _stops[bestIndex].location;
       _routePoints = null;
       _routeProgressIndex = 0;
     });
+  }
+
+  Future<String?> _askAbsentReason() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Mark Absent'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Reason (required)',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (result == null || result.trim().length < 2) return null;
+    return result.trim();
+  }
+
+  Future<void> _makeAbsent() async {
+    final tripId = widget.tripId;
+    if (tripId == null || tripId <= 0) return;
+    if (_markingAbsent) return;
+
+    if (_stops.isEmpty) await _loadTripStops();
+    if (!mounted) return;
+
+    final idx = _currentStopIndex ??
+        _stops.indexWhere((s) => !s.completed);
+    if (idx < 0 || idx >= _stops.length) return;
+
+    final reason = await _askAbsentReason();
+    if (!mounted || reason == null) return;
+
+    setState(() => _markingAbsent = true);
+    try {
+      final uri = Uri.parse('${ApiConfig.baseUrl}/v1/Supervisor/attendance/mark-absent');
+      final token = ServiceLocator.tokenStorage.getToken();
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      final body = jsonEncode({
+        'tripId': tripId,
+        'studentId': _stops[idx].studentId,
+        'reason': reason,
+      });
+      final resp = await http.post(uri, headers: headers, body: body);
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        Map<String, dynamic>? decoded;
+        try {
+          decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+        } catch (_) {}
+        final sum = decoded?['summary'] as Map<String, dynamic>?;
+        if (!mounted) return;
+        setState(() {
+          _stops[idx] = _stops[idx].copyWith(completed: true);
+          if (sum != null) {
+            _boardedCount = (sum['boarded'] as num?)?.toInt() ?? _boardedCount;
+            _totalCount = (sum['total'] as num?)?.toInt() ?? _totalCount;
+            _remainingCount =
+                (sum['remaining'] as num?)?.toInt() ?? _remainingCount;
+          }
+        });
+        _recomputeNearestNextStop();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Marked absent')),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Mark absent failed (HTTP ${resp.statusCode})')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Mark absent error: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _markingAbsent = false);
+    }
+  }
+
+  Future<void> _sendSos() async {
+    if (_sendingSos) return;
+    setState(() => _sendingSos = true);
+    try {
+      var lat = _currentLocation?.latitude;
+      var lng = _currentLocation?.longitude;
+      if (lat == null || lng == null) {
+        final current = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+        lat = current.latitude;
+        lng = current.longitude;
+      }
+      await ServiceLocator.supervisorService.sendSos(
+        latitude: lat,
+        longitude: lng,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SOS sent to school and parents.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send SOS: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _sendingSos = false);
+    }
   }
 
   @override
@@ -661,14 +826,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           return;
         }
         if (mounted && result == true && matched) {
-          final index =
-              _stops.indexWhere((s) => s.studentId == identified.studentId);
-          if (index >= 0) {
-            setState(() {
-              _stops[index] = _stops[index].copyWith(completed: true);
-            });
-            _recomputeNearestNextStop();
-          }
+          await _loadTripStops();
         }
       }
     } catch (e) {
@@ -753,58 +911,6 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     }
   }
 
-  Future<void> _endTrip() async {
-    final tripId = widget.tripId;
-    if (tripId == null || tripId <= 0) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Trip ID missing. Please start a trip again.'),
-        ),
-      );
-      return;
-    }
-
-    // Stop tracking immediately so we don't keep recording locations.
-    _locationTimer?.cancel();
-
-    try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}/v1/Supervisor/end-trip');
-      final token = ServiceLocator.tokenStorage.getToken();
-      final headers = <String, String>{'Content-Type': 'application/json'};
-      if (token != null && token.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $token';
-      }
-      final body = jsonEncode({'tripId': tripId});
-
-      final resp = await http.post(uri, headers: headers, body: body);
-      if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          fadeRoute(const SupervisorHomeScreen()),
-          (route) => false,
-        );
-      } else {
-        if (!mounted) return;
-        // Even if the server responded with an error, the trip might have been ended
-        // but failed during response serialization. Provide a helpful message and
-        // keep the user from continuing to record locations.
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'End trip failed: HTTP ${resp.statusCode} ${resp.body}',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('End trip error: $e')));
-    }
-  }
-
   /// Fetch a road-based route polyline between current and destination
   /// using OSRM public routing API.
   Future<void> _fetchRoute(
@@ -881,8 +987,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                 // --- TOP HEADER ---
                 Container(
                   width: double.infinity,
-                  height: 182,
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+                  height: 170,
+                  padding: const EdgeInsets.fromLTRB(10, 0, 20, 0),
                   decoration: const BoxDecoration(
                     color: AppColors.primaryBlue97,
                     borderRadius: BorderRadius.only(
@@ -899,21 +1005,22 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                             icon: const Icon(
                               Icons.chevron_left,
                               color: Colors.white,
-                              size: 28,
+                              size: 35,
                             ),
                             onPressed: () => Navigator.pop(context),
                           ),
                           Expanded(
                             child: Center(
                               child: SizedBox(
-                                height: 80,
+                                height: 126,
                                 child: FittedBox(
                                   fit: BoxFit.scaleDown,
                                   child: Image.asset(
                                     AppImages.logo,
-                                    height: 80,
+                                    height: 126,
                                     fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) => const Icon(
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        const Icon(
                                       Icons.directions_bus,
                                       color: Colors.white,
                                       size: 44,
@@ -923,30 +1030,44 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                               ),
                             ),
                           ),
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE31E24),
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: const Text(
-                              'SOS',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                          GestureDetector(
+                            onTap: _sendingSos ? null : _sendSos,
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: _sendingSos
+                                    ? const Color(0xFFB91C1C)
+                                    : const Color(0xFFE31E24),
+                                shape: BoxShape.circle,
                               ),
+                              alignment: Alignment.center,
+                              child: _sendingSos
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'SOS',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 26),
+                      const SizedBox(height: 0),
                       Row(
                         children: [
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 0),
                           Container(
                             width: 24,
                             height: 24,
@@ -960,7 +1081,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                 width: 24,
                                 height: 24,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(
                                   Icons.person,
                                   color: Colors.white,
                                   size: 16,
@@ -969,10 +1091,12 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                             ),
                           ),
                           const SizedBox(width: 15),
-                          const Expanded(
+                          Expanded(
                             child: Text(
-                              'welcome, Ali',
-                              style: TextStyle(
+                              _supervisorName.isEmpty
+                                  ? 'Welcome'
+                                  : 'Welcome, $_supervisorName',
+                              style: const TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 20,
                                 fontWeight: FontWeight.w600,
@@ -989,7 +1113,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                 // --- CONTENT ---
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(15),
                     child: Column(
                       children: [
                         // On Route Status Bar
@@ -1025,7 +1149,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                 height: 20,
                                 decoration: const BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: Color(0xE0FFCA07),
+                                  color: Color(0xFFE4BA14),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -1044,61 +1168,6 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // End trip button (red) - requested behavior
-                        SizedBox(
-                          width: double.infinity,
-                          height: 54,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFA90707),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: _endTrip,
-                                borderRadius: BorderRadius.circular(12),
-                                child: const Center(
-                                  child: Text(
-                                    'End Trip',
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: context.appCardBackground,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            _currentLocation == null
-                                ? 'Current Location: waiting for GPS...'
-                                : 'Current Location: ${_currentLocation!.latitude.toStringAsFixed(6)}, ${_currentLocation!.longitude.toStringAsFixed(6)}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: context.appPrimaryText,
-                            ),
                           ),
                         ),
 
@@ -1140,7 +1209,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                                   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                                               subdomains: const ['a', 'b', 'c'],
                                               userAgentPackageName:
-                                                  'com.example.application',
+                                                  'com.busify.app',
                                             ),
                                             MarkerLayer(
                                               markers: [
@@ -1289,7 +1358,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                     ),
                                   ),
                                   Text(
-                                    '20 / 25',
+                                    '$_boardedCount / $_totalCount',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 16,
@@ -1310,7 +1379,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                         color: context.appProgressTrack,
                                       ),
                                       FractionallySizedBox(
-                                        widthFactor: 20 / 25,
+                                        widthFactor: _totalCount <= 0
+                                            ? 0
+                                            : (_boardedCount / _totalCount)
+                                                .clamp(0.0, 1.0),
                                         alignment: Alignment.centerLeft,
                                         child: Container(
                                           color: const Color(0xFF18A74A),
@@ -1324,12 +1396,12 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                               Row(
                                 children: [
                                   const CircleAvatar(
-                                    backgroundColor: Color(0xFF18A74A),
+                                    backgroundColor: Color(0xFF1BD95D),
                                     radius: 10,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Boarded 20',
+                                    'Boarded $_boardedCount',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w500,
@@ -1338,12 +1410,12 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                   ),
                                   const SizedBox(width: 30),
                                   const CircleAvatar(
-                                    backgroundColor: Color(0x87FFCA07),
+                                    backgroundColor: Color(0xFFE4BA14),
                                     radius: 10,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Remaining 5',
+                                    'Remaining $_remainingCount',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w500,
@@ -1380,7 +1452,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                       width: 30,
                                       height: 30,
                                       color: Color(0xFF8FBFFA),
-                                      errorBuilder: (_, __, ___) => const Icon(
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          const Icon(
                                         Icons.fact_check,
                                         color: Color(0xFF8FBFFA),
                                         size: 30,
@@ -1397,6 +1470,48 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                       ),
                                     ),
                                   ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: 325,
+                          height: 54,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [Color(0xFFB8361E), Color(0xFF52180D)],
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _markingAbsent ? null : _makeAbsent,
+                                borderRadius: BorderRadius.circular(10),
+                                child: Center(
+                                  child: _markingAbsent
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Make Absent',
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w500,
+                                            color: AppColors.white,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ),
@@ -1445,7 +1560,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
               AppImages.navbarAttendance,
               'Attendance',
               false,
-              () {},
+              _takeAttendance,
             ),
             _navItem(context, AppImages.navbarProfile, 'Profile', false, () {
               Navigator.push(
@@ -1483,7 +1598,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                   width: 28,
                   height: 28,
                   color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                  errorBuilder: (_, __, ___) => Icon(
+                  errorBuilder: (context, error, stackTrace) => Icon(
                     label == 'Home' ? Icons.home : Icons.fact_check_outlined,
                     size: 28,
                     color: isActive

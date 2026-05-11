@@ -280,7 +280,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
                   urlTemplate:
                       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                   subdomains: const ['a', 'b', 'c'],
-                  userAgentPackageName: 'com.example.application',
+                  userAgentPackageName: 'com.busify.app',
                 ),
                 if (_currentLocation != null)
                   MarkerLayer(

@@ -7,6 +7,8 @@ class TokenStorage {
   static const String _userNameKey = 'auth_user_name';
   static const String _userEmailKey = 'auth_user_email';
   static const String _userPhoneKey = 'auth_user_phone';
+  static const String _userPhotoUrlKey = 'auth_user_photo_url';
+  static const String _studentPhotoUrlKey = 'auth_student_photo_url';
 
   final SharedPreferences _prefs;
 
@@ -22,6 +24,7 @@ class TokenStorage {
     required String name,
     required String email,
     String? phone,
+    String? photoUrl,
   }) async {
     await _prefs.setInt(_userIdKey, id);
     await _prefs.setString(_userNameKey, name);
@@ -30,6 +33,11 @@ class TokenStorage {
       await _prefs.setString(_userPhoneKey, phone);
     } else {
       await _prefs.remove(_userPhoneKey);
+    }
+    if (photoUrl != null && photoUrl.trim().isNotEmpty) {
+      await _prefs.setString(_userPhotoUrlKey, photoUrl.trim());
+    } else {
+      await _prefs.remove(_userPhotoUrlKey);
     }
   }
 
@@ -42,6 +50,26 @@ class TokenStorage {
   String? getUserName() => _prefs.getString(_userNameKey);
   String? getUserEmail() => _prefs.getString(_userEmailKey);
   String? getUserPhone() => _prefs.getString(_userPhoneKey);
+  String? getUserPhotoUrl() => _prefs.getString(_userPhotoUrlKey);
+  String? getStudentPhotoUrl() => _prefs.getString(_studentPhotoUrlKey);
+
+  Future<void> saveUserPhotoUrl(String? photoUrl) async {
+    final s = photoUrl?.trim();
+    if (s == null || s.isEmpty) {
+      await _prefs.remove(_userPhotoUrlKey);
+    } else {
+      await _prefs.setString(_userPhotoUrlKey, s);
+    }
+  }
+
+  Future<void> saveStudentPhotoUrl(String? photoUrl) async {
+    final s = photoUrl?.trim();
+    if (s == null || s.isEmpty) {
+      await _prefs.remove(_studentPhotoUrlKey);
+    } else {
+      await _prefs.setString(_studentPhotoUrlKey, s);
+    }
+  }
 
   /// Removes the stored token (logout).
   Future<void> clearToken() async {
@@ -50,6 +78,8 @@ class TokenStorage {
     await _prefs.remove(_userNameKey);
     await _prefs.remove(_userEmailKey);
     await _prefs.remove(_userPhoneKey);
+    await _prefs.remove(_userPhotoUrlKey);
+    await _prefs.remove(_studentPhotoUrlKey);
   }
 
   /// Returns true if a token is stored.

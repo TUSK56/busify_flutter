@@ -308,7 +308,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
                             // 2b. Birthdate
                             _buildInputWrapper(
-                              label: 'Birthdate (yyyy-MM-dd)',
+                              label: 'Birthdate (YYYY-MM-DD)',
                               child: TextField(
                                 controller: _birthdateController,
                                 style: const TextStyle(

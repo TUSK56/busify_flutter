@@ -54,6 +54,7 @@ class _SupervisorAttendanceScreenState
     extends State<SupervisorAttendanceScreen> {
   late String currentImagePath;
   bool _isSubmitting = false;
+  bool _sendingSos = false;
 
   @override
   void initState() {
@@ -113,6 +114,33 @@ class _SupervisorAttendanceScreenState
       }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final summary = (data['summary'] as Map<String, dynamic>? ?? {});
+      final scannedRaw = data['scannedAtUtc'] ?? data['scanned_at_utc'];
+      DateTime? scannedUtc = scannedRaw == null
+          ? null
+          : DateTime.tryParse(scannedRaw.toString());
+      final scannedLocal = scannedUtc?.toLocal() ?? DateTime.now();
+      String fmtAmPm(DateTime dt) {
+        final h = dt.hour;
+        final m = dt.minute.toString().padLeft(2, '0');
+        final ampm = h >= 12 ? 'PM' : 'AM';
+        final hh = ((h + 11) % 12) + 1;
+        return '$hh:$m $ampm';
+      }
+
+      final startedRaw = data['tripStartedAtUtc'] ?? data['trip_started_at_utc'];
+      final startedLocal = startedRaw == null
+          ? null
+          : DateTime.tryParse(startedRaw.toString())?.toLocal();
+      String tripLabel() {
+        if (startedLocal != null) {
+          return startedLocal.hour < 12 ? 'Morning Trip' : 'Afternoon Trip';
+        }
+        final tt = (data['tripType'] ?? '').toString().toLowerCase();
+        if (tt == 'morning') return 'Morning Trip';
+        if (tt == 'afternoon') return 'Afternoon Trip';
+        return 'Trip';
+      }
+
       if (!mounted) return;
       final done = await Navigator.push<bool>(
         context,
@@ -127,6 +155,8 @@ class _SupervisorAttendanceScreenState
             remaining: (summary['remaining'] as num?)?.toInt() ?? 0,
             tripId: tripId,
             studentId: widget.studentId,
+            scanTimeLabel: fmtAmPm(scannedLocal),
+            tripTypeLabel: tripLabel(),
           ),
         ),
       );
@@ -135,6 +165,25 @@ class _SupervisorAttendanceScreenState
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _sendSos() async {
+    if (_sendingSos) return;
+    setState(() => _sendingSos = true);
+    try {
+      await ServiceLocator.supervisorService.sendSos();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SOS sent to school and parents.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send SOS: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _sendingSos = false);
     }
   }
 
@@ -151,7 +200,7 @@ class _SupervisorAttendanceScreenState
                 // Header (Figma Position x:-16 y:-14)
                 Container(
                   width: double.infinity,
-                  height: 235,
+                  height: 198,
                   decoration: const BoxDecoration(
                     color: AppColors.primaryBlue97,
                     borderRadius: BorderRadius.only(
@@ -161,7 +210,7 @@ class _SupervisorAttendanceScreenState
                   ),
                   child: Column(
                     children: [
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 0),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Row(
@@ -171,47 +220,61 @@ class _SupervisorAttendanceScreenState
                               icon: const Icon(
                                 Icons.chevron_left,
                                 color: Colors.white,
-                                size: 38,
+                                size: 35,
                               ),
                               onPressed: () => Navigator.pop(context),
                             ),
                             Expanded(
                               child: Center(
                                 child: SizedBox(
-                                  height: 80,
+                                  height: 126,
                                   child: FittedBox(
                                     fit: BoxFit.scaleDown,
                                     child: Image.asset(
                                       AppImages.logo,
-                                      height: 80,
+                                      height: 126,
                                       fit: BoxFit.contain,
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFE31E24),
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: const Text(
-                                'SOS',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                            GestureDetector(
+                              onTap: _sendingSos ? null : _sendSos,
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: _sendingSos
+                                      ? const Color(0xFFB91C1C)
+                                      : const Color(0xFFE31E24),
+                                  shape: BoxShape.circle,
                                 ),
+                                alignment: Alignment.center,
+                                child: _sendingSos
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'SOS',
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 0),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Row(
@@ -240,7 +303,7 @@ class _SupervisorAttendanceScreenState
                       ),
                       const SizedBox(height: 6),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 65),
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
@@ -271,15 +334,15 @@ class _SupervisorAttendanceScreenState
                           child: Image.file(
                             File(currentImagePath),
                             width: 366,
-                            height: 355,
+                            height: 300,
                             fit: BoxFit.cover,
                           ),
                         ),
                         // Glass Card (README: 355x154, radius 30, ffffff 37%, blur 30, shadow)
                         Positioned(
-                          bottom: 20,
-                          left: 15,
-                          right: 15,
+                          bottom: 15,
+                          left: 10,
+                          right: 10,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(30),
                             child: BackdropFilter(
@@ -323,7 +386,7 @@ class _SupervisorAttendanceScreenState
                                           )
                                         else
                                           const Icon(
-                                            Icons.cancel_outlined,
+                                            Icons.highlight_off,
                                             color: Color(0xFFDC2626),
                                             size: 28,
                                           ),
@@ -336,7 +399,7 @@ class _SupervisorAttendanceScreenState
                                             fontFamily: 'Inter',
                                             fontSize: 20,
                                             fontWeight: FontWeight.w600,
-                                            color: Color(0xFF333333),
+                                            color: Color(0xFF000000),
                                           ),
                                         ),
                                       ],
@@ -372,7 +435,8 @@ class _SupervisorAttendanceScreenState
                                                     fontSize:
                                                         detail.length > 42 ? 13 : 15,
                                                     fontWeight: FontWeight.w600,
-                                                    color: const Color(0xFF6B7280),
+                                                    color: const Color(
+                                                        0xFF000000),
                                                   ),
                                                 ),
                                               ),

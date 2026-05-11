@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:application/routes/fade_route.dart';
+import 'package:application/services/push_notifications_service.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
@@ -60,7 +61,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  SizedBox(height: screenHeight * 0.02),
+                  SizedBox(height: screenHeight * 0.001),
 
                   // Top Logo (2.png)
                   Align(
@@ -76,7 +77,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                     ),
                   ),
 
-                  SizedBox(height: screenHeight * 0.01),
+                  SizedBox(height: screenHeight * 0.001),
 
                   // Back Button (Chevron Backward)
                   Align(
@@ -277,14 +278,16 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                                   return;
                                 }
                                 setState(() => _isLoading = true);
+                                final nav = Navigator.of(context);
                                 try {
                                   await ServiceLocator.parentService.login(
                                     email: email,
                                     password: password,
                                   );
+                                  await PushNotificationsService
+                                      .registerTokenAfterParentLogin();
                                   if (!mounted) return;
-                                  Navigator.pushReplacement(
-                                    context,
+                                  nav.pushReplacement(
                                     fadeRoute(const ParentHomeScreen()),
                                   );
                                 } catch (e) {

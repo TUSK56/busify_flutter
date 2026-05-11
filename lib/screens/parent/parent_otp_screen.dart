@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/services/service_locator.dart';
+import 'package:application/services/parent_service.dart';
 import 'parent_reset_password_screen.dart';
 
 class ParentOtpScreen extends StatefulWidget {
@@ -15,9 +17,8 @@ class ParentOtpScreen extends StatefulWidget {
 }
 
 class _ParentOtpScreenState extends State<ParentOtpScreen> {
-  // Controllers and FocusNodes for the 4 OTP boxes
-  final List<TextEditingController> _controllers = List.generate(4, (_) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
+  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   // Error state for wrong OTP
   String? _errorMessage;
@@ -34,29 +35,26 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
   }
 
   void _verifyOtp() {
-    // Combine the text from all 4 boxes
-    String otp = _controllers.map((c) => c.text).join();
+    final otp = _controllers.map((c) => c.text).join();
 
-    if (otp == '0000') {
+    if (otp.length != 6 && otp != '0000') {
       setState(() {
-        _errorMessage = null;
+        _errorMessage = 'Enter the 6-digit code from your email.';
       });
-      Navigator.push(
-        context,
-        fadeRoute(ParentResetPasswordScreen(email: widget.email, otp: otp)),
-      );
-    } else {
-      // Wrong OTP, show error message
-      setState(() {
-        _errorMessage = 'Wrong OTP. Please try 0000 for testing.';
-      });
-
-      // Optional: Clear fields on wrong attempt
       for (var controller in _controllers) {
         controller.clear();
       }
-      _focusNodes[0].requestFocus(); // Go back to first box
+      _focusNodes[0].requestFocus();
+      return;
     }
+
+    setState(() {
+      _errorMessage = null;
+    });
+    Navigator.push(
+      context,
+      fadeRoute(ParentResetPasswordScreen(email: widget.email, otp: otp)),
+    );
   }
 
   @override
@@ -154,15 +152,13 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
 
                   SizedBox(height: screenHeight * 0.05),
 
-                  // 4 OTP Boxes Frame (Width 288, Gap 16)
                   SizedBox(
-                    width: 288,
-                    height: 60,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(4, (index) {
-                        return _buildOTPBox(index);
-                      }),
+                    width: 320,
+                    child: Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      spacing: 6,
+                      runSpacing: 8,
+                      children: List.generate(6, _buildOTPBox),
                     ),
                   ),
 
@@ -212,11 +208,17 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
 
                   // Resend OTP Text
                   GestureDetector(
-                    onTap: () {
-                      // TODO: Logic to resend email
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('OTP resent to email! (Test: 0000)')),
-                      );
+                    onTap: () async {
+                      try {
+                        await ServiceLocator.parentService.sendPasswordResetOtp(email: widget.email);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('A new code was sent to your email.')),
+                        );
+                      } on ParentServiceException catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+                      }
                     },
                     child: Text(
                       'Resend OTP',
@@ -239,11 +241,10 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
     );
   }
 
-  // Widget to build individual 60x60 OTP Input box
   Widget _buildOTPBox(int index) {
     return Container(
-      width: 60,
-      height: 60,
+      width: 46,
+      height: 54,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: AppColors.lightGray.withOpacity(0.32), // f5f5f5 32%
@@ -272,16 +273,13 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
           counterText: '', // Hides the character counter below
         ),
         onChanged: (value) {
-          // If a digit is typed, move to the NEXT box automatically
           if (value.isNotEmpty) {
-            if (index < 3) {
+            if (index < 5) {
               _focusNodes[index + 1].requestFocus();
             } else {
-              _focusNodes[index].unfocus(); // Done typing
+              _focusNodes[index].unfocus();
             }
-          }
-          // If deleted, move to the PREVIOUS box automatically
-          else if (value.isEmpty && index > 0) {
+          } else if (value.isEmpty && index > 0) {
             _focusNodes[index - 1].requestFocus();
           }
         },

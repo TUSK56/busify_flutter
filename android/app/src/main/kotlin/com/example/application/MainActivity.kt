@@ -1,4 +1,4 @@
-package com.example.application
+package com.busify.app
 
 import io.flutter.embedding.android.FlutterActivity
 

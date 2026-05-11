@@ -42,6 +42,13 @@ class AppImages {
   static const String blueEye = 'assets/images/blue_eye.png';
   static const String circule = 'assets/images/circule.png';
 
+  // Parent add child (Figma)
+  static const String studentIcon = 'assets/images/student.png';
+  static const String schoolIcon = 'assets/images/school.png';
+  static const String gradeIcon = 'assets/images/grad.png';
+  static const String blueCalendar = 'assets/images/blue_calender.png';
+  static const String calendar = 'assets/images/calendar.png';
+
   // Nav bar
   static const String navbarHome = 'assets/images/navbar_home_homescreen.png';
   static const String navbarHomeActive = 'assets/images/navbar_home_homescreen.png';

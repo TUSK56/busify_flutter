@@ -58,6 +58,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   String _routeDestinationKey = '';
   bool _isMiniMapFollowing = true;
   AnimationController? _recenterController;
+  int? _childStudentId;
 
   @override
   void initState() {
@@ -91,11 +92,14 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       if (students.isEmpty || !mounted) return;
       final first = students.first;
       final name = (first['name'] ?? first['Name'])?.toString();
-      if (name != null && name.isNotEmpty) {
-        setState(() {
-          _studentName = name;
-        });
-      }
+      final sid = first['id'] ?? first['Id'];
+      int? id;
+      if (sid is num) id = sid.toInt();
+      if (!mounted) return;
+      setState(() {
+        if (name != null && name.isNotEmpty) _studentName = name;
+        if (id != null && id > 0) _childStudentId = id;
+      });
     } catch (_) {}
   }
 
@@ -180,18 +184,52 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
       final busInfo = current['bus'] as Map<String, dynamic>?;
       final stops = current['stops'] as List<dynamic>? ?? const [];
+
+      final tripTypeStr =
+          (trip['tripType'] ?? trip['TripType']).toString().toLowerCase();
+      final isAfternoon = tripTypeStr.contains('afternoon');
+      final childDroppedAfternoon =
+          current['child_afternoon_dropped_off'] == true ||
+              current['childAfternoonDroppedOff'] == true;
+
       String? resolvedStudentName;
-      if (stops.isNotEmpty) {
+      for (final raw in stops) {
+        if (raw is! Map<String, dynamic>) continue;
+        final sidVal = raw['student_id'] ?? raw['studentId'];
+        num? sidNum;
+        if (sidVal is num) sidNum = sidVal;
+        if (_childStudentId != null &&
+            sidNum != null &&
+            sidNum.toInt() == _childStudentId) {
+          resolvedStudentName =
+              (raw['student_name'] ?? raw['studentName'] ?? raw['StudentName'])
+                  ?.toString();
+          break;
+        }
+      }
+      resolvedStudentName ??= () {
+        if (stops.isEmpty) return null;
         final first = stops.firstWhere(
           (s) => s is Map<String, dynamic>,
           orElse: () => stops.first,
         );
         if (first is Map<String, dynamic>) {
-          resolvedStudentName =
-              (first['student_name'] ?? first['studentName'] ?? first['StudentName'])
-                  ?.toString();
+          return (first['student_name'] ?? first['studentName'] ?? first['StudentName'])
+              ?.toString();
         }
-      }
+        return null;
+      }();
+
+      final statusComputed = () {
+        if (isAfternoon) {
+          if (childDroppedAfternoon) return 'Arrived home';
+          if (destType == 'school') return 'Heading to school';
+          return 'On the way home';
+        }
+        return destType == 'school'
+            ? 'On the way to school'
+            : 'On the way';
+      }();
 
       final live = await ServiceLocator.parentService.getLiveLocation(tripId);
       final latest = live['latest'] as Map<String, dynamic>?;
@@ -228,7 +266,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         _hasActiveTrip = true;
         _busLocation = bus;
         _destination = target;
-        _statusText = destType == 'school' ? 'Completed' : 'On the way';
+        _statusText = statusComputed;
         _etaText = _computeEta(bus, target);
         if (resolvedStudentName != null && resolvedStudentName.isNotEmpty) {
           _studentName = resolvedStudentName;
@@ -406,7 +444,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         bottomRight: Radius.circular(22),
       ),
       child: SizedBox(
-        height: 139,
+        height: 120,
         width: double.infinity,
         child: Stack(
           alignment: Alignment.center,
@@ -421,7 +459,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
                 child: Image.asset(
                   AppImages.trackBusLogo,
                   width: 126,
-                  height: 54,
+                  height: 126,
                   fit: BoxFit.contain,
                 ),
               ),
@@ -487,7 +525,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
                     TileLayer(
                       urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                       subdomains: const ['a', 'b', 'c'],
-                      userAgentPackageName: 'com.example.application',
+                      userAgentPackageName: 'com.busify.app',
                     ),
                     if (_polyline.isNotEmpty)
                       PolylineLayer(

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:application/models/child.dart';
 import 'package:application/models/login_response.dart';
@@ -97,12 +98,37 @@ class ParentService {
       name: loginResponse.user.name,
       email: loginResponse.user.email,
       phone: loginResponse.user.phone,
+      photoUrl: loginResponse.user.photoUrl,
     );
     return loginResponse;
   }
 
+  /// POST /v1/parent/send-otp — sends a reset code when the parent email exists.
+  Future<void> sendPasswordResetOtp({required String email}) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/send-otp');
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email.trim()}),
+    );
+
+    if (response.statusCode != 200) {
+      String message = 'Could not send code';
+      if (response.statusCode == 404) {
+        message = 'No account found for this email.';
+      } else {
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map && decoded['message'] != null) {
+            message = decoded['message'] as String;
+          }
+        } catch (_) {}
+      }
+      throw ParentServiceException(message, statusCode: response.statusCode);
+    }
+  }
+
   /// POST /v1/parent/reset-password
-  /// OTP validated locally as "0000" for testing.
   Future<void> resetPassword({
     required String email,
     required String otp,
@@ -168,6 +194,139 @@ class ParentService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  /// GET /v1/schools (public)
+  Future<List<Map<String, dynamic>>> getSchools() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/v1/schools');
+    final response = await http.get(uri, headers: {'Content-Type': 'application/json'});
+    if (response.statusCode != 200) {
+      throw ParentServiceException(
+        'Failed to load schools (${response.statusCode})',
+        statusCode: response.statusCode,
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is Map && decoded['schools'] is List) {
+      return (decoded['schools'] as List)
+          .whereType<Map>()
+          .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
+          .cast<Map<String, dynamic>>()
+          .toList();
+    }
+    if (decoded is List) {
+      return decoded
+          .whereType<Map>()
+          .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
+          .cast<Map<String, dynamic>>()
+          .toList();
+    }
+    return const [];
+  }
+
+  /// POST /v1/parent/change-password
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/change-password');
+    final body = {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    };
+    final response = await http.post(
+      uri,
+      headers: _authHeaders(),
+      body: jsonEncode(body),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      String message = 'Change password failed';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['message'] != null) {
+          message = decoded['message'] as String;
+        }
+      } catch (_) {}
+      throw ParentServiceException(message, statusCode: response.statusCode);
+    }
+  }
+
+  /// POST /v1/parent/profile-photo
+  Future<String> uploadProfilePhotoFile(String filePath) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw ParentServiceException('Selected image file not found');
+    }
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) throw ParentServiceException('Selected image is empty');
+
+    final base64Data = base64Encode(bytes);
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/profile-photo');
+    final body = {'imageBase64': base64Data};
+
+    final response = await http.post(
+      uri,
+      headers: _authHeaders(),
+      body: jsonEncode(body),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      String message = 'Upload failed';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['message'] != null) {
+          message = decoded['message'] as String;
+        }
+      } catch (_) {}
+      throw ParentServiceException(message, statusCode: response.statusCode);
+    }
+    final decoded = jsonDecode(response.body);
+    final photoUrl = decoded is Map ? decoded['photoUrl']?.toString() : null;
+    if (photoUrl == null || photoUrl.trim().isEmpty) {
+      throw ParentServiceException('Upload succeeded but photoUrl was missing');
+    }
+    await _tokenStorage.saveUserPhotoUrl(photoUrl);
+    return photoUrl;
+  }
+
+  /// POST /v1/parent/device-token
+  Future<void> upsertDeviceToken(String token) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/device-token');
+    final response = await http.post(
+      uri,
+      headers: _authHeaders(),
+      body: jsonEncode({'token': token}),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw ParentServiceException(
+        'Failed to register device token (${response.statusCode})',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  /// PATCH /v1/parent/profile
+  Future<Map<String, dynamic>> updateProfile({
+    required String email,
+    required String phone,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/profile');
+    final response = await http.patch(
+      uri,
+      headers: _authHeaders(),
+      body: jsonEncode({'email': email, 'phone': phone}),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      String message = 'Update profile failed';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['message'] != null) {
+          message = decoded['message'] as String;
+        }
+      } catch (_) {}
+      throw ParentServiceException(message, statusCode: response.statusCode);
+    }
+    if (response.body.isEmpty) return const {};
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   /// POST /v1/parent/child
   /// Creates a new child (student) for the logged-in parent.
   Future<Map<String, dynamic>> addChild({
@@ -176,6 +335,7 @@ class ParentService {
     required String grade,
     required int parentId,
     int? busId,
+    String? photoBase64,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/child');
     final body = {
@@ -184,6 +344,8 @@ class ParentService {
       'grade': grade,
       'parentId': parentId,
       if (busId != null) 'busId': busId,
+      if (photoBase64 != null && photoBase64.trim().isNotEmpty)
+        'photoBase64': photoBase64.trim(),
     };
     final response = await http.post(
       uri,
@@ -228,6 +390,40 @@ class ParentService {
       );
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// GET /v1/parent/attendance
+  Future<List<Map<String, dynamic>>> getAttendance({
+    int? studentId,
+    int? tripId,
+    String? fromDate, // yyyy-MM-dd
+    String? toDate, // yyyy-MM-dd
+  }) async {
+    final qp = <String, String>{};
+    if (studentId != null && studentId > 0) qp['studentId'] = '$studentId';
+    if (tripId != null && tripId > 0) qp['tripId'] = '$tripId';
+    if (fromDate != null && fromDate.trim().isNotEmpty) qp['fromDate'] = fromDate.trim();
+    if (toDate != null && toDate.trim().isNotEmpty) qp['toDate'] = toDate.trim();
+
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/attendance').replace(
+      queryParameters: qp.isEmpty ? null : qp,
+    );
+    final response = await http.get(uri, headers: _authHeaders());
+    if (response.statusCode != 200) {
+      throw ParentServiceException(
+        'Failed to load attendance (${response.statusCode})',
+        statusCode: response.statusCode,
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is Map && decoded['attendance'] is List) {
+      return (decoded['attendance'] as List)
+          .whereType<Map>()
+          .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
+          .cast<Map<String, dynamic>>()
+          .toList();
+    }
+    return const [];
   }
 }
 

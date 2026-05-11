@@ -2,9 +2,9 @@ import 'dart:io';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
-import 'package:application/helpers/fade_route.dart';
-import 'package:application/screens/supervisor/supervisor_success_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+
 
 class SupervisorQrConfirmationScreen extends StatelessWidget {
   final String imagePath;
@@ -16,6 +16,8 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
   final int remaining;
   final int tripId;
   final int studentId;
+  final String scanTimeLabel;
+  final String tripTypeLabel;
 
   const SupervisorQrConfirmationScreen({
     super.key,
@@ -28,6 +30,8 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
     required this.remaining,
     required this.tripId,
     required this.studentId,
+    required this.scanTimeLabel,
+    required this.tripTypeLabel,
   });
 
   @override
@@ -44,7 +48,7 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                   // Blue Header Frame (y:-1, h:139)
                   Container(
                     width: double.infinity,
-                    height: 140,
+                    height: 105,
                     decoration: const BoxDecoration(
                       color: AppColors.primaryBlue,
                       borderRadius: BorderRadius.only(
@@ -55,16 +59,40 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                     child: Center(
                       child: Image.asset(
                         AppImages.logo,
-                        height: 80,
+                        height: 126,
                         fit: BoxFit.contain,
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 0),
 
                   // Success Image (16.png)
-                  Image.asset(AppImages.successCheck, width: 176, height: 138),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        FluentIcons.checkmark_20_filled,
+                        size: 100,
+                        color: Color(0xFF22C55E),
+                      ),
+                      Container(
+                        width: 80,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(50),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF22C55E).withOpacity(0.8),
+                              blurRadius: 16,
+                              spreadRadius: 4,
+                            ),
+                          ],
+                          color: Colors.transparent,
+                        ),
+                      ),
+                    ],
+                  ),
 
                   const SizedBox(height: 10),
 
@@ -124,13 +152,13 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                         _detailRow(
                           context,
                           "Scan Time :",
-                          "7:30 AM",
+                          scanTimeLabel,
                           context.appPrimaryText,
                         ),
                         _detailRow(
                           context,
                           "Trip Type :",
-                          "Morning Trip",
+                          tripTypeLabel,
                           context.appPrimaryText,
                         ),
                         _detailRow(
@@ -185,23 +213,7 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: () async {
-                              final ok = await Navigator.of(context).push<bool>(
-                                fadeRoute(
-                                  SupervisorSuccessScreen.attendance(
-                                    imagePath: imagePath,
-                                    studentName: studentName,
-                                    studentGrade: studentGrade,
-                                    studentBirthdate: studentBirthdate,
-                                    boarded: boarded,
-                                    remaining: remaining,
-                                  ),
-                                ),
-                              );
-                              if (context.mounted && ok == true) {
-                                Navigator.of(context).pop(true);
-                              }
-                            },
+                            onTap: () => Navigator.of(context).pop(true),
                             borderRadius: BorderRadius.circular(10),
                             child: const Center(
                               child: Text(

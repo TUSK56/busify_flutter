@@ -3,8 +3,11 @@ import 'dart:math' as math;
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/supervisor_photo.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/screens/onboarding/role_selection_screen.dart';
+import 'package:application/screens/parent/parent_add_child_screen.dart';
+import 'package:application/screens/parent/parent_change_password_screen.dart';
 import 'package:application/screens/parent/parent_edit_profile_screen.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_track_bus_screen.dart';
@@ -12,6 +15,8 @@ import 'package:application/services/service_locator.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+
 
 /// أبعاد ومسافات موحّدة لكل بطاقات شاشة البروفايل — عدّل هنا للتحكم في الشكل كله.
 abstract final class _ParentProfileCards {
@@ -56,9 +61,11 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
   late final Animation<Offset> _entranceSlide;
   late Future<Map<String, dynamic>> _childOverviewFuture;
   String _parentName = '';
+  String? _parentPhotoUrl;
   String _parentPhone = '';
   String _parentEmail = '';
   String _parentGovernorate = '';
+  String? _studentPhotoUrl;
 
   Map<String, dynamic>? _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
@@ -118,6 +125,8 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             curve: Curves.easeOutCubic,
           ),
         );
+    _parentPhotoUrl = ServiceLocator.tokenStorage.getUserPhotoUrl();
+    _studentPhotoUrl = ServiceLocator.tokenStorage.getStudentPhotoUrl();
     _childOverviewFuture = ServiceLocator.parentService.getChildOverview();
     _entranceController.forward();
     _loadParentOverview();
@@ -143,6 +152,14 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     try {
       final profile = await ServiceLocator.parentService.getProfile();
       if (!mounted) return;
+      final photo = _readStringAnyKey(profile, const [
+        'photoUrl',
+        'photo_url',
+      ]);
+      if (photo != null && photo.isNotEmpty) {
+        await ServiceLocator.tokenStorage.saveUserPhotoUrl(photo);
+      }
+      if (!mounted) return;
       setState(() {
         final name = _readStringAnyKey(profile, const ['name']);
         final phone = _readStringAnyKey(
@@ -157,11 +174,26 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
         if (governorate != null && governorate.isNotEmpty) {
           _parentGovernorate = governorate;
         }
+        if (photo != null && photo.isNotEmpty) {
+          _parentPhotoUrl = photo;
+        }
       });
     } catch (_) {}
     try {
       final data = await ServiceLocator.parentService.getChildOverview();
       final parent = _asMap(data['parent'] ?? data['Parent']);
+      final students = _asMapList(data['students'] ?? data['Students']);
+      final firstStudent = students.isNotEmpty ? students.first : null;
+      final studentPhoto = firstStudent == null
+          ? null
+          : _readStringAnyKey(firstStudent, const [
+              'photoUrl',
+              'photo_url',
+              'PhotoUrl',
+            ]);
+      if (studentPhoto != null && studentPhoto.isNotEmpty) {
+        await ServiceLocator.tokenStorage.saveStudentPhotoUrl(studentPhoto);
+      }
       if (!mounted) return;
       setState(() {
         if (parent != null) {
@@ -178,6 +210,9 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           if (governorate != null && governorate.isNotEmpty) {
             _parentGovernorate = governorate;
           }
+        }
+        if (studentPhoto != null && studentPhoto.isNotEmpty) {
+          _studentPhotoUrl = studentPhoto;
         }
       });
     } catch (_) {}
@@ -213,7 +248,13 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildHeader(context),
-                        const Center(child: _ProfileAvatar()),
+                        Center(
+                          child: _ProfileAvatar(
+                            photoUrl:
+                                _parentPhotoUrl ??
+                                ServiceLocator.tokenStorage.getUserPhotoUrl(),
+                          ),
+                        ),
                         const SizedBox(height: 15),
                         _buildRoundedContentSheet(context, cardW),
                         const SizedBox(height: 14),
@@ -257,7 +298,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
         bottomRight: Radius.circular(22),
       ),
       child: SizedBox(
-        height: 128,
+        height: 105,
         width: double.infinity,
         child: Stack(
           clipBehavior: Clip.none,
@@ -266,18 +307,19 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               child: ColoredBox(color: AppColors.primaryBlue97),
             ),
             Positioned.fill(
+              top: -10,
               child: Center(
                 child: Image.asset(
                   AppImages.logo,
                   width: 126,
-                  height: 54,
+                  height: 126,
                   fit: BoxFit.contain,
                 ),
               ),
             ),
             Positioned(
-              left: 15,
-              top: 11.25,
+              left: 24,
+              top: 35,
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -289,6 +331,43 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                       Icons.arrow_back_ios,
                       color: AppColors.white,
                       size: 22.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 24,
+              top: 35,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () async {
+                    final changed = await Navigator.of(context).push<bool>(
+                      fadeRoute(const ParentEditProfileScreen()),
+                    );
+                    if (!mounted) return;
+                    if (changed == true) {
+                      _loadParentOverview();
+                      setState(() {
+                        _childOverviewFuture =
+                            ServiceLocator.parentService.getChildOverview();
+                      });
+                    }
+                  },
+                  child: SizedBox(
+                    width: 45,
+                    height: 22,
+                    child: Center(
+                      child: Text(
+                        'Edit',
+                        style: GoogleFonts.inter(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w500,
+                          height: 22 / 24,
+                          color: AppColors.white,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -380,11 +459,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Image.asset(
-                AppImages.phone,
-                width: 19.5,
-                height: 18.42,
-                fit: BoxFit.contain,
+              Icon(
+                FluentIcons.call_20_filled,
+                size: 26,
+                color: Color(0xFF22C55E), // green
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -406,11 +484,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Image.asset(
-                AppImages.email,
-                width: 21.67,
-                height: 17.33,
-                fit: BoxFit.contain,
+              const Icon(
+                FluentIcons.mail_20_filled,
+                size: 26,
+                color: Color(0xFF2859C5),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -432,11 +509,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Image.asset(
-                AppImages.homeParentProfile,
-                width: 17.5,
-                height: 18.75,
-                fit: BoxFit.contain,
+              const Icon(
+                FluentIcons.home_20_filled,
+                size: 26,
+                color: Color(0xFF595959),
               ),
               const SizedBox(width: 12),
               Text(
@@ -514,7 +590,14 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               final name = (first['name'] ?? first['Name'])?.toString() ?? '';
               final grade =
                   (first['grade'] ?? first['Grade'])?.toString() ?? '';
-              final busId = first['busId'] ?? first['BusId'];
+              final photoUrl = _readStringAnyKey(first, const [
+                'photoUrl',
+                'photo_url',
+                'PhotoUrl',
+              ]);
+              final bus = _asMap(data['bus'] ?? data['Bus']);
+              final busNo =
+                  (bus?['busNumber'] ?? bus?['bus_number'])?.toString();
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -523,11 +606,9 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       ClipOval(
-                        child: Image.asset(
-                          AppImages.parentProfile,
-                          width: 38,
-                          height: 37,
-                          fit: BoxFit.cover,
+                        child: _StudentAvatar(
+                          photoUrl: photoUrl ?? _studentPhotoUrl,
+                          size: const Size(38, 37),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -549,11 +630,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Image.asset(
-                        AppImages.winParentProfile,
-                        width: 21,
-                        height: 21,
-                        fit: BoxFit.contain,
+                      const Icon(
+                        FluentIcons.hat_graduation_20_filled,
+                        size: 26,
+                        color: Color(0xFF595959),
                       ),
                       const SizedBox(width: 5),
                       Text(
@@ -572,15 +652,16 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Image.asset(
-                        AppImages.busParentProfile,
-                        width: 21,
-                        height: 21,
-                        fit: BoxFit.contain,
+                      Icon(
+                        FluentIcons.vehicle_cab_20_filled ,
+                        size: 26,
+                        color: Color(0xFF595959),
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        busId == null ? 'Bus' : 'Bus #$busId',
+                        busNo == null || busNo.trim().isEmpty
+                            ? 'Bus'
+                            : 'Bus #${busNo.trim()}',
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -599,7 +680,18 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           const SizedBox(height: 10),
           Center(
             child: TextButton(
-              onPressed: () => _showAddChildDialog(context),
+              onPressed: () async {
+                final added = await Navigator.of(context).push<bool>(
+                  fadeRoute(const ParentAddChildScreen()),
+                );
+                if (!mounted) return;
+                if (added == true) {
+                  setState(() {
+                    _childOverviewFuture =
+                        ServiceLocator.parentService.getChildOverview();
+                  });
+                }
+              },
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.primaryBlue,
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -619,95 +711,6 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           ),
         ],
       ),
-    );
-  }
-
-  void _showAddChildDialog(BuildContext context) {
-    final nameController = TextEditingController();
-    final dobController = TextEditingController();
-    final gradeController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Add Another Child'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Student Name'),
-                ),
-                TextField(
-                  controller: dobController,
-                  decoration: const InputDecoration(labelText: 'Date of Birth (yyyy-MM-dd)'),
-                ),
-                TextField(
-                  controller: gradeController,
-                  decoration: const InputDecoration(labelText: 'Grade'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final dob = dobController.text.trim();
-                final grade = gradeController.text.trim();
-                if (name.isEmpty || dob.isEmpty || grade.isEmpty) {
-                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                    const SnackBar(content: Text('Please fill all fields')),
-                  );
-                  return;
-                }
-                try {
-                  // We need parentId; reuse overview call to keep client simple.
-                  final overview =
-                      await ServiceLocator.parentService.getChildOverview();
-                  final parent =
-                      _asMap(overview['parent'] ?? overview['Parent']) ?? {};
-                  final parentId = (parent['id'] ?? parent['Id']) as int? ??
-                      ServiceLocator.tokenStorage.getUserId();
-                  if (parentId == null) {
-                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                      const SnackBar(content: Text('Could not detect parent account')),
-                    );
-                    return;
-                  }
-                  await ServiceLocator.parentService.addChild(
-                    name: name,
-                    birthdate: dob,
-                    grade: grade,
-                    parentId: parentId,
-                  );
-                  if (!mounted) return;
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                    const SnackBar(content: Text('Child added successfully')),
-                  );
-                  // Trigger UI refresh for linked students
-                  setState(() {
-                    _childOverviewFuture =
-                        ServiceLocator.parentService.getChildOverview();
-                  });
-                } catch (e) {
-                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                    SnackBar(content: Text('Failed to add child: $e')),
-                  );
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -740,11 +743,13 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           const SizedBox(height: 10),
           Row(
             children: [
-              Image.asset(
-                AppImages.moon,
-                width: 18.32,
-                height: 18.32,
-                fit: BoxFit.contain,
+              Transform.scale(
+                scaleX: -1,
+                child: Icon(
+                  FluentIcons.weather_moon_20_filled,
+                  size: 26,
+                  color: Color(0xFF2859C5),
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -772,7 +777,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           InkWell(
             onTap: () {
               Navigator.of(context).push(
-                fadeRoute(const ParentEditProfileScreen()),
+                fadeRoute(const ParentChangePasswordScreen()),
               );
             },
             child: Padding(
@@ -780,11 +785,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    AppImages.lock,
-                    width: 15.6,
-                    height: 20.8,
-                    fit: BoxFit.contain,
+                  Icon(
+                    Icons.lock_rounded,
+                    size: 26,
+                    color: Color(0xFF595959),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -800,8 +804,8 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                   ),
                   const Icon(
                     Icons.arrow_forward_ios,
-                    color: AppColors.white,
-                    size: 14.5,
+                    color: Color(0xff333333),
+                    size: 24,
                   ),
                 ],
               ),
@@ -849,12 +853,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               child: Row(
                 children: [
                   const SizedBox(width: 6),
-                  Image.asset(
-                    AppImages.questionMark,
-                    width: 22,
-                    height: 22,
-                    fit: BoxFit.contain,
-                    color: AppColors.primaryBlue,
+                  Icon(
+                    FluentIcons.question_circle_20_filled,
+                    size: 26,
+                    color: Color(0xFF214071), // dark blue from your icon
                   ),
                   const SizedBox(width: 13),
                   Text(
@@ -876,13 +878,11 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 children: [
-                  const SizedBox(width: 4),
-                  Image.asset(
-                    AppImages.aboutMark,
-                    width: 23.33,
-                    height: 23.33,
-                    fit: BoxFit.contain,
-                    color: AppColors.primaryBlue,
+                  const SizedBox(width: 6),
+                  Icon(
+                    FluentIcons.info_20_filled,
+                    size: 26,
+                    color: Color(0xFF214071),
                   ),
                   const SizedBox(width: 13),
                   Text(
@@ -927,11 +927,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(
-                AppImages.logoutParentProfile,
-                width: 26,
-                height: 26,
-                fit: BoxFit.contain,
+              Icon(
+                FluentIcons.arrow_exit_20_filled,
+                size: 26,
+                color: Color(0xFFE6E9ED),
               ),
               const SizedBox(width: 12),
               Text(
@@ -979,10 +978,13 @@ class _ProfileCard extends StatelessWidget {
 }
 
 class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar();
+  const _ProfileAvatar({required this.photoUrl});
+
+  final String? photoUrl;
 
   @override
   Widget build(BuildContext context) {
+    final full = supervisorPhotoFullUrl(photoUrl);
     return Container(
       decoration: BoxDecoration(
         borderRadius: const BorderRadius.all(Radius.circular(999)),
@@ -997,13 +999,58 @@ class _ProfileAvatar extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.all(Radius.circular(999)),
-        child: Image.asset(
-          AppImages.parentProfilePic,
-          width: 91,
-          height: 78,
+        child: full != null && full.isNotEmpty
+            ? Image.network(
+                full,
+                width: 91,
+                height: 78,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Image.asset(
+                  AppImages.parentProfilePic,
+                  width: 91,
+                  height: 78,
+                  fit: BoxFit.cover,
+                ),
+              )
+            : Image.asset(
+                AppImages.parentProfilePic,
+                width: 91,
+                height: 78,
+                fit: BoxFit.cover,
+              ),
+      ),
+    );
+  }
+}
+
+class _StudentAvatar extends StatelessWidget {
+  const _StudentAvatar({required this.photoUrl, required this.size});
+
+  final String? photoUrl;
+  final Size size;
+
+  @override
+  Widget build(BuildContext context) {
+    final full = supervisorPhotoFullUrl(photoUrl);
+    if (full != null && full.isNotEmpty) {
+      return Image.network(
+        full,
+        width: size.width,
+        height: size.height,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Image.asset(
+          AppImages.parentProfile,
+          width: size.width,
+          height: size.height,
           fit: BoxFit.cover,
         ),
-      ),
+      );
+    }
+    return Image.asset(
+      AppImages.parentProfile,
+      width: size.width,
+      height: size.height,
+      fit: BoxFit.cover,
     );
   }
 }

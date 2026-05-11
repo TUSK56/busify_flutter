@@ -64,10 +64,10 @@ class _SupervisorChangePasswordScreenState
                             children: [
                               Container(
                                 width: double.infinity,
-                                height: 139,
+                                height: 105,
                                 padding: const EdgeInsets.fromLTRB(
                                   16,
-                                  12,
+                                  0,
                                   16,
                                   0,
                                 ),
@@ -86,18 +86,18 @@ class _SupervisorChangePasswordScreenState
                                       icon: const Icon(
                                         Icons.chevron_left,
                                         color: AppColors.white,
-                                        size: 32,
+                                        size: 35,
                                       ),
                                     ),
                                     Expanded(
                                       child: Center(
                                         child: SizedBox(
-                                          height: 80,
+                                          height: 126,
                                           child: FittedBox(
                                             fit: BoxFit.scaleDown,
                                             child: Image.asset(
                                               AppImages.logo,
-                                              height: 80,
+                                              height: 126,
                                               fit: BoxFit.contain,
                                               errorBuilder: (_, __, ___) =>
                                                   const Icon(
@@ -116,9 +116,9 @@ class _SupervisorChangePasswordScreenState
                               ),
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(
-                                  28,
+                                  15,
                                   18,
-                                  28,
+                                  15,
                                   0,
                                 ),
                                 child: Column(
@@ -202,7 +202,7 @@ class _SupervisorChangePasswordScreenState
                                     ),
                                     const SizedBox(height: 24),
                                     SizedBox(
-                                      width: double.infinity,
+                                      width: 275,
                                       height: 46,
                                       child: DecoratedBox(
                                         decoration: BoxDecoration(
@@ -235,7 +235,7 @@ class _SupervisorChangePasswordScreenState
                                                   fontFamily: 'Inter',
                                                   fontSize: 20,
                                                   fontWeight: FontWeight.w600,
-                                                  color: AppColors.white,
+                                                  color: AppColors.textBlack,
                                                 ),
                                               ),
                                             ),
