@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "205841967595",
+    "project_id": "busify-notifications",
+    "storage_bucket": "busify-notifications.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:205841967595:android:0304a4e47fbd761e2511ae",
+        "android_client_info": {
+          "package_name": "com.busify.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUaIKQhCr9_h7a3WIJzNV4WBZwV4jpxW0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
