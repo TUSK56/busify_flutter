@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Stores and retrieves JWT token using SharedPreferences.
@@ -9,6 +11,7 @@ class TokenStorage {
   static const String _userPhoneKey = 'auth_user_phone';
   static const String _userPhotoUrlKey = 'auth_user_photo_url';
   static const String _studentPhotoUrlKey = 'auth_student_photo_url';
+  static const String _studentPhotosJsonKey = 'auth_student_photos_json_v1';
 
   final SharedPreferences _prefs;
 
@@ -71,6 +74,49 @@ class TokenStorage {
     }
   }
 
+  /// Persists photo URLs per student id (survives logout/login; cleared on [clearToken]).
+  Future<void> mergeStudentPhotoUrls(Map<int, String> urls) async {
+    if (urls.isEmpty) return;
+    final merged = getStudentPhotoUrlsById();
+    for (final e in urls.entries) {
+      final v = e.value.trim();
+      if (v.isNotEmpty) merged[e.key] = v;
+    }
+    await _prefs.setString(
+      _studentPhotosJsonKey,
+      jsonEncode(merged.map((k, v) => MapEntry(k.toString(), v))),
+    );
+    if (merged.isNotEmpty) {
+      final sorted = merged.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key));
+      await saveStudentPhotoUrl(sorted.first.value);
+    }
+  }
+
+  Map<int, String> getStudentPhotoUrlsById() {
+    final raw = _prefs.getString(_studentPhotosJsonKey);
+    if (raw == null || raw.trim().isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return {};
+      final out = <int, String>{};
+      decoded.forEach((k, v) {
+        final id = int.tryParse(k.toString());
+        final url = v?.toString().trim();
+        if (id != null && id > 0 && url != null && url.isNotEmpty) out[id] = url;
+      });
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  String? getStudentPhotoUrlFor(int studentId) {
+    if (studentId <= 0) return null;
+    final m = getStudentPhotoUrlsById();
+    return m[studentId];
+  }
+
   /// Removes the stored token (logout).
   Future<void> clearToken() async {
     await _prefs.remove(_tokenKey);
@@ -80,6 +126,7 @@ class TokenStorage {
     await _prefs.remove(_userPhoneKey);
     await _prefs.remove(_userPhotoUrlKey);
     await _prefs.remove(_studentPhotoUrlKey);
+    await _prefs.remove(_studentPhotosJsonKey);
   }
 
   /// Returns true if a token is stored.

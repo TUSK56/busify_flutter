@@ -169,8 +169,13 @@ class ParentService {
   }
 
   /// GET /v1/parent/child
-  Future<Map<String, dynamic>> getChildOverview() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/child');
+  Future<Map<String, dynamic>> getChildOverview({int? studentId}) async {
+    final qp = <String, String>{};
+    if (studentId != null && studentId > 0) {
+      qp['studentId'] = '$studentId';
+    }
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/child')
+        .replace(queryParameters: qp.isEmpty ? null : qp);
     final response = await http.get(uri, headers: _authHeaders());
     if (response.statusCode != 200) {
       throw ParentServiceException(
@@ -367,8 +372,13 @@ class ParentService {
   }
 
   /// GET /v1/parent/current-trip
-  Future<Map<String, dynamic>> getCurrentTrip() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/current-trip');
+  Future<Map<String, dynamic>> getCurrentTrip({int? studentId}) async {
+    final qp = <String, String>{};
+    if (studentId != null && studentId > 0) {
+      qp['studentId'] = '$studentId';
+    }
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/current-trip')
+        .replace(queryParameters: qp.isEmpty ? null : qp);
     final response = await http.get(uri, headers: _authHeaders());
     if (response.statusCode != 200) {
       throw ParentServiceException(

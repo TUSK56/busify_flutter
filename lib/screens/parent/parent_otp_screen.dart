@@ -1,4 +1,5 @@
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/helpers/app_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:application/constants/app_colors.dart';
@@ -103,23 +104,11 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
                     alignment: Alignment.centerLeft,
                     child: Padding(
                       padding: EdgeInsets.only(left: 24),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pop(context); // Go back
-                        },
-                        child: Container(
-                          width: 45,
-                          height: 45,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.arrow_back_ios,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
+                      child: AppBackButton(
+                        onTap: () => Navigator.pop(context),
+                        color: Colors.white,
+                        icon: Icons.arrow_back_ios,
+                        iconSize: 28,
                       ),
                     ),
                   ),

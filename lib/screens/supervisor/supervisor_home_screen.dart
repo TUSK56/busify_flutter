@@ -127,6 +127,33 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
     }
   }
 
+  bool get _canEndTrip =>
+      _activeTripId != null && _activeTripId! > 0 && !_endingTrip;
+
+  Widget _endTripDisabledBlur({
+    required bool enabled,
+    required BorderRadius borderRadius,
+    required Widget child,
+  }) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        if (!enabled)
+          Positioned.fill(
+            child: AbsorbPointer(
+              child: ClipRRect(
+                borderRadius: borderRadius,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.32),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -292,45 +319,45 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
                                     SizedBox(
                                       width: 291,
                                       height: 62,
-                                      child: DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          gradient: AppColors.endTripGradient,
-                                          borderRadius: BorderRadius.circular(
-                                            10,
+                                      child: _endTripDisabledBlur(
+                                        enabled: _canEndTrip,
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            gradient: AppColors.endTripGradient,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
-                                        ),
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: InkWell(
-                                            onTap: (_activeTripId != null &&
-                                                    _activeTripId! > 0 &&
-                                                    !_endingTrip)
-                                                ? _endTrip
-                                                : null,
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                            child: Center(
-                                              child: _endingTrip
-                                                  ? const SizedBox(
-                                                      width: 24,
-                                                      height: 24,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: Colors.white,
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              onTap: _canEndTrip ? _endTrip : null,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child: Center(
+                                                child: _endingTrip
+                                                    ? const SizedBox(
+                                                        width: 24,
+                                                        height: 24,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: Colors.white,
+                                                        ),
+                                                      )
+                                                    : const Text(
+                                                        'End Trip',
+                                                        style: TextStyle(
+                                                          fontFamily: 'Inter',
+                                                          fontSize: 24,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          height: 22 / 24,
+                                                          color: AppColors.white,
+                                                        ),
                                                       ),
-                                                    )
-                                                  : const Text(
-                                                      'End Trip',
-                                                      style: TextStyle(
-                                                        fontFamily: 'Inter',
-                                                        fontSize: 24,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        height: 22 / 24,
-                                                        color: AppColors.white,
-                                                      ),
-                                                    ),
+                                              ),
                                             ),
                                           ),
                                         ),

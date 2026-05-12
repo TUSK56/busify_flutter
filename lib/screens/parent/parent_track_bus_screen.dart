@@ -5,6 +5,9 @@ import 'dart:convert';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/api_json.dart';
+import 'package:application/helpers/app_back_button.dart';
+import 'package:application/helpers/supervisor_photo.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
@@ -33,7 +36,16 @@ class _TrackBusLayout {
 
 /// Parent track bus screen.
 class ParentTrackBusScreen extends StatefulWidget {
-  const ParentTrackBusScreen({super.key});
+  const ParentTrackBusScreen({
+    super.key,
+    this.studentId,
+    this.studentName,
+    this.studentPhotoUrl,
+  });
+
+  final int? studentId;
+  final String? studentName;
+  final String? studentPhotoUrl;
 
   @override
   State<ParentTrackBusScreen> createState() => _ParentTrackBusScreenState();
@@ -50,7 +62,9 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   String _statusText = 'Loading';
   String _etaText = '--';
   String _studentName = '';
+  String? _studentPhotoUrl;
   String _busNumber = '--';
+  String _driverName = '--';
   List<latlng.LatLng> _polyline = [];
   bool _hasActiveTrip = true;
   final MapController _mapController = MapController();
@@ -78,27 +92,61 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       CurvedAnimation(parent: _entranceController, curve: Curves.easeOutCubic),
     );
     _entranceController.forward();
+    _childStudentId = widget.studentId;
+    _studentName = widget.studentName ?? '';
+    _studentPhotoUrl = widget.studentPhotoUrl;
     _loadStudentOverview();
     _bootstrapLiveTracking();
   }
 
   Future<void> _loadStudentOverview() async {
     try {
-      final data = await ServiceLocator.parentService.getChildOverview();
-      final students =
-          ((data['students'] ?? data['Students']) as List<dynamic>? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .toList();
+      final data = await ServiceLocator.parentService.getChildOverview(
+        studentId: _childStudentId,
+      );
+      final students = coerceJsonMapList(data['students'] ?? data['Students']);
       if (students.isEmpty || !mounted) return;
-      final first = students.first;
+      final selectedStudentId = _childStudentId ?? widget.studentId;
+      final first = selectedStudentId == null
+          ? students.first
+          : students.firstWhere(
+              (s) => (s['id'] ?? s['Id']) == selectedStudentId,
+              orElse: () => students.first,
+            );
       final name = (first['name'] ?? first['Name'])?.toString();
       final sid = first['id'] ?? first['Id'];
+      final busIdRaw = first['busId'] ?? first['BusId'] ?? first['bus_id'];
       int? id;
       if (sid is num) id = sid.toInt();
+      int? selectedBusId;
+      if (busIdRaw is num) selectedBusId = busIdRaw.toInt();
       if (!mounted) return;
+      final supervisor = data['supervisor'] as Map<String, dynamic>?;
+      final driver = data['driver'] as Map<String, dynamic>?;
+      final drv =
+          (driver?['name'] ?? driver?['Name'] ?? supervisor?['name'] ?? supervisor?['Name'])
+              ?.toString();
+      final studentBusNo = (first['busNumber'] ?? first['BusNumber'] ?? first['bus_number'])
+          ?.toString()
+          .trim();
+      final onAssignedBus =
+          selectedBusId != null && selectedBusId > 0 && studentBusNo != null && studentBusNo.isNotEmpty;
       setState(() {
         if (name != null && name.isNotEmpty) _studentName = name;
         if (id != null && id > 0) _childStudentId = id;
+        if (!onAssignedBus) {
+          _busNumber = '--';
+          _driverName = '--';
+        } else {
+          _busNumber = studentBusNo;
+          final d = (drv != null && drv.trim().isNotEmpty)
+              ? drv.trim()
+              : ((supervisor?['name'] ?? supervisor?['Name'])?.toString().trim() ??
+                  '');
+          _driverName = d.isEmpty ? '--' : d;
+        }
+        final photo = readPhotoUrlFromMap(first);
+        if (photo != null && photo.trim().isNotEmpty) _studentPhotoUrl = photo.trim();
       });
     } catch (_) {}
   }
@@ -151,7 +199,17 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
   Future<void> _refreshLiveData() async {
     try {
-      final current = await ServiceLocator.parentService.getCurrentTrip();
+      final current = await ServiceLocator.parentService.getCurrentTrip(
+        studentId: _childStudentId,
+      );
+      final busInfo = current['bus'] as Map<String, dynamic>?;
+      final driverInfo =
+          (current['driver'] as Map<String, dynamic>?) ??
+              (current['supervisor'] as Map<String, dynamic>?);
+      final busNumber =
+          (busInfo?['busNumber'] ?? busInfo?['BusNumber'] ?? busInfo?['id'])
+              ?.toString();
+      final dName = (driverInfo?['name'] ?? driverInfo?['Name'])?.toString();
       final hasActive = current['has_active_trip'] == true;
       if (!hasActive) {
         if (!mounted) return;
@@ -159,7 +217,11 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           _hasActiveTrip = false;
           _statusText = 'No active trip';
           _etaText = '--';
-          _busNumber = '--';
+          if (busNumber != null && busNumber.trim().isNotEmpty) {
+            _busNumber = busNumber.trim();
+          }
+          _driverName =
+              (dName == null || dName.trim().isEmpty) ? '--' : dName.trim();
           _busLocation = null;
           _destination = null;
           _polyline = [];
@@ -182,7 +244,6 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         target = latlng.LatLng(destLat, destLng);
       }
 
-      final busInfo = current['bus'] as Map<String, dynamic>?;
       final stops = current['stops'] as List<dynamic>? ?? const [];
 
       final tripTypeStr =
@@ -208,6 +269,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         }
       }
       resolvedStudentName ??= () {
+        if (_childStudentId != null) return null;
         if (stops.isEmpty) return null;
         final first = stops.firstWhere(
           (s) => s is Map<String, dynamic>,
@@ -278,6 +340,8 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
             _busNumber = busNumber.toString();
           }
         }
+        _driverName =
+            (dName == null || dName.trim().isEmpty) ? '--' : dName.trim();
       });
 
       // Follow bus automatically unless user moved the map.
@@ -467,15 +531,11 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
             Positioned(
               left: 15,
               top: 10,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(
-                  Icons.arrow_back_ios,
-                  color: AppColors.white,
-                  size: 22.5,
-                ),
-                onPressed: () => Navigator.of(context).pop(),
+              child: AppBackButton(
+                onTap: () => Navigator.of(context).pop(),
+                color: AppColors.white,
+                icon: Icons.arrow_back_ios,
+                iconSize: 22.5,
               ),
             ),
             const Positioned(
@@ -614,12 +674,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(50),
-                  child: Image.asset(
-                    AppImages.trackBusProfile,
-                    width: 52,
-                    height: 51,
-                    fit: BoxFit.cover,
-                  ),
+                  child: _studentAvatar(),
                 ),
                 const SizedBox(width: 15),
                 Expanded(
@@ -696,9 +751,15 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _infoLine(context, 'Driver:', 'Ahmed Ali'),
+                      _infoLine(context, 'Driver:', _driverName),
                       const SizedBox(height: 5),
-                      _infoLine(context, 'Bus:', _busNumber),
+                      _infoLine(
+                        context,
+                        'Bus:',
+                        (_busNumber.isEmpty || _busNumber == '--')
+                            ? 'Not attached on a bus'
+                            : _busNumber,
+                      ),
                     ],
                   ),
                 ),
@@ -740,6 +801,38 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _studentAvatar() {
+    final full = supervisorPhotoFullUrl(_studentPhotoUrl);
+    if (full != null && full.isNotEmpty) {
+      return Image.network(
+        full,
+        width: 52,
+        height: 51,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: 52,
+          height: 51,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE5E7EB),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          alignment: Alignment.center,
+          child: const Icon(Icons.person, color: Color(0xFF6B7280)),
+        ),
+      );
+    }
+    return Container(
+      width: 52,
+      height: 51,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE5E7EB),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      alignment: Alignment.center,
+      child: const Icon(Icons.person, color: Color(0xFF6B7280)),
     );
   }
 }

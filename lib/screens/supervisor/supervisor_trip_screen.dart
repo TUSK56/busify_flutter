@@ -6,6 +6,7 @@ import 'dart:math' show asin, cos, sqrt;
 
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/helpers/api_json.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_attendance_screen.dart';
@@ -51,13 +52,12 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   // Realistic default school-bus cruise speed used until live speed stabilizes.
   static const double _defaultCruiseSpeedKmh = 28.0;
 
-  // Student destination (fixed point for now)
-  // Dynamic trip destination (next parent stop, then school fallback).
+  // Dynamic trip destination (nearest remaining stop, then school).
   latlng.LatLng _currentDestination = const latlng.LatLng(
     30.127157,
     31.375660,
   );
-  static const latlng.LatLng _schoolDestination = latlng.LatLng(
+  latlng.LatLng _schoolDestination = const latlng.LatLng(
     30.127157,
     31.375660,
   );
@@ -71,9 +71,31 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   bool _markingAbsent = false;
   bool _sendingSos = false;
 
+  int _consecutiveNoMatchFaceAttempts = 0;
+
   int _routeProgressIndex = 0;
 
   String _supervisorName = '';
+
+  int? _resolvedTripId;
+
+  int? get _activeTripId {
+    final w = widget.tripId;
+    if (w != null && w > 0) return w;
+    final r = _resolvedTripId;
+    if (r != null && r > 0) return r;
+    return null;
+  }
+
+  bool get _allStudentStopsCompleted =>
+      _stops.isNotEmpty && _stops.every((s) => s.completed);
+
+  /// Students fully processed for this trip leg (boarded IN or marked absent, etc.).
+  int get _processedPickupCount {
+    if (_totalCount <= 0) return 0;
+    final v = _totalCount - _remainingCount;
+    return v.clamp(0, _totalCount);
+  }
 
   final MapController _mapController = MapController();
   AnimationController? _recenterController;
@@ -82,22 +104,51 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   void initState() {
     super.initState();
     _supervisorName = ServiceLocator.tokenStorage.getUserName() ?? '';
-    _loadSupervisorName();
-    _loadTripStops();
+    unawaited(_bootstrapSupervisorSession());
     _startTripTracking();
   }
 
-  Future<void> _loadSupervisorName() async {
+  /// Resolves [activeTripId] from GET /Supervisor/me when this screen was opened without [tripId]
+  /// (e.g. bottom nav from profile), then loads trip students + attendance summary.
+  Future<void> _bootstrapSupervisorSession() async {
     try {
-      final d = await ServiceLocator.supervisorService.getMe();
+      final me = await ServiceLocator.supervisorService.getMe();
       if (!mounted) return;
-      final n = d.name.trim();
-      if (n.isNotEmpty) setState(() => _supervisorName = n);
+      final n = me.name.trim();
+      if (n.isNotEmpty) {
+        setState(() => _supervisorName = n);
+      }
+      if ((widget.tripId == null || widget.tripId! <= 0) &&
+          me.activeTripId != null &&
+          me.activeTripId! > 0) {
+        setState(() => _resolvedTripId = me.activeTripId);
+      }
     } catch (_) {}
+    if (!mounted) return;
+    await _loadTripStops();
+  }
+
+  Map<String, dynamic>? _coerceJsonMap(dynamic v) {
+    if (v is Map<String, dynamic>) return v;
+    if (v is Map) {
+      return v.map((k, val) => MapEntry(k.toString(), val));
+    }
+    return null;
+  }
+
+  int? _readSummaryInt(Map<String, dynamic>? m, List<String> keys) {
+    if (m == null) return null;
+    for (final k in keys) {
+      final v = m[k];
+      if (v is num) return v.toInt();
+      final p = int.tryParse(v?.toString() ?? '');
+      if (p != null) return p;
+    }
+    return null;
   }
 
   Future<void> _loadTripStops() async {
-    final tripId = widget.tripId;
+    final tripId = _activeTripId;
     if (tripId == null || tripId <= 0) return;
     try {
       final uri = Uri.parse(
@@ -111,55 +162,85 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       final resp = await http.get(uri, headers: headers);
       if (resp.statusCode != 200) return;
 
-      final body = jsonDecode(resp.body) as Map<String, dynamic>;
-      final tripObj = body['trip'] as Map<String, dynamic>?;
-      final busObj = tripObj?['bus'] as Map<String, dynamic>?;
+      final body = _coerceJsonMap(jsonDecode(resp.body));
+      if (body == null) return;
+
+      final tripObj = _coerceJsonMap(body['trip']) ?? _coerceJsonMap(body['Trip']);
+      final schoolObj = _coerceJsonMap(body['school']) ?? _coerceJsonMap(body['School']);
+      final schoolLat = _toDouble(schoolObj?['latitude']);
+      final schoolLng = _toDouble(schoolObj?['longitude']);
+      final busObj =
+          tripObj != null ? (_coerceJsonMap(tripObj['bus']) ?? _coerceJsonMap(tripObj['Bus'])) : null;
       final busNo = (busObj?['busNumber'] ?? busObj?['bus_number'] ?? '').toString().trim();
-      final students = (body['students'] as List<dynamic>? ?? const []);
-      final summary = (body['attendanceSummary'] ?? body['summary'])
-          as Map<String, dynamic>?;
-      final boarded = (summary?['boarded'] as num?)?.toInt() ?? 0;
-      final total = (summary?['total'] as num?)?.toInt() ?? students.length;
-      final remaining =
-          (summary?['remaining'] as num?)?.toInt() ?? math.max(total - boarded, 0);
+      final rawStudents = body['students'] ?? body['Students'];
+      final students = rawStudents is List ? rawStudents : const <dynamic>[];
+      final summaryMap =
+          _coerceJsonMap(body['attendanceSummary']) ?? _coerceJsonMap(body['summary']);
+      final boarded = _readSummaryInt(summaryMap, const ['boarded', 'Boarded']) ?? 0;
+      var totalCount = _readSummaryInt(summaryMap, const ['total', 'Total']) ?? 0;
+      if (totalCount <= 0) {
+        totalCount = students.length;
+      }
+      var remainingCount =
+          _readSummaryInt(summaryMap, const ['remaining', 'Remaining']) ??
+          math.max(totalCount - boarded, 0);
+
       final parsed = <_TripStop>[];
       for (final raw in students) {
-        if (raw is! Map<String, dynamic>) continue;
-        final sid = _extractStudentId(raw);
+        final m = _coerceJsonMap(raw);
+        if (m == null) continue;
+        final sid = _extractStudentId(m);
         if (sid <= 0) continue;
-        final point = _extractStudentPoint(raw);
-        final boardedFlag = raw['boarded'] == true;
-        final absentFlag = raw['absent'] == true;
-        final completedExplicit = raw['completed'];
+        final point = _extractStudentPoint(m);
+        final boardedFlag = m['boarded'] == true;
+        final absentFlag = m['absent'] == true;
+        final completedExplicit = m['completed'];
         final completedResolved = completedExplicit != null
             ? completedExplicit == true
             : (boardedFlag || absentFlag);
         parsed.add(
           _TripStop(
             studentId: sid,
-            studentName: (raw['name'] ?? 'Student').toString(),
-            studentGrade: (raw['grade'] ?? raw['studentGrade'] ?? '').toString(),
+            studentName: (m['name'] ?? 'Student').toString(),
+            studentGrade: (m['grade'] ?? m['studentGrade'] ?? '').toString(),
             studentBirthdate:
-                (raw['birthdate'] ?? raw['studentBirthdate'] ?? '').toString(),
-            // Keep stop even if address parsing fails, so attendance works anywhere.
+                (m['birthdate'] ?? m['studentBirthdate'] ?? '').toString(),
+            photoUrl: readPhotoUrlFromMap(m),
             location: point ?? _currentLocation ?? _schoolDestination,
+            boarded: boardedFlag,
             completed: completedResolved,
           ),
         );
       }
-      if (!mounted || parsed.isEmpty) return;
+
+      if (!mounted) return;
       setState(() {
-        _stops
-          ..clear()
-          ..addAll(parsed);
-        _currentDestination = parsed.first.location;
         if (busNo.isNotEmpty) _busNumber = busNo;
+        if (schoolLat != null && schoolLng != null) {
+          _schoolDestination = latlng.LatLng(schoolLat, schoolLng);
+        }
+        if (parsed.isNotEmpty) {
+          _stops
+            ..clear()
+            ..addAll(parsed);
+          _currentDestination = parsed.first.location;
+          _boardedCount = parsed.where((s) => s.boarded).length;
+          _remainingCount = parsed.where((s) => !s.completed).length;
+          _totalCount = parsed.length;
+        } else {
+          _boardedCount = boarded;
+          _totalCount = totalCount;
+          _remainingCount = remainingCount;
+        }
         _routeProgressIndex = 0;
-        _boardedCount = boarded;
-        _totalCount = total;
-        _remainingCount = remaining;
+        _routePoints = null;
+        _routeDistanceKm = null;
+        _routeDurationSeconds = null;
+        _initialStraightDistanceKm = null;
       });
-      _recomputeNearestNextStop();
+      if (parsed.isNotEmpty) {
+        _recomputeNearestNextStop();
+      }
     } catch (_) {}
   }
 
@@ -271,40 +352,20 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   }
 
   Future<String?> _askAbsentReason() async {
-    final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Mark Absent'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              hintText: 'Reason (required)',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-              child: const Text('Confirm'),
-            ),
-          ],
-        );
-      },
+      barrierDismissible: false,
+      builder: (ctx) => const _MarkAbsentReasonDialog(),
     );
-    controller.dispose();
     if (result == null || result.trim().length < 2) return null;
     return result.trim();
   }
 
   Future<void> _makeAbsent() async {
-    final tripId = widget.tripId;
+    final tripId = _activeTripId;
     if (tripId == null || tripId <= 0) return;
     if (_markingAbsent) return;
+    if (_allStudentStopsCompleted) return;
 
     if (_stops.isEmpty) await _loadTripStops();
     if (!mounted) return;
@@ -331,40 +392,44 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       });
       final resp = await http.post(uri, headers: headers, body: body);
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        Map<String, dynamic>? decoded;
-        try {
-          decoded = jsonDecode(resp.body) as Map<String, dynamic>;
-        } catch (_) {}
-        final sum = decoded?['summary'] as Map<String, dynamic>?;
+        await _loadTripStops();
         if (!mounted) return;
-        setState(() {
-          _stops[idx] = _stops[idx].copyWith(completed: true);
-          if (sum != null) {
-            _boardedCount = (sum['boarded'] as num?)?.toInt() ?? _boardedCount;
-            _totalCount = (sum['total'] as num?)?.toInt() ?? _totalCount;
-            _remainingCount =
-                (sum['remaining'] as num?)?.toInt() ?? _remainingCount;
-          }
-        });
         _recomputeNearestNextStop();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Marked absent')),
-        );
+        final loc = _currentLocation;
+        if (loc != null) {
+          await _fetchRoute(loc, _currentDestination);
+        }
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Mark absent failed (HTTP ${resp.statusCode})')),
+        await _showAbsentErrorDialog(
+          'Mark absent failed (HTTP ${resp.statusCode})',
         );
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Mark absent error: $e')),
-      );
+      await _showAbsentErrorDialog('Mark absent error: $e');
     } finally {
       if (mounted) setState(() => _markingAbsent = false);
     }
+  }
+
+  Future<void> _showAbsentErrorDialog(String message) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mark absent'),
+        content: SingleChildScrollView(
+          child: Text(message),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _sendSos() async {
@@ -380,14 +445,23 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         lat = current.latitude;
         lng = current.longitude;
       }
-      await ServiceLocator.supervisorService.sendSos(
+      final sos = await ServiceLocator.supervisorService.sendSos(
         latitude: lat,
         longitude: lng,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SOS sent to school and parents.')),
-      );
+      var msg = 'SOS processed; trip ended.';
+      if (sos.recipients <= 0) {
+        msg = '$msg No parents on this bus to notify.';
+      } else if (sos.fcmAttempted <= 0) {
+        msg = '$msg Parents have no registered devices — open parent app after login.';
+      } else if (sos.fcmDelivered <= 0) {
+        msg =
+            '$msg Push did not reach devices (${sos.fcmFailed} failed). Check Firebase config and tokens.';
+      } else {
+        msg = '$msg Notified ${sos.fcmDelivered} device(s).';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -774,6 +848,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   }
 
   Future<void> _takeAttendance() async {
+    if (_allStudentStopsCompleted) return;
     final ImagePicker picker = ImagePicker();
     try {
       final XFile? photo = await picker.pickImage(
@@ -787,7 +862,13 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         final matched =
             identified != null && identified.studentId > 0;
 
-        if (widget.tripId == null || widget.tripId! <= 0) {
+        if (matched) {
+          _consecutiveNoMatchFaceAttempts = 0;
+        } else {
+          _consecutiveNoMatchFaceAttempts++;
+        }
+
+        if (_activeTripId == null || _activeTripId! <= 0) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -797,13 +878,29 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           return;
         }
 
+        final manualOpts = _stops
+            .where((s) => !s.completed)
+            .map(
+              (s) => SupervisorManualStudentOption(
+                studentId: s.studentId,
+                name: s.studentName,
+                grade: s.studentGrade,
+                birthdate: s.studentBirthdate,
+                photoUrl: s.photoUrl,
+              ),
+            )
+            .toList();
+        final showManual = !matched &&
+            _consecutiveNoMatchFaceAttempts >= 3 &&
+            manualOpts.isNotEmpty;
+
         if (!mounted) return;
         final nav = Navigator.of(context);
         final result = await nav.push<bool>(
           fadeRoute(
             SupervisorAttendanceScreen(
               imagePath: photo.path,
-              tripId: widget.tripId,
+              tripId: _activeTripId,
               studentId: matched ? identified.studentId : 0,
               studentName: matched ? identified.studentName : '',
               studentGrade: matched ? identified.studentGrade : '',
@@ -817,6 +914,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                   ? null
                   : (identifyResult.message ??
                       'Face not recognized. Please rescan.'),
+              allowManualStudentPick: showManual,
+              manualStudentOptions: manualOpts,
             ),
           ),
         );
@@ -825,8 +924,16 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           await _takeAttendance();
           return;
         }
-        if (mounted && result == true && matched) {
+        if (mounted && result == true) {
+          _consecutiveNoMatchFaceAttempts = 0;
           await _loadTripStops();
+          if (mounted) {
+            _recomputeNearestNextStop();
+            final loc = _currentLocation;
+            if (loc != null) {
+              await _fetchRoute(loc, _currentDestination);
+            }
+          }
         }
       }
     } catch (e) {
@@ -840,7 +947,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       _identifyStudentFromFace(
     String imagePath,
   ) async {
-    final tripId = widget.tripId;
+    final tripId = _activeTripId;
     if (tripId == null || tripId <= 0) {
       return (hit: null, message: null, attemptId: 0);
     }
@@ -870,7 +977,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         return (hit: null, message: null, attemptId: 0);
       }
 
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final data = _coerceJsonMap(jsonDecode(resp.body));
+      if (data == null) {
+        return (hit: null, message: null, attemptId: 0);
+      }
       final matchFound = data['matchFound'] == true;
       final matchedId = (data['matchedStudentId'] as num?)?.toInt();
       final attemptId = (data['attemptId'] as num?)?.toInt() ?? 0;
@@ -885,9 +995,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         );
       }
 
-      final student = data['student'] is Map<String, dynamic>
-          ? data['student'] as Map<String, dynamic>
-          : <String, dynamic>{};
+      final student = _coerceJsonMap(data['student']) ?? _coerceJsonMap(data['Student']) ?? <String, dynamic>{};
       final stop = _stops.cast<_TripStop?>().firstWhere(
         (s) => s?.studentId == matchedId,
         orElse: () => null,
@@ -926,10 +1034,12 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         debugPrint('Route fetch failed: ${resp.statusCode}');
         return;
       }
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final data = _coerceJsonMap(jsonDecode(resp.body));
+      if (data == null) return;
       final routes = data['routes'] as List<dynamic>?;
       if (routes == null || routes.isEmpty) return;
-      final firstRoute = routes.first as Map<String, dynamic>;
+      final firstRoute = _coerceJsonMap(routes.first);
+      if (firstRoute == null) return;
 
       final distanceMeters = firstRoute['distance'];
       final durationSeconds = firstRoute['duration'];
@@ -946,7 +1056,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         destination.longitude,
       );
 
-      final geometry = firstRoute['geometry'] as Map<String, dynamic>?;
+      final geometry = _coerceJsonMap(firstRoute['geometry']);
       if (geometry == null) return;
       final coords = geometry['coordinates'] as List<dynamic>?;
       if (coords == null) return;
@@ -972,6 +1082,30 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     } catch (e) {
       debugPrint('Error fetching route: $e');
     }
+  }
+
+  Widget _disabledTripCtaBlur({
+    required bool enabled,
+    required BorderRadius borderRadius,
+    required Widget child,
+  }) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        if (!enabled)
+          Positioned.fill(
+            child: AbsorbPointer(
+              child: ClipRRect(
+                borderRadius: borderRadius,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.32),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   @override
@@ -1302,7 +1436,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                             Navigator.push(
                                               context,
                                               fadeRoute(
-                                                const SupervisorFullMapScreen(),
+                                                SupervisorFullMapScreen(
+                                                  routeDestination:
+                                                      _currentDestination,
+                                                  tripId: _activeTripId,
+                                                ),
                                               ),
                                             );
                                           },
@@ -1358,7 +1496,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                     ),
                                   ),
                                   Text(
-                                    '$_boardedCount / $_totalCount',
+                                    '$_processedPickupCount / $_totalCount',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 16,
@@ -1381,7 +1519,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                       FractionallySizedBox(
                                         widthFactor: _totalCount <= 0
                                             ? 0
-                                            : (_boardedCount / _totalCount)
+                                            : (_processedPickupCount /
+                                                    _totalCount)
                                                 .clamp(0.0, 1.0),
                                         alignment: Alignment.centerLeft,
                                         child: Container(
@@ -1434,42 +1573,48 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                         SizedBox(
                           width: 325,
                           height: 54,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: AppColors.primaryButtonGradient,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: _takeAttendance,
+                          child: _disabledTripCtaBlur(
+                            enabled: !_allStudentStopsCompleted,
+                            borderRadius: BorderRadius.circular(10),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: AppColors.primaryButtonGradient,
                                 borderRadius: BorderRadius.circular(10),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Image.asset(
-                                      AppImages.attendance,
-                                      width: 30,
-                                      height: 30,
-                                      color: Color(0xFF8FBFFA),
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Icon(
-                                        Icons.fact_check,
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: _allStudentStopsCompleted
+                                      ? null
+                                      : _takeAttendance,
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset(
+                                        AppImages.attendance,
+                                        width: 30,
+                                        height: 30,
                                         color: Color(0xFF8FBFFA),
-                                        size: 30,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            const Icon(
+                                          Icons.fact_check,
+                                          color: Color(0xFF8FBFFA),
+                                          size: 30,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    const Text(
-                                      'Take Attendance',
-                                      style: TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w500,
-                                        color: AppColors.white,
+                                      const SizedBox(width: 14),
+                                      const Text(
+                                        'Take Attendance',
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w500,
+                                          color: AppColors.white,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -1479,39 +1624,46 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                         SizedBox(
                           width: 325,
                           height: 54,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                                colors: [Color(0xFFB8361E), Color(0xFF52180D)],
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: _markingAbsent ? null : _makeAbsent,
+                          child: _disabledTripCtaBlur(
+                            enabled:
+                                !(_markingAbsent || _allStudentStopsCompleted),
+                            borderRadius: BorderRadius.circular(10),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                  colors: [Color(0xFFB8361E), Color(0xFF52180D)],
+                                ),
                                 borderRadius: BorderRadius.circular(10),
-                                child: Center(
-                                  child: _markingAbsent
-                                      ? const SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: (_markingAbsent || _allStudentStopsCompleted)
+                                      ? null
+                                      : _makeAbsent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Center(
+                                    child: _markingAbsent
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Text(
+                                            'Make Absent',
+                                            style: TextStyle(
+                                              fontFamily: 'Inter',
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.w500,
+                                              color: AppColors.white,
+                                            ),
                                           ),
-                                        )
-                                      : const Text(
-                                          'Make Absent',
-                                          style: TextStyle(
-                                            fontFamily: 'Inter',
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w500,
-                                            color: AppColors.white,
-                                          ),
-                                        ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1547,9 +1699,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           children: [
             _navItem(
               context,
-              AppImages.navbarHomeActive,
+              AppImages.navbarHomeInactive,
               'Home',
-              true,
+              false,
               () => Navigator.pushReplacement(
                 context,
                 fadeRoute(const SupervisorHomeScreen()),
@@ -1557,9 +1709,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
             ),
             _navItem(
               context,
-              AppImages.navbarAttendance,
+              AppImages.navbarAttendanceActive,
               'Attendance',
-              false,
+              true,
               _takeAttendance,
             ),
             _navItem(context, AppImages.navbarProfile, 'Profile', false, () {
@@ -1622,12 +1774,64 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   }
 }
 
+/// Owns [TextEditingController] for the absent-reason field so it is not
+/// disposed while the dialog route is still tearing down (avoids overlay /
+/// inherited-widget assertions after confirm).
+class _MarkAbsentReasonDialog extends StatefulWidget {
+  const _MarkAbsentReasonDialog();
+
+  @override
+  State<_MarkAbsentReasonDialog> createState() => _MarkAbsentReasonDialogState();
+}
+
+class _MarkAbsentReasonDialogState extends State<_MarkAbsentReasonDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Mark Absent'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(
+          hintText: 'Reason (required)',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Confirm'),
+        ),
+      ],
+    );
+  }
+}
+
 class _TripStop {
   final int studentId;
   final String studentName;
   final String studentGrade;
   final String studentBirthdate;
+  final String? photoUrl;
   final latlng.LatLng location;
+  final bool boarded;
   final bool completed;
 
   const _TripStop({
@@ -1635,17 +1839,21 @@ class _TripStop {
     required this.studentName,
     required this.studentGrade,
     required this.studentBirthdate,
+    this.photoUrl,
     required this.location,
+    this.boarded = false,
     this.completed = false,
   });
 
-  _TripStop copyWith({bool? completed}) {
+  _TripStop copyWith({bool? boarded, bool? completed}) {
     return _TripStop(
       studentId: studentId,
       studentName: studentName,
       studentGrade: studentGrade,
       studentBirthdate: studentBirthdate,
+      photoUrl: photoUrl,
       location: location,
+      boarded: boarded ?? this.boarded,
       completed: completed ?? this.completed,
     );
   }

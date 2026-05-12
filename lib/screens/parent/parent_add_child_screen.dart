@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/app_back_button.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_profile_screen.dart';
@@ -154,6 +156,8 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       );
       return;
     }
+    final faceOk = await _validateFacePhoto(_studentPhotoFile!);
+    if (!faceOk) return;
 
     setState(() => _saving = true);
     try {
@@ -191,6 +195,39 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       );
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<bool> _validateFacePhoto(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      if (bytes.length < 20 * 1024) {
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Face photo is too small. Please retake clearly.')),
+        );
+        return false;
+      }
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      final w = image.width.toDouble();
+      final h = image.height.toDouble();
+      final ratio = w / h;
+      if (w < 240 || h < 240 || ratio < 0.6 || ratio > 1.8) {
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Use a clear front face photo (good lighting).')),
+        );
+        return false;
+      }
+      return true;
+    } catch (_) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not process face photo. Please try another image.')),
+      );
+      return false;
     }
   }
 
@@ -516,21 +553,11 @@ class _TopHeader extends StatelessWidget {
             Positioned(
               left: 24,
               top: 35,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => Navigator.of(context).maybePop(),
-                  borderRadius: BorderRadius.circular(20),
-                  child: const SizedBox(
-                    width: 45,
-                    height: 45,
-                    child: Icon(
-                      Icons.chevron_left,
-                      color: AppColors.white,
-                      size: 35,
-                    ),
-                  ),
-                ),
+              child: AppBackButton(
+                onTap: () => Navigator.of(context).maybePop(),
+                color: AppColors.white,
+                icon: Icons.chevron_left,
+                iconSize: 35,
               ),
             ),
             Positioned(

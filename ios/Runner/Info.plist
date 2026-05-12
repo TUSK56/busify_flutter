@@ -53,5 +53,12 @@
 		<string>This app needs camera access to capture your child&apos;s face photo for school attendance.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>This app needs photo library access to choose your child&apos;s face photo for school attendance.</string>
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>https</string>
+			<string>http</string>
+			<string>comgooglemaps</string>
+			<string>googlechromes</string>
+		</array>
 	</dict>
 </plist>

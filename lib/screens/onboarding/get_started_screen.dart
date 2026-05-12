@@ -76,33 +76,34 @@ class GetStartedScreen extends StatelessWidget {
                   SizedBox(
                     width: 291,
                     height: 62,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          side: const BorderSide(
-                            color: AppColors.primaryBlue,
-                            width: 1,
-                          ),
-                        ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryButtonGradient,
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          fadeRoute(const OnboardingScreenTwo()),
-                        );
-                      },
-                      child: const Text(
-                        'Get Started',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 24,
-                          height: 22 / 24,
-                          letterSpacing: 0,
-                          color: AppColors.white,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(15),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              fadeRoute(const OnboardingScreenTwo()),
+                            );
+                          },
+                          child: const Center(
+                            child: Text(
+                              'Get Started',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 24,
+                                height: 22 / 24,
+                                letterSpacing: 0,
+                                color: AppColors.white,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),

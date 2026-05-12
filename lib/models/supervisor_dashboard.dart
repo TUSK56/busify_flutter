@@ -30,13 +30,16 @@ class SupervisorDashboard {
     if (bus is Map<String, dynamic>) {
       busNumber = (bus['busNumber'] ?? bus['bus_number'])?.toString();
     }
-    final tripRaw = json['activeTripId'];
+    final tripRaw = json['activeTripId'] ?? json['active_trip_id'] ?? json['ActiveTripId'];
     int? activeTripId;
     if (tripRaw is int) {
       activeTripId = tripRaw > 0 ? tripRaw : null;
     } else if (tripRaw is num) {
       final t = tripRaw.toInt();
       activeTripId = t > 0 ? t : null;
+    } else if (tripRaw is String) {
+      final t = int.tryParse(tripRaw.trim());
+      activeTripId = (t != null && t > 0) ? t : null;
     }
 
     return SupervisorDashboard(

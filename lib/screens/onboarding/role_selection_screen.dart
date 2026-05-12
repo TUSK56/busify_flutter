@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/app_back_button.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/parent/parent_login_screen.dart';
 import 'package:flutter/material.dart';
@@ -54,19 +55,11 @@ class RoleSelectionScreen extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Padding(
                       padding: EdgeInsets.only(left: 24),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pop(context); // Go back
-                        },
-                        child: const SizedBox(
-                          width: 45,
-                          height: 45,
-                          child: Icon(
-                            Icons.arrow_back_ios,
-                            color: Colors.white,
-                            size: 28, // Scaled slightly to match the 45x45 frame
-                          ),
-                        ),
+                      child: AppBackButton(
+                        onTap: () => Navigator.pop(context),
+                        color: Colors.white,
+                        icon: Icons.arrow_back_ios,
+                        iconSize: 28,
                       ),
                     ),
                   ),
@@ -203,11 +196,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 height: 43,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(15),
-                  gradient: const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [AppColors.white, Color(0xFF3F79D7)],
-                  ),
+                  gradient: AppColors.primaryButtonGradient,
                 ),
                 child: Stack(
                   alignment: Alignment.center,

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:application/constants/app_colors.dart';
+import 'package:application/helpers/api_json.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/utils/api_config.dart';
@@ -11,11 +13,20 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as latlng;
 
-/// Full-screen map that shows the current trip and lets the user
-/// freely move the map. Pressing the recenter button (bottom-left)
-/// jumps back to the current location and enables following again.
+/// Full-screen map aligned with [SupervisorTripScreen] routing: same OSRM
+/// leg from supervisor GPS to [routeDestination] (nearest incomplete stop or school).
 class SupervisorFullMapScreen extends StatefulWidget {
-  const SupervisorFullMapScreen({super.key});
+  /// Trip leg destination (must match trip screen `_currentDestination`).
+  final latlng.LatLng routeDestination;
+
+  /// Optional; reserved for parity with trip APIs / logging.
+  final int? tripId;
+
+  const SupervisorFullMapScreen({
+    super.key,
+    required this.routeDestination,
+    this.tripId,
+  });
 
   @override
   State<SupervisorFullMapScreen> createState() =>
@@ -30,15 +41,28 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   bool _isFollowing = true;
   AnimationController? _recenterController;
 
-  // Same fixed destination used in SupervisorTripScreen (student/home)
-  // 30.113451, 31.607125
-  final latlng.LatLng _destination = const latlng.LatLng(30.113451, 31.607125);
   List<latlng.LatLng>? _routePoints;
+  latlng.LatLng? _routeBuiltForStart;
+  latlng.LatLng? _routeBuiltForDestination;
 
   @override
   void initState() {
     super.initState();
     _startLocationLoop();
+  }
+
+  @override
+  void didUpdateWidget(covariant SupervisorFullMapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.routeDestination.latitude != widget.routeDestination.latitude ||
+        oldWidget.routeDestination.longitude !=
+            widget.routeDestination.longitude) {
+      setState(() {
+        _routePoints = null;
+        _routeBuiltForStart = null;
+        _routeBuiltForDestination = null;
+      });
+    }
   }
 
   @override
@@ -91,6 +115,40 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
     _recenterController!.forward();
   }
 
+  bool _needsRouteRefetch(latlng.LatLng start, latlng.LatLng destination) {
+    if (_routePoints == null || _routePoints!.isEmpty) return true;
+    if (_routeBuiltForDestination == null) return true;
+    if (_routeBuiltForStart == null) return true;
+    final dDest = _coordinateDistance(
+      _routeBuiltForDestination!.latitude,
+      _routeBuiltForDestination!.longitude,
+      destination.latitude,
+      destination.longitude,
+    );
+    final dStart = _coordinateDistance(
+      _routeBuiltForStart!.latitude,
+      _routeBuiltForStart!.longitude,
+      start.latitude,
+      start.longitude,
+    );
+    // Refetch if destination moved or supervisor moved a lot (new leg).
+    return dDest > 0.0005 || dStart > 0.002;
+  }
+
+  double _coordinateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    final p = 0.017453292519943295;
+    final c = math.cos;
+    final a = 0.5 -
+        c((lat2 - lat1) * p) / 2 +
+        c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p)) / 2;
+    return 12742 * math.asin(math.sqrt(a.clamp(0.0, 1.0)));
+  }
+
   Future<void> _startLocationLoop() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
@@ -123,11 +181,11 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
           _currentLocation = nextLocation;
         });
 
-        if (_routePoints == null) {
-          await _fetchRoute(nextLocation, _destination);
+        final dest = widget.routeDestination;
+        if (_needsRouteRefetch(nextLocation, dest)) {
+          await _fetchRoute(nextLocation, dest);
         }
 
-        // Optionally keep sending live location while full map is open
         await _recordToDatabase(position.latitude, position.longitude);
 
         if (_isFollowing && _currentLocation != null) {
@@ -200,12 +258,13 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
         debugPrint('Full map route fetch failed: ${resp.statusCode}');
         return;
       }
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final data = coerceJsonMap(jsonDecode(resp.body));
+      if (data == null) return;
       final routes = data['routes'] as List<dynamic>?;
       if (routes == null || routes.isEmpty) return;
-      final geometry =
-          (routes.first as Map<String, dynamic>)['geometry']
-              as Map<String, dynamic>?;
+      final firstRoute = coerceJsonMap(routes.first);
+      if (firstRoute == null) return;
+      final geometry = coerceJsonMap(firstRoute['geometry']);
       if (geometry == null) return;
       final coords = geometry['coordinates'] as List<dynamic>?;
       if (coords == null) return;
@@ -222,6 +281,8 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       if (points.isNotEmpty && mounted) {
         setState(() {
           _routePoints = points;
+          _routeBuiltForStart = start;
+          _routeBuiltForDestination = destination;
         });
       }
     } catch (e) {
@@ -231,6 +292,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
 
   @override
   Widget build(BuildContext context) {
+    final dest = widget.routeDestination;
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
       appBar: AppBar(
@@ -253,105 +315,102 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       ),
       body: SafeArea(
         child: Stack(
-        children: [
-          if (_currentLocation == null)
-            const Center(child: CircularProgressIndicator())
-          else
-            FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _currentLocation!,
-                initialZoom: 15,
-                maxZoom: 18,
-                minZoom: 3,
-                onMapEvent: (event) {
-                  // When user interacts with the map (pan/zoom), stop following
-                  if (event is MapEventMove || event is MapEventRotate) {
-                    if (_isFollowing) {
-                      setState(() {
-                        _isFollowing = false;
-                      });
+          children: [
+            if (_currentLocation == null)
+              const Center(child: CircularProgressIndicator())
+            else
+              FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: _currentLocation!,
+                  initialZoom: 15,
+                  maxZoom: 18,
+                  minZoom: 3,
+                  onMapEvent: (event) {
+                    if (event is MapEventMove || event is MapEventRotate) {
+                      if (_isFollowing) {
+                        setState(() {
+                          _isFollowing = false;
+                        });
+                      }
                     }
-                  }
-                },
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate:
-                      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  subdomains: const ['a', 'b', 'c'],
-                  userAgentPackageName: 'com.busify.app',
+                  },
                 ),
-                if (_currentLocation != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _currentLocation!,
-                        width: 18,
-                        height: 18,
-                        child: _buildLiveLocationDot(),
-                      ),
-                      Marker(
-                        point: _destination,
-                        width: 40,
-                        height: 40,
-                        child: const Icon(
-                          Icons.location_pin,
-                          color: Colors.red,
-                          size: 36,
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    subdomains: const ['a', 'b', 'c'],
+                    userAgentPackageName: 'com.busify.app',
+                  ),
+                  if (_currentLocation != null)
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: _currentLocation!,
+                          width: 18,
+                          height: 18,
+                          child: _buildLiveLocationDot(),
                         ),
-                      ),
-                    ],
-                  ),
-                if (_routePoints != null)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: _routePoints!,
-                        color: Colors.deepPurpleAccent,
-                        strokeWidth: 4,
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-
-          // Recenter button bottom-left
-          Positioned(
-            left: 16,
-            bottom: 24,
-            child: GestureDetector(
-              onTap: () {
-                if (_currentLocation == null) return;
-                setState(() {
-                  _isFollowing = true;
-                });
-                _animateMapTo(_currentLocation!, targetZoom: 16.0);
-              },
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: context.appOverlayButtonBackground,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: context.appShadow,
-                      offset: const Offset(0, 2),
-                      blurRadius: 4,
+                        Marker(
+                          point: dest,
+                          width: 40,
+                          height: 40,
+                          child: const Icon(
+                            Icons.location_pin,
+                            color: Colors.red,
+                            size: 36,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.my_location,
-                  color: context.appOverlayButtonIcon,
-                  size: 22,
+                  if (_routePoints != null)
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: _routePoints!,
+                          color: Colors.deepPurpleAccent,
+                          strokeWidth: 4,
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            Positioned(
+              left: 16,
+              bottom: 24,
+              child: GestureDetector(
+                onTap: () {
+                  if (_currentLocation == null) return;
+                  setState(() {
+                    _isFollowing = true;
+                  });
+                  _animateMapTo(_currentLocation!, targetZoom: 16.0);
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: context.appOverlayButtonBackground,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: context.appShadow,
+                        offset: const Offset(0, 2),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.my_location,
+                    color: context.appOverlayButtonIcon,
+                    size: 22,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }

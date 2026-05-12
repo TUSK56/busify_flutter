@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:application/services/service_locator.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PushNotificationsService {
   PushNotificationsService._();
@@ -13,22 +16,52 @@ class PushNotificationsService {
 
   static Future<void> init() async {
     if (_started) return;
-    _started = true;
 
     // Firebase can throw if google-services files are missing.
     try {
       await Firebase.initializeApp();
     } catch (e) {
-      debugPrint('Firebase init skipped: $e');
-      return;
+      if (Firebase.apps.isEmpty) {
+        debugPrint('Firebase init skipped: $e');
+        return;
+      }
     }
+
+    _started = true;
 
     FirebaseMessaging.onBackgroundMessage(_onBackgroundMessage);
 
     final messaging = FirebaseMessaging.instance;
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      try {
+        await messaging.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      } catch (e) {
+        debugPrint('FCM iOS foreground presentation: $e');
+      }
+    }
     try {
-      await messaging.requestPermission();
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
     } catch (_) {}
+
+    if (Platform.isAndroid) {
+      try {
+        final status = await Permission.notification.status;
+        if (!status.isGranted) {
+          await Permission.notification.request();
+        }
+      } catch (e) {
+        debugPrint('Android notification permission: $e');
+      }
+    }
 
     try {
       final token = await messaging.getToken();
@@ -43,6 +76,50 @@ class PushNotificationsService {
     _tokenSub = messaging.onTokenRefresh.listen((token) async {
       await _registerToken(token);
     });
+
+    _attachNotificationOpenHandlers(messaging);
+  }
+
+  static Future<void> _openMapFromEmergencyData(Map<String, dynamic> data) async {
+    String? url = data['mapUrl']?.toString().trim();
+    if (url == null || url.isEmpty) {
+      final lat = data['latitude']?.toString().trim();
+      final lng = data['longitude']?.toString().trim();
+      if (lat != null &&
+          lng != null &&
+          lat.isNotEmpty &&
+          lng.isNotEmpty) {
+        url = 'https://www.google.com/maps?q=$lat,$lng';
+      }
+    }
+    if (url == null || url.isEmpty) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && kDebugMode) {
+        debugPrint('launchUrl failed for $uri');
+      }
+    } catch (e) {
+      debugPrint('launchUrl error: $e');
+    }
+  }
+
+  static void _handleNotificationOpen(RemoteMessage message) {
+    final data = message.data;
+    final type = (data['type'] ?? '').toString().toLowerCase();
+    if (type == 'emergency_trip_ended') {
+      unawaited(_openMapFromEmergencyData(Map<String, dynamic>.from(data)));
+    }
+  }
+
+  static void _attachNotificationOpenHandlers(FirebaseMessaging messaging) {
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationOpen);
+    messaging.getInitialMessage().then((initial) {
+      if (initial != null) {
+        _handleNotificationOpen(initial);
+      }
+    });
   }
 
   /// Call after parent login so the device token is sent with a valid JWT
@@ -50,6 +127,18 @@ class PushNotificationsService {
   static Future<void> registerTokenAfterParentLogin() async {
     try {
       await Firebase.initializeApp();
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+      if (Platform.isAndroid) {
+        final status = await Permission.notification.status;
+        if (!status.isGranted) {
+          await Permission.notification.request();
+        }
+      }
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
         await _registerToken(token);
@@ -83,4 +172,3 @@ Future<void> _onBackgroundMessage(RemoteMessage message) async {
     await Firebase.initializeApp();
   } catch (_) {}
 }
-

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:ui';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/helpers/api_json.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_home_screen.dart';
@@ -12,6 +13,23 @@ import 'package:application/services/service_locator.dart';
 import 'package:application/utils/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
+/// Row for manual attendance when face match fails repeatedly.
+class SupervisorManualStudentOption {
+  final int studentId;
+  final String name;
+  final String grade;
+  final String birthdate;
+  final String? photoUrl;
+
+  const SupervisorManualStudentOption({
+    required this.studentId,
+    required this.name,
+    required this.grade,
+    required this.birthdate,
+    this.photoUrl,
+  });
+}
 
 class SupervisorAttendanceScreen extends StatefulWidget {
   final String imagePath;
@@ -30,6 +48,11 @@ class SupervisorAttendanceScreen extends StatefulWidget {
   /// Shown under the title when [allowConfirmAttendance] is false; falls back to "N/A".
   final String? noMatchMessage;
 
+  /// After repeated failed matches, supervisor picks the student from [manualStudentOptions].
+  final bool allowManualStudentPick;
+
+  final List<SupervisorManualStudentOption> manualStudentOptions;
+
   const SupervisorAttendanceScreen({
     super.key,
     required this.imagePath,
@@ -43,6 +66,8 @@ class SupervisorAttendanceScreen extends StatefulWidget {
     required this.matchConfidence,
     this.allowConfirmAttendance = true,
     this.noMatchMessage,
+    this.allowManualStudentPick = false,
+    this.manualStudentOptions = const [],
   });
 
   @override
@@ -55,11 +80,31 @@ class _SupervisorAttendanceScreenState
   late String currentImagePath;
   bool _isSubmitting = false;
   bool _sendingSos = false;
+  int? _manualStudentId;
 
   @override
   void initState() {
     super.initState();
     currentImagePath = widget.imagePath;
+  }
+
+  bool get _manualConfirmReady =>
+      widget.allowManualStudentPick &&
+      widget.faceAttemptId > 0 &&
+      (_manualStudentId ?? 0) > 0;
+
+  bool get _matchedConfirmReady =>
+      widget.allowConfirmAttendance &&
+      widget.studentId > 0 &&
+      widget.faceAttemptId > 0;
+
+  SupervisorManualStudentOption? _selectedManualOption() {
+    final id = _manualStudentId;
+    if (id == null) return null;
+    for (final o in widget.manualStudentOptions) {
+      if (o.studentId == id) return o;
+    }
+    return null;
   }
 
   // Rescan Function
@@ -79,13 +124,16 @@ class _SupervisorAttendanceScreenState
   }
 
   Future<void> _confirmAttendance() async {
-    if (!widget.allowConfirmAttendance ||
-        widget.studentId <= 0 ||
-        widget.faceAttemptId <= 0) {
+    if (!_matchedConfirmReady && !_manualConfirmReady) {
       return;
     }
     final tripId = widget.tripId;
     if (tripId == null || tripId <= 0) return;
+
+    final effectiveStudentId =
+        _manualConfirmReady ? _manualStudentId! : widget.studentId;
+    final picked = _selectedManualOption();
+
     setState(() => _isSubmitting = true);
     try {
       final token = ServiceLocator.tokenStorage.getToken();
@@ -98,7 +146,7 @@ class _SupervisorAttendanceScreenState
       final body = jsonEncode({
         'attemptId': widget.faceAttemptId,
         'tripId': tripId,
-        'studentId': widget.studentId,
+        'studentId': effectiveStudentId,
         'scanType': 'IN',
         'supervisorConfirmed': true,
         'scanImageUrl': fakePhotoUrl,
@@ -112,8 +160,16 @@ class _SupervisorAttendanceScreenState
         );
         return;
       }
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final summary = (data['summary'] as Map<String, dynamic>? ?? {});
+      final data = coerceJsonMap(jsonDecode(resp.body));
+      if (data == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Attendance failed: invalid response')),
+        );
+        return;
+      }
+      final summary =
+          coerceJsonMap(data['summary']) ?? coerceJsonMap(data['Summary']) ?? <String, dynamic>{};
       final scannedRaw = data['scannedAtUtc'] ?? data['scanned_at_utc'];
       DateTime? scannedUtc = scannedRaw == null
           ? null
@@ -142,19 +198,23 @@ class _SupervisorAttendanceScreenState
       }
 
       if (!mounted) return;
+      final confirmName = picked?.name ?? widget.studentName;
+      final confirmGrade = picked?.grade ?? widget.studentGrade;
+      final confirmBirth = picked?.birthdate ?? widget.studentBirthdate;
       final done = await Navigator.push<bool>(
         context,
         fadeRoute(
           SupervisorQrConfirmationScreen(
             imagePath: currentImagePath,
-            studentName: widget.studentName,
-            studentGrade: widget.studentGrade,
-            studentBirthdate: widget.studentBirthdate,
+            studentPhotoUrl: picked?.photoUrl,
+            studentName: confirmName,
+            studentGrade: confirmGrade,
+            studentBirthdate: confirmBirth,
             busNumber: widget.busNumber,
             boarded: (summary['boarded'] as num?)?.toInt() ?? 0,
             remaining: (summary['remaining'] as num?)?.toInt() ?? 0,
             tripId: tripId,
-            studentId: widget.studentId,
+            studentId: effectiveStudentId,
             scanTimeLabel: fmtAmPm(scannedLocal),
             tripTypeLabel: tripLabel(),
           ),
@@ -172,11 +232,20 @@ class _SupervisorAttendanceScreenState
     if (_sendingSos) return;
     setState(() => _sendingSos = true);
     try {
-      await ServiceLocator.supervisorService.sendSos();
+      final sos = await ServiceLocator.supervisorService.sendSos();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SOS sent to school and parents.')),
-      );
+      var msg = 'SOS processed; trip ended.';
+      if (sos.recipients <= 0) {
+        msg = '$msg No parents on this bus to notify.';
+      } else if (sos.fcmAttempted <= 0) {
+        msg = '$msg Parents have no registered devices — open parent app after login.';
+      } else if (sos.fcmDelivered <= 0) {
+        msg =
+            '$msg Push did not reach devices (${sos.fcmFailed} failed). Check Firebase config and tokens.';
+      } else {
+        msg = '$msg Notified ${sos.fcmDelivered} device(s).';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -414,6 +483,83 @@ class _SupervisorAttendanceScreenState
                                           color: Colors.black,
                                         ),
                                       )
+                                    else if (widget.allowManualStudentPick)
+                                      Expanded(
+                                        child: SingleChildScrollView(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  _noMatchDisplayText(),
+                                                  textAlign: TextAlign.center,
+                                                  maxLines: 3,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontFamily: 'Inter',
+                                                    fontSize:
+                                                        _noMatchDisplayText().length > 42
+                                                            ? 12
+                                                            : 14,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: const Color(0xFF000000),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                InputDecorator(
+                                                  decoration: const InputDecoration(
+                                                    isDense: true,
+                                                    contentPadding:
+                                                        EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 6,
+                                                    ),
+                                                    border: OutlineInputBorder(),
+                                                  ),
+                                                  child: DropdownButtonHideUnderline(
+                                                    child: DropdownButton<int>(
+                                                      isExpanded: true,
+                                                      isDense: true,
+                                                      value: _manualStudentId,
+                                                      hint: const Text(
+                                                        'Choose student',
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          fontWeight: FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      items: widget.manualStudentOptions
+                                                          .map(
+                                                            (o) => DropdownMenuItem(
+                                                              value: o.studentId,
+                                                              child: Text(
+                                                                '${o.name} (${o.grade})',
+                                                                overflow:
+                                                                    TextOverflow.ellipsis,
+                                                                maxLines: 1,
+                                                                style: const TextStyle(
+                                                                  fontSize: 13,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          )
+                                                          .toList(),
+                                                      onChanged: (v) {
+                                                        setState(
+                                                            () => _manualStudentId = v);
+                                                      },
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      )
                                     else
                                       Builder(
                                         builder: (context) {
@@ -557,9 +703,7 @@ class _SupervisorAttendanceScreenState
   }
 
   Widget _buildConfirmBtn(BuildContext context) {
-    final canConfirm = widget.allowConfirmAttendance &&
-        widget.studentId > 0 &&
-        widget.faceAttemptId > 0;
+    final canConfirm = _matchedConfirmReady || _manualConfirmReady;
     final showPrimaryStyle = canConfirm;
     final tappable = canConfirm && !_isSubmitting;
     return SizedBox(

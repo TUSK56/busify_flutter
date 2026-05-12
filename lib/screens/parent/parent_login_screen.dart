@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:application/routes/fade_route.dart';
+import 'package:application/helpers/app_back_button.dart';
 import 'package:application/services/push_notifications_service.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
@@ -84,19 +85,11 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                     alignment: Alignment.centerLeft,
                     child: Padding(
                       padding: EdgeInsets.only(left: 24 * widthRatio),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pop(context); // Go back
-                        },
-                        child: const SizedBox(
-                          width: 45,
-                          height: 45,
-                          child: Icon(
-                            Icons.arrow_back_ios,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
+                      child: AppBackButton(
+                        onTap: () => Navigator.pop(context),
+                        color: Colors.white,
+                        icon: Icons.arrow_back_ios,
+                        iconSize: 28,
                       ),
                     ),
                   ),

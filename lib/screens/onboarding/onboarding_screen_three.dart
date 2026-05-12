@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:application/helpers/app_back_button.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
@@ -42,15 +43,11 @@ class OnboardingScreenThree extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         // Back Vector Path
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pop(context); // Goes back to the previous screen
-                          },
-                          child: const Icon(
-                            Icons.arrow_back_ios,
-                            color: Colors.white,
-                            size: 22.5,
-                          ),
+                        AppBackButton(
+                          onTap: () => Navigator.pop(context),
+                          color: Colors.white,
+                          icon: Icons.arrow_back_ios,
+                          iconSize: 22.5,
                         ),
                         // Skip Text
                         GestureDetector(

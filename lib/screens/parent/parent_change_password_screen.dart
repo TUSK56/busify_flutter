@@ -1,6 +1,7 @@
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/app_back_button.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_profile_screen.dart';
@@ -282,20 +283,11 @@ class _TopHeader extends StatelessWidget {
             Positioned(
               left: 24,
               top: 35,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => Navigator.of(context).maybePop(),
-                  child: const SizedBox(
-                    width: 13.88,
-                    height: 22.5,
-                    child: Icon(
-                      Icons.chevron_left,
-                      color: AppColors.white,
-                      size: 35,
-                    ),
-                  ),
-                ),
+              child: AppBackButton(
+                onTap: () => Navigator.of(context).maybePop(),
+                color: AppColors.white,
+                icon: Icons.chevron_left,
+                iconSize: 35,
               ),
             ),
             Positioned(

@@ -223,7 +223,7 @@ class SupervisorService {
   }
 
   /// POST /v1/Supervisor/sos
-  Future<void> sendSos({
+  Future<SosSendResult> sendSos({
     double? latitude,
     double? longitude,
     String? note,
@@ -249,7 +249,48 @@ class SupervisorService {
       } catch (_) {}
       throw SupervisorServiceException(message, statusCode: response.statusCode);
     }
+    var recipients = 0;
+    var fcmAttempted = 0;
+    var fcmDelivered = 0;
+    var fcmFailed = 0;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) {
+        final r = decoded['recipients'];
+        if (r is num) recipients = r.toInt();
+        final fcm = decoded['fcm'];
+        if (fcm is Map) {
+          final a = fcm['attempted'];
+          final d = fcm['delivered'];
+          final f = fcm['failed'];
+          if (a is num) fcmAttempted = a.toInt();
+          if (d is num) fcmDelivered = d.toInt();
+          if (f is num) fcmFailed = f.toInt();
+        }
+      }
+    } catch (_) {}
+    return SosSendResult(
+      recipients: recipients,
+      fcmAttempted: fcmAttempted,
+      fcmDelivered: fcmDelivered,
+      fcmFailed: fcmFailed,
+    );
   }
+}
+
+/// Outcome of [SupervisorService.sendSos]; [fcm] is null on the wire when there were no parent recipients.
+class SosSendResult {
+  final int recipients;
+  final int fcmAttempted;
+  final int fcmDelivered;
+  final int fcmFailed;
+
+  const SosSendResult({
+    required this.recipients,
+    required this.fcmAttempted,
+    required this.fcmDelivered,
+    required this.fcmFailed,
+  });
 }
 
 class SupervisorServiceException implements Exception {

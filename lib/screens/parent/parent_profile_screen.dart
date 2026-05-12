@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/api_json.dart';
+import 'package:application/helpers/app_back_button.dart';
 import 'package:application/helpers/supervisor_photo.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/screens/onboarding/role_selection_screen.dart';
@@ -55,7 +57,7 @@ class ParentProfileScreen extends StatefulWidget {
 }
 
 class _ParentProfileScreenState extends State<ParentProfileScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _entranceController;
   late final Animation<double> _entranceFade;
   late final Animation<Offset> _entranceSlide;
@@ -65,7 +67,6 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
   String _parentPhone = '';
   String _parentEmail = '';
   String _parentGovernorate = '';
-  String? _studentPhotoUrl;
 
   Map<String, dynamic>? _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
@@ -109,6 +110,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     ServiceLocator.themeController.addListener(_onThemeChanged);
     _entranceController = AnimationController(
       vsync: this,
@@ -126,10 +128,20 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           ),
         );
     _parentPhotoUrl = ServiceLocator.tokenStorage.getUserPhotoUrl();
-    _studentPhotoUrl = ServiceLocator.tokenStorage.getStudentPhotoUrl();
     _childOverviewFuture = ServiceLocator.parentService.getChildOverview();
     _entranceController.forward();
     _loadParentOverview();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && mounted) {
+      setState(() {
+        _childOverviewFuture = ServiceLocator.parentService.getChildOverview();
+      });
+      _loadParentOverview();
+    }
   }
 
   Future<void> _loadParentOverview() async {
@@ -182,18 +194,6 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     try {
       final data = await ServiceLocator.parentService.getChildOverview();
       final parent = _asMap(data['parent'] ?? data['Parent']);
-      final students = _asMapList(data['students'] ?? data['Students']);
-      final firstStudent = students.isNotEmpty ? students.first : null;
-      final studentPhoto = firstStudent == null
-          ? null
-          : _readStringAnyKey(firstStudent, const [
-              'photoUrl',
-              'photo_url',
-              'PhotoUrl',
-            ]);
-      if (studentPhoto != null && studentPhoto.isNotEmpty) {
-        await ServiceLocator.tokenStorage.saveStudentPhotoUrl(studentPhoto);
-      }
       if (!mounted) return;
       setState(() {
         if (parent != null) {
@@ -211,15 +211,13 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             _parentGovernorate = governorate;
           }
         }
-        if (studentPhoto != null && studentPhoto.isNotEmpty) {
-          _studentPhotoUrl = studentPhoto;
-        }
       });
     } catch (_) {}
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     ServiceLocator.themeController.removeListener(_onThemeChanged);
     _entranceController.dispose();
     super.dispose();
@@ -320,20 +318,11 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             Positioned(
               left: 24,
               top: 35,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => Navigator.of(context).maybePop(),
-                  child: const SizedBox(
-                    width: 13.88,
-                    height: 22.5,
-                    child: Icon(
-                      Icons.arrow_back_ios,
-                      color: AppColors.white,
-                      size: 22.5,
-                    ),
-                  ),
-                ),
+              child: AppBackButton(
+                onTap: () => Navigator.of(context).maybePop(),
+                color: AppColors.white,
+                icon: Icons.arrow_back_ios,
+                iconSize: 22.5,
               ),
             ),
             Positioned(
@@ -586,93 +575,105 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                   ),
                 );
               }
-              final first = students.first;
-              final name = (first['name'] ?? first['Name'])?.toString() ?? '';
-              final grade =
-                  (first['grade'] ?? first['Grade'])?.toString() ?? '';
-              final photoUrl = _readStringAnyKey(first, const [
-                'photoUrl',
-                'photo_url',
-                'PhotoUrl',
-              ]);
-              final bus = _asMap(data['bus'] ?? data['Bus']);
-              final busNo =
-                  (bus?['busNumber'] ?? bus?['bus_number'])?.toString();
-
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      ClipOval(
-                        child: _StudentAvatar(
-                          photoUrl: photoUrl ?? _studentPhotoUrl,
-                          size: const Size(38, 37),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            height: 35 / 16,
-                            color: context.appPrimaryText,
-                          ),
-                        ),
-                      ),
+                  for (var i = 0; i < students.length; i++) ...[
+                    Builder(
+                      builder: (context) {
+                        final st = students[i];
+                        final name = (st['name'] ?? st['Name'])?.toString() ?? '';
+                        final grade =
+                            (st['grade'] ?? st['Grade'])?.toString() ?? '';
+                        final studentBusNo =
+                            (st['busNumber'] ?? st['BusNumber'] ?? st['bus_number'])
+                                ?.toString()
+                                .trim();
+                        final resolvedPhoto = readPhotoUrlFromMap(st);
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                ClipOval(
+                                  child: _StudentAvatar(
+                                    photoUrl: resolvedPhoto,
+                                    size: const Size(38, 37),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      height: 35 / 16,
+                                      color: context.appPrimaryText,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  FluentIcons.hat_graduation_20_filled,
+                                  size: 26,
+                                  color: Color(0xFF595959),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  grade.isEmpty ? 'Grade' : grade,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    height: 22 / 16,
+                                    color: context.appPrimaryText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  FluentIcons.vehicle_cab_20_filled,
+                                  size: 26,
+                                  color: Color(0xFF595959),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  (studentBusNo == null || studentBusNo.isEmpty)
+                                      ? 'Not attached to a bus'
+                                      : 'Bus #$studentBusNo',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    height: 35 / 16,
+                                    color: context.appPrimaryText.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    if (i != students.length - 1) ...[
+                      const SizedBox(height: 10),
+                      _dividerLine(context, innerW),
+                      const SizedBox(height: 10),
                     ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        FluentIcons.hat_graduation_20_filled,
-                        size: 26,
-                        color: Color(0xFF595959),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        grade.isEmpty ? 'Grade' : grade,
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          height: 22 / 16,
-                          color: context.appPrimaryText,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(
-                        FluentIcons.vehicle_cab_20_filled ,
-                        size: 26,
-                        color: Color(0xFF595959),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        busNo == null || busNo.trim().isEmpty
-                            ? 'Bus'
-                            : 'Bus #${busNo.trim()}',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          height: 35 / 16,
-                          color: context.appPrimaryText.withValues(
-                            alpha: 0.85,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  ],
                 ],
               );
             },
@@ -1029,6 +1030,22 @@ class _StudentAvatar extends StatelessWidget {
   final String? photoUrl;
   final Size size;
 
+  Widget _fallbackAvatar() {
+    return Container(
+      width: size.width,
+      height: size.height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE5E7EB),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.person,
+        color: Color(0xFF6B7280),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final full = supervisorPhotoFullUrl(photoUrl);
@@ -1038,20 +1055,10 @@ class _StudentAvatar extends StatelessWidget {
         width: size.width,
         height: size.height,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Image.asset(
-          AppImages.parentProfile,
-          width: size.width,
-          height: size.height,
-          fit: BoxFit.cover,
-        ),
+        errorBuilder: (context, error, stackTrace) => _fallbackAvatar(),
       );
     }
-    return Image.asset(
-      AppImages.parentProfile,
-      width: size.width,
-      height: size.height,
-      fit: BoxFit.cover,
-    );
+    return _fallbackAvatar();
   }
 }
 

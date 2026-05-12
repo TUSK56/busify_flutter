@@ -2,12 +2,15 @@ import 'dart:io';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/supervisor_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 
 class SupervisorQrConfirmationScreen extends StatelessWidget {
   final String imagePath;
+  /// When set (e.g. manual pick), show enrolled/profile photo instead of the camera file.
+  final String? studentPhotoUrl;
   final String studentName;
   final String studentGrade;
   final String studentBirthdate;
@@ -22,6 +25,7 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
   const SupervisorQrConfirmationScreen({
     super.key,
     required this.imagePath,
+    this.studentPhotoUrl,
     required this.studentName,
     required this.studentGrade,
     required this.studentBirthdate,
@@ -109,14 +113,12 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
 
                   const SizedBox(height: 15),
 
-                  // Captured Image
+                  // Captured or enrolled (manual pick) image
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: Image.file(
-                      File(imagePath),
-                      width: 100,
-                      height: 97,
-                      fit: BoxFit.cover,
+                    child: _confirmationPhoto(
+                      imagePath: imagePath,
+                      studentPhotoUrl: studentPhotoUrl,
                     ),
                   ),
 
@@ -238,6 +240,35 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _confirmationPhoto({
+    required String imagePath,
+    required String? studentPhotoUrl,
+  }) {
+    final full = supervisorPhotoFullUrl(studentPhotoUrl);
+    if (full != null && full.isNotEmpty) {
+      return Image.network(
+        full,
+        width: 100,
+        height: 97,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Image.file(
+          File(imagePath),
+          width: 100,
+          height: 97,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const SizedBox(width: 100, height: 97),
+        ),
+      );
+    }
+    return Image.file(
+      File(imagePath),
+      width: 100,
+      height: 97,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => const SizedBox(width: 100, height: 97),
     );
   }
 

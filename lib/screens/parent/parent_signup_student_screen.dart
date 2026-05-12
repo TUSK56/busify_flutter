@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/helpers/app_back_button.dart';
 import 'package:application/models/child.dart';
 import 'package:application/models/parent_signup_data.dart';
 import 'package:application/models/school.dart';
@@ -78,6 +79,37 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
     setState(() => _facePhoto = x);
   }
 
+  Future<bool> _validateFacePhoto(XFile photo) async {
+    try {
+      final bytes = await File(photo.path).readAsBytes();
+      if (bytes.length < 20 * 1024) {
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Face photo is too small. Please retake clearly.')),
+        );
+        return false;
+      }
+      final codec = await instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      final ratio = image.width / image.height;
+      if (image.width < 240 || image.height < 240 || ratio < 0.6 || ratio > 1.8) {
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Use a clear front face photo (good lighting).')),
+        );
+        return false;
+      }
+      return true;
+    } catch (_) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not process face photo. Please try another image.')),
+      );
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Screen dimensions for responsive layout
@@ -119,23 +151,11 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                   // Back Button (Chevron Backward)
                   Padding(
                     padding: EdgeInsets.only(left: 24),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.pop(context); // Go back
-                      },
-                      child: Container(
-                        width: 45,
-                        height: 45,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.arrow_back_ios,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
+                    child: AppBackButton(
+                      onTap: () => Navigator.pop(context),
+                      color: Colors.white,
+                      icon: Icons.arrow_back_ios,
+                      iconSize: 28,
                     ),
                   ),
 
@@ -486,6 +506,8 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                   );
                                   return;
                                 }
+                                final faceOk = await _validateFacePhoto(_facePhoto!);
+                                if (!faceOk) return;
 
                                 setState(() => _isLoading = true);
                                 try {

@@ -4,10 +4,14 @@ import 'package:application/services/school_service.dart';
 import 'package:application/services/supervisor_service.dart';
 import 'package:application/services/theme_controller.dart';
 import 'package:application/services/token_storage.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Simple service locator - call [init] from main() before runApp.
 class ServiceLocator {
+  /// Used for FCM foreground snackbars and deep links.
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   static late TokenStorage tokenStorage;
   static late AuthService authService;
   static late SchoolService schoolService;

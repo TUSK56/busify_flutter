@@ -20,6 +20,7 @@ class MyApp extends StatelessWidget {
       animation: ServiceLocator.themeController,
       builder: (context, child) {
         return MaterialApp(
+          navigatorKey: ServiceLocator.navigatorKey,
           debugShowCheckedModeBanner: false,
           title: 'Busify App',
           theme: AppTheme.lightTheme,
