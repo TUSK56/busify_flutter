@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:application/helpers/app_back_button.dart';
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
@@ -196,20 +197,26 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                                   final password = _passwordController.text;
                                   final confirm = _confirmPasswordController.text;
                                   if (password.isEmpty || confirm.isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Please fill both fields.')),
+                                    await showAppFeedback(
+                                      context,
+                                      'Please fill both fields.',
+                                      isError: true,
                                     );
                                     return;
                                   }
                                   if (password != confirm) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Passwords do not match.')),
+                                    await showAppFeedback(
+                                      context,
+                                      'Passwords do not match.',
+                                      isError: true,
                                     );
                                     return;
                                   }
                                   if (password.length < 6) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Password must be at least 6 characters.')),
+                                    await showAppFeedback(
+                                      context,
+                                      'Password must be at least 6 characters.',
+                                      isError: true,
                                     );
                                     return;
                                   }
@@ -228,8 +235,10 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
                                     );
                                   } catch (e) {
                                     if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(e.toString())),
+                                    await showAppFeedback(
+                                      context,
+                                      e.toString(),
+                                      isError: true,
                                     );
                                   } finally {
                                     if (mounted) setState(() => _isLoading = false);
@@ -301,40 +310,48 @@ class _SupervisorResetPasswordScreenState extends State<SupervisorResetPasswordS
           width: 1,
         ),
       ),
-      child: TextField(
-        controller: controller,
-        obscureText: isObscured,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontFamily: 'Inter',
-          fontWeight: FontWeight.w600, // SemiBold 24
-          letterSpacing: 2.0, // Space out asterisks
-        ),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          isCollapsed: true, // Centers the content properly inside the 49px container
-          hintText: '*************',
-          hintStyle: TextStyle(
-            fontFamily: 'Inter',
-            fontWeight: FontWeight.w600, // SemiBold 24
-            fontSize: 24,
-            letterSpacing: 2.0,
-            color: AppColors.white.withOpacity(0.66), // ffffff 66%
-          ),
-          suffixIconConstraints: const BoxConstraints(
-            minWidth: 45,
-            minHeight: 49,
-          ),
-          suffixIcon: GestureDetector(
-            onTap: onToggleVisibility,
-            child: Icon(
-              isObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              color: AppColors.white.withOpacity(0.66), // ffffff 66%
-              size: 22,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              obscureText: isObscured,
+              textAlignVertical: TextAlignVertical.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w600,
+                letterSpacing: 2.0,
+                height: 1,
+              ),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.only(top: 12, bottom: 10),
+                hintText: '*************',
+                hintStyle: TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w600,
+                  fontSize: 24,
+                  height: 1,
+                  letterSpacing: 2.0,
+                  color: AppColors.white.withOpacity(0.66),
+                ),
+              ),
             ),
           ),
-        ),
+          GestureDetector(
+            onTap: onToggleVisibility,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Icon(
+                isObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                color: AppColors.white.withOpacity(0.66),
+                size: 22,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -18,6 +18,8 @@ class SupervisorLoginScreen extends StatefulWidget {
 class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
   bool _isObscured = true;
   bool _isLoading = false;
+  bool _emailError = false;
+  bool _passwordError = false;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -149,8 +151,12 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                             // Email TextField Container
                             _buildTextFieldContainer(
                               width: 291,
+                              hasError: _emailError,
                               child: TextField(
                                 controller: _emailController,
+                                onChanged: (_) {
+                                  if (_emailError) setState(() => _emailError = false);
+                                },
                                 keyboardType: TextInputType.emailAddress,
                                 style: const TextStyle(color: Colors.white, fontSize: 20),
                                 decoration: InputDecoration(
@@ -190,8 +196,12 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                             // Password TextField Container
                             _buildTextFieldContainer(
                               width: 291,
+                              hasError: _passwordError,
                               child: TextField(
                                 controller: _passwordController,
+                                onChanged: (_) {
+                                  if (_passwordError) setState(() => _passwordError = false);
+                                },
                                 obscureText: _isObscured,
                                 style: const TextStyle(color: Colors.white, fontSize: 20),
                                 decoration: InputDecoration(
@@ -259,12 +269,17 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                 final email = _emailController.text.trim();
                                 final password = _passwordController.text;
                                 if (email.isEmpty || password.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please enter email and password.')),
-                                  );
+                                  setState(() {
+                                    _emailError = email.isEmpty;
+                                    _passwordError = password.isEmpty;
+                                  });
                                   return;
                                 }
-                                setState(() => _isLoading = true);
+                                setState(() {
+                                  _emailError = false;
+                                  _passwordError = false;
+                                  _isLoading = true;
+                                });
                                 try {
                                   await ServiceLocator.supervisorService.login(
                                     email: email,
@@ -277,9 +292,10 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
                                   );
                                 } catch (e) {
                                   if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(e.toString())),
-                                  );
+                                  setState(() {
+                                    _emailError = true;
+                                    _passwordError = true;
+                                  });
                                 } finally {
                                   if (mounted) setState(() => _isLoading = false);
                                 }
@@ -331,7 +347,11 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
   }
 
   // Reusable container for the input fields to keep UI matching Figma closely
-  Widget _buildTextFieldContainer({required double width, required Widget child}) {
+  Widget _buildTextFieldContainer({
+    required double width,
+    required bool hasError,
+    required Widget child,
+  }) {
     return Container(
       width: width,
       height: 62,
@@ -340,7 +360,7 @@ class _SupervisorLoginScreenState extends State<SupervisorLoginScreen> {
         color: AppColors.white.withOpacity(0.21), // ffffff 21%
         borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color: AppColors.white.withOpacity(0.79), // ffffff 79%
+          color: hasError ? const Color(0xFFEF4444) : AppColors.white.withOpacity(0.79), // ffffff 79%
           width: 1,
         ),
       ),

@@ -15,23 +15,18 @@ import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_track_bus_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
+import 'package:application/widgets/resilient_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-
-/// أبعاد ومسافات موحّدة لكل بطاقات شاشة البروفايل — عدّل هنا للتحكم في الشكل كله.
 abstract final class _ParentProfileCards {
   _ParentProfileCards._();
 
-  /// أقصى عرض للبطاقة؛ على الشاشات الأضيق تقل تلقائياً مع هامش جانبي.
   static const double maxCardWidth = 380;
   static const double horizontalScreenInset = 24;
   static const double logoutHorizontalInset = 16;
-
-  /// حشوة داخلية موحّدة لكل البطاقات (يمين/شمال + يمكن تخصيص عمودي لكل بطاقة).
   static const double innerHorizontalPadding = 18;
-
   static const double cardRadius = 15;
   static const double dividerMaxWidth = 320;
 
@@ -102,7 +97,6 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     return null;
   }
 
-
   void _onThemeChanged() {
     if (mounted) setState(() {});
   }
@@ -150,45 +144,29 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     final cachedPhone = ServiceLocator.tokenStorage.getUserPhone();
     if (mounted) {
       setState(() {
-        if (cachedName != null && cachedName.isNotEmpty) {
-          _parentName = cachedName;
-        }
-        if (cachedEmail != null && cachedEmail.isNotEmpty) {
-          _parentEmail = cachedEmail;
-        }
-        if (cachedPhone != null && cachedPhone.isNotEmpty) {
-          _parentPhone = cachedPhone;
-        }
+        if (cachedName != null && cachedName.isNotEmpty) _parentName = cachedName;
+        if (cachedEmail != null && cachedEmail.isNotEmpty) _parentEmail = cachedEmail;
+        if (cachedPhone != null && cachedPhone.isNotEmpty) _parentPhone = cachedPhone;
       });
     }
     try {
       final profile = await ServiceLocator.parentService.getProfile();
       if (!mounted) return;
-      final photo = _readStringAnyKey(profile, const [
-        'photoUrl',
-        'photo_url',
-      ]);
+      final photo = _readStringAnyKey(profile, const ['photoUrl', 'photo_url']);
       if (photo != null && photo.isNotEmpty) {
         await ServiceLocator.tokenStorage.saveUserPhotoUrl(photo);
       }
       if (!mounted) return;
       setState(() {
         final name = _readStringAnyKey(profile, const ['name']);
-        final phone = _readStringAnyKey(
-          profile,
-          const ['phone', 'phoneNumber', 'mobile'],
-        );
+        final phone = _readStringAnyKey(profile, const ['phone', 'phoneNumber', 'mobile']);
         final email = _readStringAnyKey(profile, const ['email']);
         final governorate = _readStringAnyKey(profile, const ['governorate']);
         if (name != null && name.isNotEmpty) _parentName = name;
         if (phone != null && phone.isNotEmpty) _parentPhone = phone;
         if (email != null && email.isNotEmpty) _parentEmail = email;
-        if (governorate != null && governorate.isNotEmpty) {
-          _parentGovernorate = governorate;
-        }
-        if (photo != null && photo.isNotEmpty) {
-          _parentPhotoUrl = photo;
-        }
+        if (governorate != null && governorate.isNotEmpty) _parentGovernorate = governorate;
+        if (photo != null && photo.isNotEmpty) _parentPhotoUrl = photo;
       });
     } catch (_) {}
     try {
@@ -198,18 +176,13 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
       setState(() {
         if (parent != null) {
           final name = _readStringAnyKey(parent, const ['name']);
-          final phone = _readStringAnyKey(
-            parent,
-            const ['phone', 'phoneNumber', 'mobile'],
-          );
+          final phone = _readStringAnyKey(parent, const ['phone', 'phoneNumber', 'mobile']);
           final email = _readStringAnyKey(parent, const ['email']);
           final governorate = _readStringAnyKey(parent, const ['governorate']);
           if (name != null && name.isNotEmpty) _parentName = name;
           if (phone != null && phone.isNotEmpty) _parentPhone = phone;
           if (email != null && email.isNotEmpty) _parentEmail = email;
-          if (governorate != null && governorate.isNotEmpty) {
-            _parentGovernorate = governorate;
-          }
+          if (governorate != null && governorate.isNotEmpty) _parentGovernorate = governorate;
         }
       });
     } catch (_) {}
@@ -231,9 +204,15 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
+        top: false,
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // ✅ Fixed header — outside the scroll view
+            _buildHeader(context),
+
+            // ✅ Only content below header scrolls
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -245,12 +224,14 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildHeader(context),
-                        Center(
-                          child: _ProfileAvatar(
-                            photoUrl:
-                                _parentPhotoUrl ??
-                                ServiceLocator.tokenStorage.getUserPhotoUrl(),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Center(
+                            child: _ProfileAvatar(
+                              photoUrl:
+                              _parentPhotoUrl ??
+                                  ServiceLocator.tokenStorage.getUserPhotoUrl(),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 15),
@@ -267,18 +248,19 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                 ),
               ),
             ),
+
             ParentBottomNavBar(
               activeTab: ParentNavTab.profile,
               onHomeTap: () {
                 Navigator.of(context).pushAndRemoveUntil(
                   fadeRoute(const ParentHomeScreen()),
-                  (route) => false,
+                      (route) => false,
                 );
               },
               onTrackBusTap: () {
                 Navigator.of(context).pushAndRemoveUntil(
                   fadeRoute(const ParentTrackBusScreen()),
-                  (route) => false,
+                      (route) => false,
                 );
               },
               onProfileTap: () {},
@@ -292,8 +274,8 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
   Widget _buildHeader(BuildContext context) {
     return ClipRRect(
       borderRadius: const BorderRadius.only(
-        bottomLeft: Radius.circular(22),
-        bottomRight: Radius.circular(22),
+        bottomLeft: Radius.circular(40),
+        bottomRight: Radius.circular(40),
       ),
       child: SizedBox(
         height: 105,
@@ -305,7 +287,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               child: ColoredBox(color: AppColors.primaryBlue97),
             ),
             Positioned.fill(
-              top: -10,
+              top: 10,
               child: Center(
                 child: Image.asset(
                   AppImages.logo,
@@ -317,17 +299,17 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             ),
             Positioned(
               left: 24,
-              top: 35,
+              top: 33,
               child: AppBackButton(
                 onTap: () => Navigator.of(context).maybePop(),
                 color: AppColors.white,
                 icon: Icons.arrow_back_ios,
-                iconSize: 22.5,
+                iconSize: 24,
               ),
             ),
             Positioned(
               right: 24,
-              top: 35,
+              top: 33,
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -346,7 +328,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                   },
                   child: SizedBox(
                     width: 45,
-                    height: 22,
+                    height: 43,
                     child: Center(
                       child: Text(
                         'Edit',
@@ -448,10 +430,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 FluentIcons.call_20_filled,
                 size: 26,
-                color: Color(0xFF22C55E), // green
+                color: Color(0xFF22C55E),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -583,12 +565,11 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                       builder: (context) {
                         final st = students[i];
                         final name = (st['name'] ?? st['Name'])?.toString() ?? '';
-                        final grade =
-                            (st['grade'] ?? st['Grade'])?.toString() ?? '';
+                        final grade = (st['grade'] ?? st['Grade'])?.toString() ?? '';
                         final studentBusNo =
-                            (st['busNumber'] ?? st['BusNumber'] ?? st['bus_number'])
-                                ?.toString()
-                                .trim();
+                        (st['busNumber'] ?? st['BusNumber'] ?? st['bus_number'])
+                            ?.toString()
+                            .trim();
                         final resolvedPhoto = readPhotoUrlFromMap(st);
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -643,7 +624,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Icon(
+                                const Icon(
                                   FluentIcons.vehicle_cab_20_filled,
                                   size: 26,
                                   color: Color(0xFF595959),
@@ -657,9 +638,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                     height: 35 / 16,
-                                    color: context.appPrimaryText.withValues(
-                                      alpha: 0.85,
-                                    ),
+                                    color: context.appPrimaryText.withValues(alpha: 0.85),
                                   ),
                                 ),
                               ],
@@ -746,7 +725,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             children: [
               Transform.scale(
                 scaleX: -1,
-                child: Icon(
+                child: const Icon(
                   FluentIcons.weather_moon_20_filled,
                   size: 26,
                   color: Color(0xFF2859C5),
@@ -767,8 +746,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               const SizedBox(width: 10),
               _FigmaPillToggle(
                 value: darkOn,
-                onChanged: (v) =>
-                    ServiceLocator.themeController.setDarkEnabled(v),
+                onChanged: (v) => ServiceLocator.themeController.setDarkEnabled(v),
               ),
             ],
           ),
@@ -786,7 +764,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.lock_rounded,
                     size: 26,
                     color: Color(0xFF595959),
@@ -854,10 +832,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               child: Row(
                 children: [
                   const SizedBox(width: 6),
-                  Icon(
+                  const Icon(
                     FluentIcons.question_circle_20_filled,
                     size: 26,
-                    color: Color(0xFF214071), // dark blue from your icon
+                    color: Color(0xFF214071),
                   ),
                   const SizedBox(width: 13),
                   Text(
@@ -880,7 +858,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
               child: Row(
                 children: [
                   const SizedBox(width: 6),
-                  Icon(
+                  const Icon(
                     FluentIcons.info_20_filled,
                     size: 26,
                     color: Color(0xFF214071),
@@ -913,7 +891,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
         onTap: () {
           Navigator.of(context).pushAndRemoveUntil(
             fadeRoute(const RoleSelectionScreen()),
-            (route) => false,
+                (route) => false,
           );
         },
         borderRadius: BorderRadius.circular(33),
@@ -928,7 +906,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              const Icon(
                 FluentIcons.arrow_exit_20_filled,
                 size: 26,
                 color: Color(0xFFE6E9ED),
@@ -951,7 +929,6 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
   }
 }
 
-/// غلاف موحّد لكل بطاقات المحتوى — الارتفاع حسب المحتوى فقط.
 class _ProfileCard extends StatelessWidget {
   const _ProfileCard({
     required this.width,
@@ -985,10 +962,16 @@ class _ProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final full = supervisorPhotoFullUrl(photoUrl);
+    final urls = supervisorPhotoResolvedUrls(photoUrl);
+    final fallback = Image.asset(
+      AppImages.parentProfilePic,
+      width: 91,
+      height: 78,
+      fit: BoxFit.cover,
+    );
     return Container(
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(999)),
+        borderRadius: const BorderRadius.all(Radius.circular(1000)),
         border: Border.all(color: AppColors.white, width: 2),
         boxShadow: [
           BoxShadow(
@@ -999,26 +982,16 @@ class _ProfileAvatar extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: const BorderRadius.all(Radius.circular(999)),
-        child: full != null && full.isNotEmpty
-            ? Image.network(
-                full,
-                width: 91,
-                height: 78,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Image.asset(
-                  AppImages.parentProfilePic,
-                  width: 91,
-                  height: 78,
-                  fit: BoxFit.cover,
-                ),
-              )
-            : Image.asset(
-                AppImages.parentProfilePic,
-                width: 91,
-                height: 78,
-                fit: BoxFit.cover,
-              ),
+        borderRadius: const BorderRadius.all(Radius.circular(1000)),
+        child: urls.isNotEmpty
+            ? ResilientNetworkImage(
+          urls: urls,
+          width: 91,
+          height: 91,
+          fit: BoxFit.cover,
+          fallback: fallback,
+        )
+            : fallback,
       ),
     );
   }
@@ -1039,26 +1012,24 @@ class _StudentAvatar extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       alignment: Alignment.center,
-      child: const Icon(
-        Icons.person,
-        color: Color(0xFF6B7280),
-      ),
+      child: const Icon(Icons.person, color: Color(0xFF6B7280)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final full = supervisorPhotoFullUrl(photoUrl);
-    if (full != null && full.isNotEmpty) {
-      return Image.network(
-        full,
+    final urls = supervisorPhotoResolvedUrls(photoUrl);
+    final fallback = _fallbackAvatar();
+    if (urls.isNotEmpty) {
+      return ResilientNetworkImage(
+        urls: urls,
         width: size.width,
         height: size.height,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _fallbackAvatar(),
+        fallback: fallback,
       );
     }
-    return _fallbackAvatar();
+    return fallback;
   }
 }
 

@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/helpers/app_back_button.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/screens/parent/parent_otp_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
@@ -42,6 +43,7 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
           ),
         ),
         child: SafeArea(
+          top: false,
           bottom: false, // Let the bottom sheet extend to the very bottom
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -156,7 +158,7 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                                   Padding(
                                     padding: EdgeInsets.symmetric(horizontal: 14),
                                     child: Text(
-                                      'Enter your email to receive a password reset link.',
+                                      'Enter your email to receive the OTP.',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         fontFamily: 'Inter',
@@ -226,8 +228,10 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                                     onTap: () async {
                                       final email = _emailController.text.trim();
                                       if (email.isEmpty) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Please enter your email.')),
+                                        await showAppFeedback(
+                                          context,
+                                          'Please enter your email.',
+                                          isError: true,
                                         );
                                         return;
                                       }
@@ -240,8 +244,10 @@ class _ParentForgetPasswordScreenState extends State<ParentForgetPasswordScreen>
                                         );
                                       } on ParentServiceException catch (e) {
                                         if (!context.mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text(e.message)),
+                                        await showAppFeedback(
+                                          context,
+                                          e.message,
+                                          isError: true,
                                         );
                                       }
                                     },

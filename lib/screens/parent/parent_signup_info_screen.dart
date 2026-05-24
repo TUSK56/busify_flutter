@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'dart:convert';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/helpers/app_back_button.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/models/parent_signup_data.dart';
 import 'package:application/screens/parent/parent_signup_student_screen.dart';
 import 'package:flutter/material.dart';
@@ -88,8 +89,10 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      await showAppFeedback(
+        context,
+        e.toString().replaceFirst('Exception: ', ''),
+        isError: true,
       );
     } finally {
       if (mounted) setState(() => _isResolvingLocation = false);
@@ -126,6 +129,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
           ),
         ),
           child: SafeArea(
+            top: false,
             bottom: false, // Let the bottom sheet extend to the very bottom
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -201,7 +205,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                       ),
                       // ScrollView prevents keyboard overflow
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(vertical: 30),
+                        padding: const EdgeInsets.fromLTRB(0, 15, 0, 0),
                         child: Column(
                           children: [
 
@@ -278,11 +282,10 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                               },
                             ),
 
-                            SizedBox(height: screenHeight * 0.04),
 
                             // Continue Button
                             GestureDetector(
-                              onTap: () {
+                              onTap: () async {
                                 final name = _nameController.text.trim();
                                 final email = _emailController.text.trim();
                                 final phone = _phoneController.text.trim();
@@ -292,8 +295,10 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
 
                                 if (name.isEmpty || email.isEmpty || phone.isEmpty ||
                                     address.isEmpty || password.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please fill all fields.')),
+                                  await showAppFeedback(
+                                    context,
+                                    'Please fill all fields.',
+                                    isError: true,
                                   );
                                   return;
                                 }
@@ -301,22 +306,26 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                                     _longitude == null ||
                                     _governorate == null ||
                                     _street == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Please use the location icon to get your exact address.'),
-                                    ),
+                                  await showAppFeedback(
+                                    context,
+                                    'Please use the location icon to get your exact address.',
+                                    isError: true,
                                   );
                                   return;
                                 }
                                 if (password != confirm) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Passwords do not match.')),
+                                  await showAppFeedback(
+                                    context,
+                                    'Passwords do not match.',
+                                    isError: true,
                                   );
                                   return;
                                 }
                                 if (password.length < 6) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Password must be at least 6 characters.')),
+                                  await showAppFeedback(
+                                    context,
+                                    'Password must be at least 6 characters.',
+                                    isError: true,
                                   );
                                   return;
                                 }
@@ -358,7 +367,7 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
                             ),
 
                             // Bottom padding to ensure scroll clears the keyboard nicely
-                            SizedBox(height: screenHeight * 0.05),
+                            SizedBox(height: screenHeight * 0.009),
                           ],
                         ),
                       ),

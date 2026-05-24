@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/helpers/app_back_button.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/models/child.dart';
 import 'package:application/models/parent_signup_data.dart';
 import 'package:application/models/school.dart';
@@ -13,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class ParentSignupStudentScreen extends StatefulWidget {
   final ParentSignupData parentData;
@@ -31,6 +33,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
   School? _selectedSchool;
   String? _selectedGrade;
+  DateTime? _selectedBirthdate;
   bool _isLoading = false;
   XFile? _facePhoto;
 
@@ -84,8 +87,10 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
       final bytes = await File(photo.path).readAsBytes();
       if (bytes.length < 20 * 1024) {
         if (!mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Face photo is too small. Please retake clearly.')),
+        await showAppFeedback(
+          context,
+          'Face photo is too small. Please retake clearly.',
+          isError: true,
         );
         return false;
       }
@@ -95,19 +100,53 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
       final ratio = image.width / image.height;
       if (image.width < 240 || image.height < 240 || ratio < 0.6 || ratio > 1.8) {
         if (!mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Use a clear front face photo (good lighting).')),
+        await showAppFeedback(
+          context,
+          'Use a clear front face photo (good lighting).',
+          isError: true,
         );
         return false;
       }
       return true;
     } catch (_) {
       if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not process face photo. Please try another image.')),
+      await showAppFeedback(
+        context,
+        'Could not process face photo. Please try another image.',
+        isError: true,
       );
       return false;
     }
+  }
+
+  String _birthdateForApi(DateTime date) {
+    final y = date.year.toString();
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  String _birthdateDisplay(DateTime? date) {
+    if (date == null) return 'DD/MM/YYYY';
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final y = date.year.toString();
+    return '$d/$m/$y';
+  }
+
+  Future<void> _pickBirthdate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedBirthdate ?? DateTime(now.year - 8, now.month, now.day),
+      firstDate: DateTime(2000),
+      lastDate: now,
+    );
+    if (!mounted || picked == null) return;
+    setState(() {
+      _selectedBirthdate = picked;
+      _birthdateController.text = _birthdateForApi(picked);
+    });
   }
 
   @override
@@ -129,6 +168,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
         ),
         child: SafeArea(
           bottom: false, // Let the bottom sheet extend to the very bottom
+          top: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -138,11 +178,9 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
               Image.asset(
                 AppImages.logo,
                 width: 126,
-                height: 150,
+                height: 126,
                 fit: BoxFit.contain,
               ),
-
-              SizedBox(height: screenHeight * 0.01),
 
               // Header Row: Back Button & Title
               Stack(
@@ -193,7 +231,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                 ),
               ),
 
-              SizedBox(height: screenHeight * 0.04),
+              SizedBox(height: screenHeight * 0.02),
 
               // Expanded Glassmorphism Bottom Sheet for inputs
               Expanded(
@@ -221,7 +259,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                       ),
                       // ScrollView prevents keyboard overflow
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.only(top: 32, bottom: 40),
+                        padding: const EdgeInsets.only(top: 10, bottom: 10),
                         child: Column(
                           children: [
 
@@ -240,7 +278,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                   border: InputBorder.none,
                                   isCollapsed: true,
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                                  hintText: 'As registered in the school records',
+                                  hintText: 'Student name',
                                   hintStyle: TextStyle(
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.w500, // Medium 16
@@ -326,29 +364,69 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
 
                             const SizedBox(height: 24),
 
-                            // 2b. Birthdate
-                            _buildInputWrapper(
-                              label: 'Birthdate (YYYY-MM-DD)',
-                              child: TextField(
-                                controller: _birthdateController,
-                                style: const TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 16,
-                                  color: AppColors.primaryBlue,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                decoration: InputDecoration(
-                                  border: InputBorder.none,
-                                  isCollapsed: true,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                                  hintText: 'e.g. 2015-03-15',
-                                  hintStyle: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 16,
-                                    color: AppColors.grayText.withOpacity(0.68),
+                            SizedBox(
+                              width: 291,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Expanded(
+                                        child: Text(
+                                          'Date of Birth',
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 20,
+                                            color: AppColors.primaryBlue,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
+                                  const SizedBox(height: 8),
+                                  GestureDetector(
+                                    onTap: _pickBirthdate,
+                                    child: Container(
+                                      width: 291,
+                                      height: 55,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.white.withOpacity(0.21),
+                                        borderRadius: BorderRadius.circular(15),
+                                        border: Border.all(
+                                          color: AppColors.white.withOpacity(0.79),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Text(
+                                              _birthdateDisplay(_selectedBirthdate),
+                                              style: TextStyle(
+                                                fontFamily: 'Inter',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w500,
+                                                color: _selectedBirthdate == null
+                                                    ? AppColors.grayText.withOpacity(0.68)
+                                                    : AppColors.primaryBlue,
+                                              ),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.only(right: 16),
+                                            child: Icon(
+                                              FluentIcons.calendar_20_filled,
+                                              size: 24,
+                                              color: AppColors.grayText.withOpacity(0.72),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
 
@@ -477,32 +555,42 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                 final birthdate = _birthdateController.text.trim();
 
                                 if (studentName.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please enter student name.')),
+                                  await showAppFeedback(
+                                    context,
+                                    'Please enter student name.',
+                                    isError: true,
                                   );
                                   return;
                                 }
                                 if (_selectedSchool == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please select a school.')),
+                                  await showAppFeedback(
+                                    context,
+                                    'Please select a school.',
+                                    isError: true,
                                   );
                                   return;
                                 }
                                 if (_selectedGrade == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please select a grade.')),
+                                  await showAppFeedback(
+                                    context,
+                                    'Please select a grade.',
+                                    isError: true,
                                   );
                                   return;
                                 }
                                 if (birthdate.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please enter birthdate (yyyy-MM-dd).')),
+                                  await showAppFeedback(
+                                    context,
+                                    'Please select birthdate.',
+                                    isError: true,
                                   );
                                   return;
                                 }
                                 if (_facePhoto == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please add a student face photo.')),
+                                  await showAppFeedback(
+                                    context,
+                                    'Please add a student face photo.',
+                                    isError: true,
                                   );
                                   return;
                                 }
@@ -539,8 +627,10 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                   );
                                 } catch (e) {
                                   if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(e.toString())),
+                                  await showAppFeedback(
+                                    context,
+                                    e.toString(),
+                                    isError: true,
                                   );
                                 } finally {
                                   if (mounted) setState(() => _isLoading = false);

@@ -1,4 +1,5 @@
 import 'package:application/constants/app_colors.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/widgets/supervisor_avatar.dart';
@@ -26,15 +27,11 @@ class _SupervisorEditProfileScreenState extends State<SupervisorEditProfileScree
     try {
       await ServiceLocator.supervisorService.uploadProfilePhotoFile(x.path);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile photo updated.')),
-      );
+      await showAppFeedback(context, 'Profile photo updated.');
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      await showAppFeedback(context, e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _uploading = false);
     }

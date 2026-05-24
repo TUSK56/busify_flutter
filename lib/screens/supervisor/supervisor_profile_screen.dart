@@ -7,6 +7,7 @@ import 'package:application/screens/supervisor/supervisor_change_password_screen
 import 'package:application/screens/supervisor/supervisor_home_screen.dart';
 import 'package:application/screens/supervisor/supervisor_trip_screen.dart';
 import 'package:application/services/service_locator.dart';
+import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
@@ -63,153 +64,137 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final avatarImageCacheSize = (80 * MediaQuery.of(context).devicePixelRatio)
-        .round();
+    final avatarImageCacheSize =
+    (80 * MediaQuery.of(context).devicePixelRatio).round();
 
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
-        child: Center(
-          child: SizedBox(
-            width: double.infinity,
-            child: Column(
+        top: false,
+        bottom: false,
+        child: Stack(
+          children: [
+            Column(
               children: [
-                Expanded(
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Stack(
-                      children: [
-                        SingleChildScrollView(
-                          padding: const EdgeInsets.only(bottom: 96),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                height: 130,
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  0,
-                                  16,
-                                  0,
-                                ),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.primaryBlue97,
-                                  borderRadius: BorderRadius.only(
-                                    bottomLeft: Radius.circular(40),
-                                    bottomRight: Radius.circular(40),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.start,
-                                  children: [
-                                    IconButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      icon: const Icon(
-                                        Icons.chevron_left,
-                                        color: AppColors.white,
-                                        size: 35,
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Center(
-                                        child: SizedBox(
-                                          height: 170,
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Image.asset(
-                                              AppImages.logo,
-                                              height: 160,
-                                              fit: BoxFit.contain,
-                                              errorBuilder: (context, error, stackTrace) =>
-                                                  const Icon(
-                                                    Icons.directions_bus,
-                                                    color: AppColors.white,
-                                                    size: 40,
-                                                  ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 40),
-                                  ],
-                                ),
-                              ),
-                              Transform.translate(
-                                offset: const Offset(0, -45),
-                                child: Container(
-                                  width: 86,
-                                  height: 80,
-                                  alignment: Alignment.center,
-                                  child: Container(
-                                    width: 80,
-                                    height: 80,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: context.appAvatarPlaceholder,
-                                    ),
-                                    child: ClipOval(
-                                      child: Image.asset(
-                                        AppImages.profileAvatarLarge,
-                                        fit: BoxFit.cover,
-                                        filterQuality: FilterQuality.high,
-                                        isAntiAlias: true,
-                                        cacheWidth: avatarImageCacheSize,
-                                        cacheHeight: avatarImageCacheSize,
-                                        errorBuilder: (context, error, stackTrace) =>
-                                            const Icon(
-                                              Icons.person,
-                                              size: 42,
-                                              color: AppColors.grayText,
-                                            ),
-                                      ),
+                // Sticky Blue Header + Avatar overlapping
+                Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      height: 130,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                      decoration: const BoxDecoration(
+                        color: AppColors.primaryBlue97,
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(40),
+                          bottomRight: Radius.circular(40),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(
+                              Icons.chevron_left,
+                              color: AppColors.white,
+                              size: 35,
+                            ),
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: SizedBox(
+                                height: 170,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Image.asset(
+                                    AppImages.logo,
+                                    height: 160,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(
+                                      Icons.directions_bus,
+                                      color: AppColors.white,
+                                      size: 40,
                                     ),
                                   ),
                                 ),
                               ),
-                              Transform.translate(
-                                offset: const Offset(0, -30),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        _name.isEmpty ? 'Supervisor' : _name,
-                                        style: TextStyle(
-                                          fontFamily: 'Inter',
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.w600,
-                                          color: context.appPrimaryText,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Bus Supervisor',
-                                        style: TextStyle(
-                                          fontFamily: 'Inter',
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          color: context.appSecondaryText,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildAccountCard(),
-                                      const SizedBox(height: 14),
-                                      _buildSettingsCard(context),
-                                      const SizedBox(height: 14),
-                                      _buildLogoutButton(context),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
+                          ),
+                          const SizedBox(width: 40),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      bottom: -40,
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: context.appAvatarPlaceholder,
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            AppImages.profileAvatarLarge,
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.high,
+                            isAntiAlias: true,
+                            cacheWidth: avatarImageCacheSize,
+                            cacheHeight: avatarImageCacheSize,
+                            errorBuilder: (context, error, stackTrace) =>
+                            const Icon(
+                              Icons.person,
+                              size: 42,
+                              color: AppColors.grayText,
+                            ),
                           ),
                         ),
-                        Align(
-                          alignment: Alignment.bottomCenter,
-                          child: _buildBottomNav(context),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Scrollable Content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 96),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 50),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            children: [
+                              Text(
+                                _name.isEmpty ? 'Supervisor' : _name,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.appPrimaryText,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Bus Supervisor',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: context.appSecondaryText,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _buildAccountCard(),
+                              const SizedBox(height: 14),
+                              _buildSettingsCard(context),
+                              const SizedBox(height: 14),
+                              _buildLogoutButton(context),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -217,7 +202,28 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
                 ),
               ],
             ),
-          ),
+
+            // Bottom Nav on top
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: SupervisorBottomNavBar(
+                activeTab: SupervisorNavTab.profile,
+                onHomeTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    fadeRoute(const SupervisorHomeScreen()),
+                  );
+                },
+                onAttendanceTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    fadeRoute(const SupervisorTripScreen()),
+                  );
+                },
+                onProfileTap: () {},
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -297,7 +303,7 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
             children: [
               Transform.scale(
                 scaleX: -1,
-                child: Icon(
+                child: const Icon(
                   FluentIcons.weather_moon_20_filled,
                   size: 26,
                   color: Color(0xFF1E3A8A),
@@ -324,7 +330,7 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
                   },
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   thumbColor: WidgetStateProperty.resolveWith(
-                    (states) => AppColors.white,
+                        (states) => AppColors.white,
                   ),
                   trackColor: WidgetStateProperty.resolveWith((states) {
                     if (states.contains(WidgetState.selected)) {
@@ -333,7 +339,7 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
                     return context.appSecondaryText.withValues(alpha: 0.33);
                   }),
                   trackOutlineColor: WidgetStateProperty.resolveWith(
-                    (states) => Colors.transparent,
+                        (states) => Colors.transparent,
                   ),
                 ),
               ),
@@ -407,7 +413,7 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
               Navigator.pushAndRemoveUntil(
                 context,
                 fadeRoute(const RoleSelectionScreen()),
-                (route) => false,
+                    (route) => false,
               );
             },
             borderRadius: BorderRadius.circular(33),
@@ -447,96 +453,6 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
               fontSize: 15,
               fontWeight: FontWeight.w500,
               color: context.appPrimaryText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNav(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Container(
-        height: 70,
-        decoration: BoxDecoration(
-          color: context.appPanelBackground,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _navItem(context, AppImages.navbarHome, 'Home', false, () {
-              Navigator.pushReplacement(
-                context,
-                fadeRoute(const SupervisorHomeScreen()),
-              );
-            }),
-            _navItem(
-              context,
-              AppImages.navbarAttendance,
-              'Attendance',
-              false,
-              () {
-                Navigator.pushReplacement(
-                  context,
-                  fadeRoute(const SupervisorTripScreen()),
-                );
-              },
-            ),
-            _navItem(
-              context,
-              AppImages.navbarProfileActive,
-              'Profile',
-              true,
-              () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _navItem(
-    BuildContext context,
-    String iconPath,
-    String label,
-    bool isActive,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          label == 'Profile'
-              ? Icon(
-                  Icons.person,
-                  size: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                )
-              : Image.asset(
-                  iconPath,
-                  width: 28,
-                  height: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    label == 'Home' ? Icons.home : Icons.fact_check_outlined,
-                    size: 28,
-                    color: isActive
-                        ? AppColors.linkBlue
-                        : context.appInactiveNav,
-                  ),
-                ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: isActive ? AppColors.linkBlue : context.appSecondaryText,
             ),
           ),
         ],

@@ -1,10 +1,11 @@
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_home_screen.dart';
-import 'package:application/screens/supervisor/supervisor_profile_screen.dart';
 import 'package:application/screens/supervisor/supervisor_trip_screen.dart';
+import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 
 class SupervisorChangePasswordScreen extends StatefulWidget {
@@ -46,8 +47,11 @@ class _SupervisorChangePasswordScreenState
     );
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
+        top: false,
+        bottom: false,
         child: Center(
           child: SizedBox(
             width: double.infinity,
@@ -64,7 +68,7 @@ class _SupervisorChangePasswordScreenState
                             children: [
                               Container(
                                 width: double.infinity,
-                                height: 105,
+                                height: 130,
                                 padding: const EdgeInsets.fromLTRB(
                                   16,
                                   0,
@@ -215,14 +219,10 @@ class _SupervisorChangePasswordScreenState
                                           color: Colors.transparent,
                                           child: InkWell(
                                             onTap: () {
-                                              ScaffoldMessenger.of(
+                                              showAppFeedback(
                                                 context,
-                                              ).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'Password update not implemented yet',
-                                                  ),
-                                                ),
+                                                'Password update not implemented yet',
+                                                isError: true,
                                               );
                                             },
                                             borderRadius: BorderRadius.circular(
@@ -251,7 +251,22 @@ class _SupervisorChangePasswordScreenState
                         ),
                         Align(
                           alignment: Alignment.bottomCenter,
-                          child: _buildBottomNav(context),
+                          child: SupervisorBottomNavBar(
+                            activeTab: SupervisorNavTab.profile,
+                            onHomeTap: () {
+                              Navigator.pushReplacement(
+                                context,
+                                fadeRoute(const SupervisorHomeScreen()),
+                              );
+                            },
+                            onAttendanceTap: () {
+                              Navigator.pushReplacement(
+                                context,
+                                fadeRoute(const SupervisorTripScreen()),
+                              );
+                            },
+                            onProfileTap: () {},
+                          ),
                         ),
                       ],
                     ),
@@ -282,6 +297,7 @@ class _SupervisorChangePasswordScreenState
       child: TextField(
         controller: controller,
         obscureText: obscure,
+        textAlignVertical: TextAlignVertical.center,
         style: TextStyle(
           fontFamily: 'Inter',
           fontSize: 16,
@@ -292,7 +308,7 @@ class _SupervisorChangePasswordScreenState
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
-            vertical: 12,
+            vertical: 10,
           ),
           hintText: '************',
           hintStyle: TextStyle(
@@ -341,98 +357,4 @@ class _SupervisorChangePasswordScreenState
     );
   }
 
-  Widget _buildBottomNav(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Container(
-        height: 70,
-        decoration: BoxDecoration(
-          color: context.appPanelBackground,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _navItem(context, AppImages.navbarHome, 'Home', false, () {
-              Navigator.pushReplacement(
-                context,
-                fadeRoute(const SupervisorHomeScreen()),
-              );
-            }),
-            _navItem(
-              context,
-              AppImages.navbarAttendance,
-              'Attendance',
-              false,
-              () {
-                Navigator.pushReplacement(
-                  context,
-                  fadeRoute(const SupervisorTripScreen()),
-                );
-              },
-            ),
-            _navItem(
-              context,
-              AppImages.navbarProfileActive,
-              'Profile',
-              true,
-              () {
-                Navigator.pushReplacement(
-                  context,
-                  fadeRoute(const SupervisorProfileScreen()),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _navItem(
-    BuildContext context,
-    String iconPath,
-    String label,
-    bool isActive,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          label == 'Profile'
-              ? Icon(
-                  Icons.person,
-                  size: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                )
-              : Image.asset(
-                  iconPath,
-                  width: 28,
-                  height: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                  errorBuilder: (_, __, ___) => Icon(
-                    label == 'Home' ? Icons.home : Icons.fact_check_outlined,
-                    size: 28,
-                    color: isActive
-                        ? AppColors.linkBlue
-                        : context.appInactiveNav,
-                  ),
-                ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: isActive ? AppColors.linkBlue : context.appSecondaryText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

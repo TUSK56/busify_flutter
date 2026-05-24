@@ -295,25 +295,36 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
     final dest = widget.routeDestination;
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.primaryBlue97,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Trip Map',
-          style: TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(65),
+        child: AppBar(
+          backgroundColor: AppColors.primaryBlue97,
+          elevation: 0,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(40),
+              bottomRight: Radius.circular(40),
+            ),
           ),
+          leading: IconButton(
+            icon: const Icon(Icons.chevron_left, color: Colors.white, size: 45),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            'Trip Map',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 35,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          centerTitle: true,
         ),
-        centerTitle: true,
       ),
       body: SafeArea(
+        top: false,
+        bottom: false,
         child: Stack(
           children: [
             if (_currentLocation == null)
@@ -403,7 +414,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
                   ),
                   child: Icon(
                     Icons.my_location,
-                    color: context.appOverlayButtonIcon,
+                    color: Color(0xff2859c5),
                     size: 22,
                   ),
                 ),

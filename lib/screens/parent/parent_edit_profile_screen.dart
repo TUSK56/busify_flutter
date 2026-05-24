@@ -4,6 +4,8 @@ import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/app_back_button.dart';
+import 'package:application/helpers/app_feedback.dart';
+import 'package:application/helpers/parent_gps_location.dart';
 import 'package:application/helpers/supervisor_photo.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
@@ -27,10 +29,20 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
   late final TextEditingController _fullNameController;
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
+  late final TextEditingController _locationController;
 
   String? _photoUrl;
   bool _saving = false;
   bool _uploadingPhoto = false;
+  bool _resolvingLocation = false;
+
+  /// GPS `address` field (lat,lng CSV) and reverse-geocode parts (same as signup).
+  String _governorate = '';
+  String _street = '';
+  String _apiAddress = '';
+  String _snapGov = '';
+  String _snapStr = '';
+  String _snapAddr = '';
 
   late String _initialEmail;
   late String _initialPhone;
@@ -47,6 +59,7 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
     _phoneController = TextEditingController(
       text: ServiceLocator.tokenStorage.getUserPhone() ?? '',
     );
+    _locationController = TextEditingController();
     _photoUrl = ServiceLocator.tokenStorage.getUserPhotoUrl();
     _initialEmail = _emailController.text;
     _initialPhone = _phoneController.text;
@@ -65,6 +78,9 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
         await ServiceLocator.tokenStorage.saveUserPhotoUrl(photoRaw.trim());
       }
       if (!mounted) return;
+      final gov = (p['governorate'] ?? p['Governorate'] ?? '').toString().trim();
+      final str = (p['street'] ?? p['Street'] ?? '').toString().trim();
+      final addr = (p['address'] ?? p['Address'] ?? '').toString().trim();
       setState(() {
         if (name != null && name.trim().isNotEmpty) {
           _fullNameController.text = name.trim();
@@ -80,14 +96,25 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
         if (photoRaw != null && photoRaw.trim().isNotEmpty) {
           _photoUrl = photoRaw.trim();
         }
+        _governorate = gov;
+        _street = str;
+        _apiAddress = addr;
+        _snapGov = gov;
+        _snapStr = str;
+        _snapAddr = addr;
+        _locationController.text = (gov.isNotEmpty && str.isNotEmpty)
+            ? '$gov, $str'
+            : (addr.isNotEmpty ? addr : '');
       });
     } catch (_) {}
   }
 
-  bool get _isDirty {
-    return _emailController.text.trim() != _initialEmail.trim() ||
-        _phoneController.text.trim() != _initialPhone.trim();
-  }
+  bool get _isDirty =>
+      _emailController.text.trim() != _initialEmail.trim() ||
+          _phoneController.text.trim() != _initialPhone.trim() ||
+          _governorate.trim() != _snapGov.trim() ||
+          _street.trim() != _snapStr.trim() ||
+          _apiAddress.trim() != _snapAddr.trim();
 
   Future<bool> _confirmDiscardOrSave() async {
     if (!_isDirty) return true;
@@ -108,7 +135,32 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
     _fullNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _locationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickCurrentLocation() async {
+    if (_resolvingLocation) return;
+    setState(() => _resolvingLocation = true);
+    try {
+      final r = await resolveParentGpsWithNominatim();
+      if (!mounted) return;
+      setState(() {
+        _governorate = r.governorate;
+        _street = r.street;
+        _apiAddress = r.addressLatLngCsv;
+        _locationController.text = r.displayLine;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      await showAppFeedback(
+        context,
+        e.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _resolvingLocation = false);
+    }
   }
 
   Future<void> _pickAndUploadPhoto(ImageSource source) async {
@@ -118,19 +170,13 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
     if (x == null || !mounted) return;
     setState(() => _uploadingPhoto = true);
     try {
-      final url = await ServiceLocator.parentService.uploadProfilePhotoFile(
-        x.path,
-      );
+      final url = await ServiceLocator.parentService.uploadProfilePhotoFile(x.path);
       if (!mounted) return;
       setState(() => _photoUrl = url);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile photo updated.')),
-      );
+      await showAppFeedback(context, 'Profile photo updated.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      await showAppFeedback(context, e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _uploadingPhoto = false);
     }
@@ -145,6 +191,9 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
       final updated = await ServiceLocator.parentService.updateProfile(
         email: email,
         phone: phone,
+        address: _apiAddress,
+        governorate: _governorate,
+        street: _street,
       );
       await ServiceLocator.tokenStorage.saveUser(
         id: ServiceLocator.tokenStorage.getUserId() ?? 0,
@@ -154,16 +203,29 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
         photoUrl: _photoUrl,
       );
       if (!mounted) return;
+      final g = (updated['governorate'] ?? updated['Governorate'] ?? _governorate)
+          .toString()
+          .trim();
+      final s = (updated['street'] ?? updated['Street'] ?? _street).toString().trim();
+      final a = (updated['address'] ?? updated['Address'] ?? _apiAddress)
+          .toString()
+          .trim();
       setState(() {
         _initialEmail = _emailController.text.trim();
         _initialPhone = _phoneController.text.trim();
+        _governorate = g;
+        _street = s;
+        _apiAddress = a;
+        _snapGov = g;
+        _snapStr = s;
+        _snapAddr = a;
+        _locationController.text =
+            (g.isNotEmpty && s.isNotEmpty) ? '$g, $s' : (a.isNotEmpty ? a : '');
       });
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      await showAppFeedback(context, e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -172,10 +234,14 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
 
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
+        bottom: false,
+        top: false,
         child: PopScope(
           canPop: false,
           onPopInvokedWithResult: (didPop, result) async {
@@ -185,80 +251,88 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
             if (!mounted) return;
             if (ok) nav.pop();
           },
-          child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.only(bottom: 24 + bottomInset),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      height: 221,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.topCenter,
-                        children: [
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            child: buildHeader(context),
-                          ),
-                          Positioned(
-                            top: 125,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                              child: _EditProfilePicture(
-                                photoUrl: _photoUrl,
-                                uploading: _uploadingPhoto,
-                                onPick: () => _showPickPhotoSheet(context),
-                              ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final h = constraints.maxHeight;
+              final headerBlockH = h < 520 ? 200.0 : 221.0;
+              final avatarTop = h < 520 ? 108.0 : 125.0;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: headerBlockH,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.topCenter,
+                      children: [
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: buildHeader(context),
+                        ),
+                        Positioned(
+                          top: avatarTop,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: _EditProfilePicture(
+                              photoUrl: _photoUrl,
+                              uploading: _uploadingPhoto,
+                              onPick: () => _showPickPhotoSheet(context),
                             ),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        0,
+                        24,
+                        16 + bottomInset + keyboardBottom,
+                      ),
+                      child: SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        child: Column(
+                          children: [
+                            Center(child: buildFormCard(context)),
+                            const SizedBox(height: 24),
+                            Center(child: buildSaveButton(context)),
+                          ],
+                        ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        children: [
-                          buildFormCard(context),
-                          const SizedBox(height: 12),
-                          Center(child: buildSaveButton(context)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            ParentBottomNavBar(
-              activeTab: ParentNavTab.profile,
-              onHomeTap: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  fadeRoute(const ParentHomeScreen()),
-                  (route) => false,
-                );
-              },
-              onTrackBusTap: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  fadeRoute(const ParentTrackBusScreen()),
-                  (route) => false,
-                );
-              },
-              onProfileTap: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  fadeRoute(const ParentProfileScreen()),
-                  (route) => false,
-                );
-              },
-            ),
-          ],
-        ),
+                  ),
+                  ParentBottomNavBar(
+                    activeTab: ParentNavTab.profile,
+                    onHomeTap: () {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        fadeRoute(const ParentHomeScreen()),
+                        (route) => false,
+                      );
+                    },
+                    onTrackBusTap: () {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        fadeRoute(const ParentTrackBusScreen()),
+                        (route) => false,
+                      );
+                    },
+                    onProfileTap: () {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        fadeRoute(const ParentProfileScreen()),
+                        (route) => false,
+                      );
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -299,7 +373,6 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
     );
   }
 
-  /// **168** height, bottom radius **40**, **214071 @ 97%**, brand logo **126×54**, title **Edit Profile**.
   Widget buildHeader(BuildContext context) {
     return ClipRRect(
       borderRadius: const BorderRadius.only(
@@ -307,14 +380,12 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
         bottomRight: Radius.circular(40),
       ),
       child: SizedBox(
-        height: 168,
+        height: 160,
         width: double.infinity,
         child: Stack(
           children: [
             const Positioned.fill(child: ColoredBox(color: AppColors.primaryBlue97)),
-            Positioned.fill(
-              top: 40,
-              bottom: 72,
+            Positioned.fill(top: 0, bottom: 30,
               child: Center(
                 child: Image.asset(
                   AppImages.logo,
@@ -338,10 +409,7 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
                 iconSize: 35,
               ),
             ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 95,
+            Positioned(left: 0, right: 0, top: 95,
               child: Text(
                 'Edit Profile',
                 textAlign: TextAlign.center,
@@ -359,56 +427,95 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
     );
   }
 
-  /// **341×408** min, radius **15**, **#D9D9D9 49%**.
   Widget buildFormCard(BuildContext context) {
     final screenW = MediaQuery.sizeOf(context).width;
     final cardW = math.min(341.0, screenW - 48);
     final inputW = math.min(271.0, cardW - 70);
 
-    return Container(
-      width: cardW,
-      constraints: const BoxConstraints(minHeight: 408),
-      padding: EdgeInsets.fromLTRB(
-        math.max(16, (cardW - inputW) / 2),
-        22,
-        math.max(16, (cardW - inputW) / 2),
-        22,
-      ),
-      decoration: BoxDecoration(
-        color: context.appCardBackground,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          buildFormField(
-            context: context,
-            inputW: inputW,
-            label: 'Full Name',
-            controller: _fullNameController,
-            obscure: false,
-            enabled: false,
-          ),
-          const SizedBox(height: 22),
-          buildFormField(
-            context: context,
-            inputW: inputW,
-            label: 'Email',
-            controller: _emailController,
-            obscure: false,
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 22),
-          buildFormField(
-            context: context,
-            inputW: inputW,
-            label: 'Phone Number',
-            controller: _phoneController,
-            obscure: false,
-            keyboardType: TextInputType.phone,
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 11),
+      child: Container(
+        width: cardW,
+        constraints: const BoxConstraints(minHeight: 0),
+        padding: EdgeInsets.fromLTRB(
+          math.max(16, (cardW - inputW) / 2),
+          22,
+          math.max(16, (cardW - inputW) / 2),
+          22,
+        ),
+        decoration: BoxDecoration(
+          color: context.appCardBackground,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildFormField(
+              context: context,
+              inputW: inputW,
+              label: 'Full Name',
+              controller: _fullNameController,
+              obscure: false,
+              enabled: false,
+            ),
+            const SizedBox(height: 22),
+            buildFormField(
+              context: context,
+              inputW: inputW,
+              label: 'Email',
+              controller: _emailController,
+              obscure: false,
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 22),
+            buildFormField(
+              context: context,
+              inputW: inputW,
+              label: 'Phone Number',
+              controller: _phoneController,
+              obscure: false,
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 22),
+            buildFormField(
+              context: context,
+              inputW: inputW,
+              label: 'Location',
+              controller: _locationController,
+              obscure: false,
+              readOnly: true,
+              hintText: 'Tap icon for current location',
+              suffixIcon: _resolvingLocation
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsetsDirectional.only(end: 4),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    )
+                  : IconButton(
+                      onPressed: _pickCurrentLocation,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 48,
+                        maxWidth: 44,
+                        maxHeight: 48,
+                      ),
+                      icon: Icon(
+                        Icons.my_location,
+                        size: 20,
+                        color: AppColors.linkBlue.withValues(alpha: 0.85),
+                      ),
+                      tooltip: 'Current location',
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -421,10 +528,23 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
     required bool obscure,
     TextInputType? keyboardType,
     bool enabled = true,
+    bool readOnly = false,
+    String? hintText,
+    Widget? suffixIcon,
   }) {
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(15),
       borderSide: const BorderSide(color: AppColors.inputStrokeBlack21, width: 1),
+    );
+
+    // 48px row avoids clipped text vs old 40px + tight line-height; suffix has fixed width.
+    const fieldHeight = 48.0;
+    final hasSuffix = suffixIcon != null;
+    final contentPadding = EdgeInsetsDirectional.fromSTEB(
+      16,
+      12,
+      hasSuffix ? 4 : 16,
+      12,
     );
 
     return Column(
@@ -436,30 +556,49 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
           style: GoogleFonts.inter(
             fontSize: 20,
             fontWeight: FontWeight.w500,
-            height: 22 / 20,
+            height: 1.2,
             color: context.appPrimaryText,
           ),
         ),
         const SizedBox(height: 7),
         SizedBox(
           width: inputW,
-          height: 40,
+          height: fieldHeight,
           child: TextField(
             controller: controller,
             obscureText: obscure,
             keyboardType: keyboardType,
             enabled: enabled,
+            readOnly: readOnly,
+            maxLines: 1,
+            textAlignVertical: TextAlignVertical.center,
             style: GoogleFonts.inter(
               fontSize: 16,
               fontWeight: FontWeight.w500,
-              height: 22 / 16,
+              height: 1.25,
               color: context.appPrimaryText,
             ),
             decoration: InputDecoration(
               isDense: true,
               filled: true,
               fillColor: context.appInputBackground,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              contentPadding: contentPadding,
+              hintText: hintText,
+              hintStyle: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                height: 1.25,
+                color: context.appSecondaryText,
+              ),
+              suffixIcon: suffixIcon,
+              suffixIconConstraints: hasSuffix
+                  ? const BoxConstraints(
+                      minWidth: 44,
+                      maxWidth: 44,
+                      minHeight: fieldHeight,
+                      maxHeight: fieldHeight,
+                    )
+                  : null,
               border: border,
               enabledBorder: border,
               focusedBorder: OutlineInputBorder(
@@ -473,7 +612,6 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
     );
   }
 
-  /// **341×46** min, radius **33**, gradient **#D9D9D9 → #2859C5**, label **Save** white.
   Widget buildSaveButton(BuildContext context) {
     final screenW = MediaQuery.sizeOf(context).width;
     final w = math.min(341.0, screenW - 48);
@@ -509,10 +647,12 @@ class _ParentEditProfileScreenState extends State<ParentEditProfileScreen> {
       ),
     );
   }
-
 }
 
-/// Ellipse **114×96** `#F5F5F5`, inner photo **91×78**, camera badge.
+// ─────────────────────────────────────────────────────────────────────────────
+// Profile picture widget
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _EditProfilePicture extends StatelessWidget {
   const _EditProfilePicture({
     required this.photoUrl,
@@ -529,14 +669,14 @@ class _EditProfilePicture extends StatelessWidget {
     final full = supervisorPhotoFullUrl(photoUrl);
     return SizedBox(
       width: 114,
-      height: 96,
+      height: 105,
       child: Stack(
         clipBehavior: Clip.none,
         alignment: Alignment.center,
         children: [
           Container(
             width: 114,
-            height: 96,
+            height: 120,
             decoration: BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.circular(999),
@@ -546,23 +686,23 @@ class _EditProfilePicture extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
             child: full != null && full.isNotEmpty
                 ? Image.network(
-                    full,
-                    width: 91,
-                    height: 78,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Image.asset(
-                      AppImages.parentProfilePic,
-                      width: 91,
-                      height: 78,
-                      fit: BoxFit.cover,
-                    ),
-                  )
+              full,
+              width: 91,
+              height: 91,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Image.asset(
+                AppImages.parentProfilePic,
+                width: 91,
+                height: 91,
+                fit: BoxFit.cover,
+              ),
+            )
                 : Image.asset(
-                    AppImages.parentProfilePic,
-                    width: 91,
-                    height: 78,
-                    fit: BoxFit.cover,
-                  ),
+              AppImages.parentProfilePic,
+              width: 91,
+              height: 91,
+              fit: BoxFit.cover,
+            ),
           ),
           Positioned(
             right: 2,
@@ -577,18 +717,18 @@ class _EditProfilePicture extends StatelessWidget {
               ),
               child: uploading
                   ? const Padding(
-                      padding: EdgeInsets.all(6),
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                padding: EdgeInsets.all(6),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
                   : IconButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: onPick,
-                      icon: const Icon(
-                        Icons.camera_alt,
-                        size: 14,
-                        color: AppColors.white,
-                      ),
-                    ),
+                padding: EdgeInsets.zero,
+                onPressed: onPick,
+                icon: const Icon(
+                  Icons.camera_alt,
+                  size: 14,
+                  color: AppColors.white,
+                ),
+              ),
             ),
           ),
         ],
@@ -596,6 +736,10 @@ class _EditProfilePicture extends StatelessWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unsaved-changes dialog
+// ─────────────────────────────────────────────────────────────────────────────
 
 enum _LeaveAction { save, discard }
 

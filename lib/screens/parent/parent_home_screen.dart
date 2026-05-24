@@ -8,6 +8,7 @@ import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/supervisor_photo.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
+import 'package:application/widgets/resilient_network_image.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/services/push_notifications_service.dart';
 import 'package:flutter/material.dart';
@@ -94,6 +95,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   List<Map<String, dynamic>> _students = const [];
   final Map<int, String> _busNumberByStudent = <int, String>{};
   final Map<int, String?> _todayScanByStudent = <int, String?>{};
+  final Map<int, String?> _todayScanTimeByStudent = <int, String?>{};
   final Map<int, int> _weekPresentByStudent = <int, int>{};
 
   /// Backend serializes [ScanType] as JSON numbers (IN=0, OUT=1, ABSENT=2) unless configured otherwise.
@@ -252,9 +254,10 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
           if (sGrade != null && sGrade.isNotEmpty) {
             _studentGrade = sGrade;
           }
-          if (sPhoto != null && sPhoto.trim().isNotEmpty) {
-            _studentPhotoUrl = sPhoto.trim();
-          }
+          _studentPhotoUrl =
+              (sPhoto != null && sPhoto.trim().isNotEmpty) ? sPhoto.trim() : null;
+        } else {
+          _studentPhotoUrl = null;
         }
         if (_studentId != null && _studentId! > 0) {
           final own = busByStudent[_studentId!];
@@ -568,6 +571,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     final todayKey = _formatYmd(today);
 
     final scanByStudent = <int, String?>{};
+    final scanTimeByStudent = <int, String?>{};
     final weekByStudent = <int, int>{};
 
     for (final s in students) {
@@ -598,7 +602,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
             latestByDay[key] = (ts: local, type: scanType);
           }
         }
-        scanByStudent[sid] = latestByDay[todayKey]?.type;
+        final todayRec = latestByDay[todayKey];
+        scanByStudent[sid] = todayRec?.type;
+        scanTimeByStudent[sid] = todayRec != null ? _formatTime(todayRec.ts) : null;
         var presentDays = 0;
         for (var d = monday;
             !d.isAfter(friday);
@@ -616,6 +622,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
       _todayScanByStudent
         ..clear()
         ..addAll(scanByStudent);
+      _todayScanTimeByStudent
+        ..clear()
+        ..addAll(scanTimeByStudent);
       _weekPresentByStudent
         ..clear()
         ..addAll(weekByStudent);
@@ -640,9 +649,15 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
+        bottom: false,
+        top: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Sticky header
+            buildHeader(),
+
+            // Scrollable content
             Expanded(
               child: SingleChildScrollView(
                 physics: const ClampingScrollPhysics(),
@@ -654,7 +669,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        buildHeader(),
                         const SizedBox(height: 28),
                         buildGreeting(context),
                         const SizedBox(height: 25),
@@ -666,6 +680,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                 ),
               ),
             ),
+
+            // Sticky bottom nav
             ParentBottomNavBar(
               activeTab: ParentNavTab.home,
               onHomeTap: () {},
@@ -690,9 +706,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                 );
               },
               onProfileTap: () {
-                Navigator.of(
-                  context,
-                ).push(fadeRoute(const ParentProfileScreen()));
+                Navigator.of(context).push(fadeRoute(const ParentProfileScreen()));
               },
             ),
           ],
@@ -722,6 +736,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
           ? 'Absent'
           : (rawIn && tripA ? 'Present' : 'Not scanned yet');
       final week = sid == null ? 0 : (_weekPresentByStudent[sid] ?? 0);
+      final scanTime = sid == null ? null : _todayScanTimeByStudent[sid];
       final studentBusNumber = sid == null
           ? '--'
           : (_busNumberByStudent[sid] ?? '--');
@@ -738,6 +753,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
           todayLabel: label,
           todayPresent: present,
           weekPresentDays: week,
+          todayScanTimeText: scanTime ?? '—',
           busNumber: studentBusNumber,
           tripActive: tripA,
           boardedTimeText: sid == null ? _boardedTimeText : _boardedTimeForStudent(sid),
@@ -759,6 +775,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     required String todayLabel,
     required bool? todayPresent,
     required int weekPresentDays,
+    required String todayScanTimeText,
     required String busNumber,
     required bool tripActive,
     required String boardedTimeText,
@@ -836,42 +853,53 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                   Container(height: 1, color: AppColors.divider),
                   const SizedBox(height: 16),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        FluentIcons.vehicle_bus_20_filled,
-                        size: 26,
-                        color: Color(0xFF1E3A8A),
+                      const SizedBox(
+                        width: 26,
+                        child: Icon(
+                          FluentIcons.vehicle_bus_20_filled,
+                          size: 26,
+                          color: Color(0xFF1E3A8A),
+                        ),
                       ),
                       const SizedBox(width: 21),
                       Expanded(
-                        child: Text(
-                          'Boarded Bus',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.gray333,
-                          ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Boarded Bus',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.gray333,
+                                ),
+                              ),
+                            ),
+                            Image.asset(
+                              AppImages.parentHomeCheckParent,
+                              width: 27,
+                              height: 27,
+                              fit: BoxFit.contain,
+                              color: tripActive && todayPresent == true
+                                  ? null
+                                  : Colors.transparent,
+                            ),
+                            const SizedBox(width: 8),
+                            if (tripActive)
+                              Text(
+                                boardedTimeText,
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.grayText,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      Image.asset(
-                        AppImages.parentHomeCheckParent,
-                        width: 27,
-                        height: 27,
-                        fit: BoxFit.contain,
-                        color: tripActive && todayPresent == true
-                            ? null
-                            : Colors.transparent,
-                      ),
-                      const SizedBox(width: 8),
-                      if (tripActive)
-                        Text(
-                          boardedTimeText,
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.grayText,
-                          ),
-                        ),
                     ],
                   ),
                   Padding(
@@ -905,37 +933,76 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                   Container(height: 1, color: AppColors.divider),
                   const SizedBox(height: 10),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Today: ',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: context.appPrimaryText,
+                      Transform.scale(
+                        scaleX: -1,
+                        child: const SizedBox(
+                          width: 26,
+                          child: Icon(
+                            FluentIcons.data_bar_vertical_20_filled,
+                            size: 20,
+                            color: Color(0xFF1E3A8A),
+                          ),
                         ),
                       ),
-                      Text(
-                        todayLabel,
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: todayPresent == true
-                              ? AppColors.greenStatusBright
-                              : (todayPresent == false
-                                  ? const Color(0xFFC62828)
-                                  : context.appSecondaryText),
+                      const SizedBox(width: 21),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        'Today: ',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: context.appPrimaryText,
+                                        ),
+                                      ),
+                                      Text(
+                                        todayLabel,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: todayPresent == true
+                                              ? AppColors.greenStatusBright
+                                              : (todayPresent == false
+                                                  ? const Color(0xFFC62828)
+                                                  : context.appSecondaryText),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (todayPresent == true)
+                                  Text(
+                                    todayScanTimeText,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.grayText,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'This week: $weekPresentDays/5',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: context.appSecondaryText,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'This week: $weekPresentDays/5',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: context.appSecondaryText,
-                    ),
                   ),
                   const SizedBox(height: 18),
                   Center(
@@ -965,8 +1032,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   Widget buildHeader() {
     return ClipRRect(
       borderRadius: const BorderRadius.only(
-        bottomLeft: Radius.circular(22),
-        bottomRight: Radius.circular(22),
+        bottomLeft: Radius.circular(40),
+        bottomRight: Radius.circular(40),
       ),
       child: SizedBox(
         height: 105,
@@ -1467,16 +1534,17 @@ class _StudentAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final full = supervisorPhotoFullUrl(photoUrl);
-    if (full != null && full.isNotEmpty) {
-      return Image.network(
-        full,
+    final urls = supervisorPhotoResolvedUrls(photoUrl);
+    final fallback = _fallbackAvatar();
+    if (urls.isNotEmpty) {
+      return ResilientNetworkImage(
+        urls: urls,
         width: size.width,
         height: size.height,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _fallbackAvatar(),
+        fallback: fallback,
       );
     }
-    return _fallbackAvatar();
+    return fallback;
   }
 }

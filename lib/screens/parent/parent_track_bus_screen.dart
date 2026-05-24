@@ -10,6 +10,7 @@ import 'package:application/helpers/app_back_button.dart';
 import 'package:application/helpers/supervisor_photo.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
+import 'package:application/widgets/resilient_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -20,21 +21,12 @@ import 'package:application/services/service_locator.dart';
 import 'parent_home_screen.dart';
 import 'parent_profile_screen.dart';
 
-/// Tune spacing on this screen without hunting through the widget tree.
 class _TrackBusLayout {
   _TrackBusLayout._();
-
-  /// Horizontal gap between the "ETA:" label and the time value (e.g. "7 minutes").
-  /// Increase to separate them, decrease to bring them closer.
   static const double etaLabelToTimeGap = 6;
-
-  /// Moves the bottom navigation bar vertically. Positive = higher on screen,
-  /// negative = lower. Uses [Transform.translate] (does not change hit targets
-  /// unless you wrap with a larger hit area — adjust if taps feel off).
   static const double navBarVerticalOffset = 0;
 }
 
-/// Parent track bus screen.
 class ParentTrackBusScreen extends StatefulWidget {
   const ParentTrackBusScreen({
     super.key,
@@ -52,7 +44,7 @@ class ParentTrackBusScreen extends StatefulWidget {
 }
 
 class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _entranceController;
   late final Animation<double> _entranceFade;
   late final Animation<Offset> _entranceSlide;
@@ -73,6 +65,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   bool _isMiniMapFollowing = true;
   AnimationController? _recenterController;
   int? _childStudentId;
+  bool _isRecentering = false;
 
   @override
   void initState() {
@@ -110,9 +103,9 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       final first = selectedStudentId == null
           ? students.first
           : students.firstWhere(
-              (s) => (s['id'] ?? s['Id']) == selectedStudentId,
-              orElse: () => students.first,
-            );
+            (s) => (s['id'] ?? s['Id']) == selectedStudentId,
+        orElse: () => students.first,
+      );
       final name = (first['name'] ?? first['Name'])?.toString();
       final sid = first['id'] ?? first['Id'];
       final busIdRaw = first['busId'] ?? first['BusId'] ?? first['bus_id'];
@@ -124,8 +117,8 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       final supervisor = data['supervisor'] as Map<String, dynamic>?;
       final driver = data['driver'] as Map<String, dynamic>?;
       final drv =
-          (driver?['name'] ?? driver?['Name'] ?? supervisor?['name'] ?? supervisor?['Name'])
-              ?.toString();
+      (driver?['name'] ?? driver?['Name'] ?? supervisor?['name'] ?? supervisor?['Name'])
+          ?.toString();
       final studentBusNo = (first['busNumber'] ?? first['BusNumber'] ?? first['bus_number'])
           ?.toString()
           .trim();
@@ -141,12 +134,12 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           _busNumber = studentBusNo;
           final d = (drv != null && drv.trim().isNotEmpty)
               ? drv.trim()
-              : ((supervisor?['name'] ?? supervisor?['Name'])?.toString().trim() ??
-                  '');
+              : ((supervisor?['name'] ?? supervisor?['Name'])?.toString().trim() ?? '');
           _driverName = d.isEmpty ? '--' : d;
         }
         final photo = readPhotoUrlFromMap(first);
-        if (photo != null && photo.trim().isNotEmpty) _studentPhotoUrl = photo.trim();
+        _studentPhotoUrl =
+        (photo != null && photo.trim().isNotEmpty) ? photo.trim() : null;
       });
     } catch (_) {}
   }
@@ -158,8 +151,14 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     });
   }
 
-  void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
+  void _animateMapTo(
+      latlng.LatLng target, {
+        double? targetZoom,
+        Duration duration = const Duration(milliseconds: 1400),
+        Curve curve = Curves.easeInOutCubicEmphasized,
+      }) {
     if (!mounted) return;
+    _isRecentering = true;
     _recenterController?.stop();
     _recenterController?.dispose();
     _recenterController = null;
@@ -168,24 +167,12 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     final startCenter = camera.center;
     final endZoom = targetZoom ?? camera.zoom;
 
-    final latTween = Tween<double>(
-      begin: startCenter.latitude,
-      end: target.latitude,
-    );
-    final lngTween = Tween<double>(
-      begin: startCenter.longitude,
-      end: target.longitude,
-    );
+    final latTween = Tween<double>(begin: startCenter.latitude, end: target.latitude);
+    final lngTween = Tween<double>(begin: startCenter.longitude, end: target.longitude);
     final zoomTween = Tween<double>(begin: camera.zoom, end: endZoom);
 
-    _recenterController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-    final curved = CurvedAnimation(
-      parent: _recenterController!,
-      curve: Curves.easeOutCubic,
-    );
+    _recenterController = AnimationController(vsync: this, duration: duration);
+    final curved = CurvedAnimation(parent: _recenterController!, curve: curve);
     _recenterController!.addListener(() {
       if (!mounted) return;
       final t = curved.value;
@@ -194,7 +181,9 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         zoomTween.transform(t),
       );
     });
-    _recenterController!.forward();
+    _recenterController!.forward().whenCompleteOrCancel(() {
+      _isRecentering = false;
+    });
   }
 
   Future<void> _refreshLiveData() async {
@@ -207,8 +196,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           (current['driver'] as Map<String, dynamic>?) ??
               (current['supervisor'] as Map<String, dynamic>?);
       final busNumber =
-          (busInfo?['busNumber'] ?? busInfo?['BusNumber'] ?? busInfo?['id'])
-              ?.toString();
+      (busInfo?['busNumber'] ?? busInfo?['BusNumber'] ?? busInfo?['id'])?.toString();
       final dName = (driverInfo?['name'] ?? driverInfo?['Name'])?.toString();
       final hasActive = current['has_active_trip'] == true;
       if (!hasActive) {
@@ -220,8 +208,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           if (busNumber != null && busNumber.trim().isNotEmpty) {
             _busNumber = busNumber.trim();
           }
-          _driverName =
-              (dName == null || dName.trim().isEmpty) ? '--' : dName.trim();
+          _driverName = (dName == null || dName.trim().isEmpty) ? '--' : dName.trim();
           _busLocation = null;
           _destination = null;
           _polyline = [];
@@ -245,9 +232,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       }
 
       final stops = current['stops'] as List<dynamic>? ?? const [];
-
-      final tripTypeStr =
-          (trip['tripType'] ?? trip['TripType']).toString().toLowerCase();
+      final tripTypeStr = (trip['tripType'] ?? trip['TripType']).toString().toLowerCase();
       final isAfternoon = tripTypeStr.contains('afternoon');
       final childDroppedAfternoon =
           current['child_afternoon_dropped_off'] == true ||
@@ -259,12 +244,9 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         final sidVal = raw['student_id'] ?? raw['studentId'];
         num? sidNum;
         if (sidVal is num) sidNum = sidVal;
-        if (_childStudentId != null &&
-            sidNum != null &&
-            sidNum.toInt() == _childStudentId) {
+        if (_childStudentId != null && sidNum != null && sidNum.toInt() == _childStudentId) {
           resolvedStudentName =
-              (raw['student_name'] ?? raw['studentName'] ?? raw['StudentName'])
-                  ?.toString();
+              (raw['student_name'] ?? raw['studentName'] ?? raw['StudentName'])?.toString();
           break;
         }
       }
@@ -272,7 +254,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         if (_childStudentId != null) return null;
         if (stops.isEmpty) return null;
         final first = stops.firstWhere(
-          (s) => s is Map<String, dynamic>,
+              (s) => s is Map<String, dynamic>,
           orElse: () => stops.first,
         );
         if (first is Map<String, dynamic>) {
@@ -288,9 +270,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           if (destType == 'school') return 'Heading to school';
           return 'On the way home';
         }
-        return destType == 'school'
-            ? 'On the way to school'
-            : 'On the way';
+        return destType == 'school' ? 'On the way to school' : 'On the way';
       }();
 
       final live = await ServiceLocator.parentService.getLiveLocation(tripId);
@@ -302,7 +282,6 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
       if (!mounted) return;
 
-      // Only refetch route when destination changes.
       final destKey = target == null
           ? ''
           : '${target.latitude.toStringAsFixed(5)},${target.longitude.toStringAsFixed(5)}';
@@ -317,9 +296,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         if (!mounted) return;
         _polyline = line;
         _routeDestinationKey = destKey;
-        _routeProgressIndex = _polyline.isNotEmpty
-            ? _closestRouteIndex(bus, _polyline)
-            : 0;
+        _routeProgressIndex = _polyline.isNotEmpty ? _closestRouteIndex(bus, _polyline) : 0;
       } else if (_polyline.isNotEmpty) {
         _routeProgressIndex = _closestRouteIndex(bus, _polyline);
       }
@@ -334,27 +311,35 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           _studentName = resolvedStudentName;
         }
         if (busInfo != null) {
-          final busNumber =
-              busInfo['busNumber'] ?? busInfo['BusNumber'] ?? busInfo['id'];
-          if (busNumber != null) {
-            _busNumber = busNumber.toString();
-          }
+          final busNumber = busInfo['busNumber'] ?? busInfo['BusNumber'] ?? busInfo['id'];
+          if (busNumber != null) _busNumber = busNumber.toString();
         }
-        _driverName =
-            (dName == null || dName.trim().isEmpty) ? '--' : dName.trim();
+        _driverName = (dName == null || dName.trim().isEmpty) ? '--' : dName.trim();
       });
 
-      // Follow bus automatically unless user moved the map.
-      if (_isMiniMapFollowing) {
-        _mapController.move(bus, _mapController.camera.zoom);
+      if (_isMiniMapFollowing && !_isRecentering) {
+        final currentCenter = _mapController.camera.center;
+        final deltaKm = _distanceKm(
+          currentCenter.latitude,
+          currentCenter.longitude,
+          bus.latitude,
+          bus.longitude,
+        );
+        if (deltaKm < 0.005) {
+          _mapController.move(bus, _mapController.camera.zoom);
+        } else {
+          _animateMapTo(
+            bus,
+            targetZoom: _mapController.camera.zoom,
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.easeOutCubic,
+          );
+        }
       }
     } catch (_) {}
   }
 
-  Future<List<latlng.LatLng>> _fetchRoute(
-    latlng.LatLng from,
-    latlng.LatLng to,
-  ) async {
+  Future<List<latlng.LatLng>> _fetchRoute(latlng.LatLng from, latlng.LatLng to) async {
     final uri = Uri.parse(
       'https://router.project-osrm.org/route/v1/driving/${from.longitude},${from.latitude};${to.longitude},${to.latitude}?overview=full&geometries=geojson',
     );
@@ -404,30 +389,16 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
   List<Polyline> _buildColoredRoutePolylines() {
     if (_polyline.isEmpty || _polyline.length < 2) return const [];
-
     final idx = _routeProgressIndex.clamp(0, _polyline.length - 1);
     final split = math.max(1, math.min(idx + 1, _polyline.length - 1));
     final passed = _polyline.sublist(0, split);
     final remaining = _polyline.sublist(split - 1);
-
     final polylines = <Polyline>[];
     if (passed.length > 1) {
-      polylines.add(
-        Polyline(
-          points: passed,
-          color: Colors.grey.shade400,
-          strokeWidth: 4,
-        ),
-      );
+      polylines.add(Polyline(points: passed, color: Colors.grey.shade400, strokeWidth: 4));
     }
     if (remaining.length > 1) {
-      polylines.add(
-        Polyline(
-          points: remaining,
-          color: const Color(0xFF2563EB),
-          strokeWidth: 4,
-        ),
-      );
+      polylines.add(Polyline(points: remaining, color: const Color(0xFF2563EB), strokeWidth: 4));
     }
     return polylines;
   }
@@ -449,13 +420,19 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
+        bottom: false,
+        top: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // ✅ Header is outside the scroll view — stays fixed
+            buildHeader(context),
+
+            // ✅ Only map + card scroll
             Expanded(
               child: SingleChildScrollView(
                 physics: const ClampingScrollPhysics(),
-                padding: EdgeInsets.only(bottom: 12 + bottomInset),
+                padding: EdgeInsets.zero,
                 child: FadeTransition(
                   opacity: _entranceFade,
                   child: SlideTransition(
@@ -463,17 +440,17 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        buildHeader(context),
                         buildMapSection(),
                         const SizedBox(height: 16),
                         buildBusStatusCard(context, cardW),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 10),
                       ],
                     ),
                   ),
                 ),
               ),
             ),
+
             Transform.translate(
               offset: Offset(0, -_TrackBusLayout.navBarVerticalOffset),
               child: ParentBottomNavBar(
@@ -488,9 +465,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
                 },
                 onTrackBusTap: () {},
                 onProfileTap: () {
-                  Navigator.of(context).push(
-                    fadeRoute(const ParentProfileScreen()),
-                  );
+                  Navigator.of(context).push(fadeRoute(const ParentProfileScreen()));
                 },
               ),
             ),
@@ -500,7 +475,6 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     );
   }
 
-  /// Blue header (h 139), radius 22, back + centered logo.
   Widget buildHeader(BuildContext context) {
     return ClipRRect(
       borderRadius: const BorderRadius.only(
@@ -530,7 +504,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
             ),
             Positioned(
               left: 15,
-              top: 10,
+              top: 35,
               child: AppBackButton(
                 onTap: () => Navigator.of(context).pop(),
                 color: AppColors.white,
@@ -550,99 +524,95 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     );
   }
 
-  /// Full-width map, height 442.
   Widget buildMapSection() {
     return SizedBox(
       width: double.infinity,
-      height: 442,
+      height: 380,
       child: _busLocation == null
           ? Center(
-              child: _hasActiveTrip
-                  ? const CircularProgressIndicator()
-                  : const Text(
-                      'There is no trip going right now.',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                    ),
-            )
+        child: _hasActiveTrip
+            ? const CircularProgressIndicator()
+            : const Text(
+          'There is no trip going right now.',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+      )
           : Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _busLocation!,
-                    initialZoom: 14,
-                    maxZoom: 18,
-                    minZoom: 3,
-                    onMapEvent: (event) {
-                      if (event is MapEventMove || event is MapEventRotate) {
-                        if (_isMiniMapFollowing) {
-                          setState(() => _isMiniMapFollowing = false);
-                        }
-                      }
-                    },
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _busLocation!,
+              initialZoom: 14,
+              maxZoom: 18,
+              minZoom: 3,
+              onMapEvent: (event) {
+                if (event is MapEventMove || event is MapEventRotate) {
+                  if (_isMiniMapFollowing) {
+                    setState(() => _isMiniMapFollowing = false);
+                  }
+                }
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
+                userAgentPackageName: 'com.busify.app',
+              ),
+              if (_polyline.isNotEmpty)
+                PolylineLayer(polylines: _buildColoredRoutePolylines()),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _busLocation!,
+                    width: 34,
+                    height: 34,
+                    child: const Icon(Icons.directions_car_filled, color: Colors.blue, size: 30),
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      subdomains: const ['a', 'b', 'c'],
-                      userAgentPackageName: 'com.busify.app',
+                  if (_destination != null)
+                    Marker(
+                      point: _destination!,
+                      width: 34,
+                      height: 34,
+                      child: const Icon(Icons.location_pin, color: Colors.red, size: 30),
                     ),
-                    if (_polyline.isNotEmpty)
-                      PolylineLayer(
-                        polylines: _buildColoredRoutePolylines(),
-                      ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: _busLocation!,
-                          width: 34,
-                          height: 34,
-                      child: const Icon(Icons.directions_car_filled, color: Colors.blue, size: 30),
-                        ),
-                        if (_destination != null)
-                          Marker(
-                            point: _destination!,
-                            width: 34,
-                            height: 34,
-                            child: const Icon(Icons.location_pin, color: Colors.red, size: 30),
-                          ),
-                      ],
+                ],
+              ),
+            ],
+          ),
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: GestureDetector(
+              onTap: () {
+                if (_busLocation == null) return;
+                setState(() => _isMiniMapFollowing = true);
+                _animateMapTo(_busLocation!, targetZoom: 17.4);
+              },
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      offset: const Offset(0, 2),
+                      blurRadius: 4,
                     ),
                   ],
                 ),
-                Positioned(
-                  left: 12,
-                  bottom: 12,
-                  child: GestureDetector(
-                    onTap: () {
-                      if (_busLocation == null) return;
-                      setState(() => _isMiniMapFollowing = true);
-                      _animateMapTo(_busLocation!, targetZoom: 16);
-                    },
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            offset: const Offset(0, 2),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.my_location, color: AppColors.primaryBlue),
-                    ),
-                  ),
-                ),
-              ],
+                child: const Icon(Icons.my_location, color: AppColors.primaryBlue),
+              ),
             ),
+          ),
+        ],
+      ),
     );
   }
 
-  /// Status card 364×187, floating over layout flow (spacing handled by scroll).
   Widget buildBusStatusCard(BuildContext context, double cardW) {
     return Center(
       child: Container(
@@ -652,10 +622,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         decoration: BoxDecoration(
           color: AppColors.trackBusCardTint,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppColors.trackBusCardStroke,
-            width: math.max(1.0, 1),
-          ),
+          border: Border.all(color: AppColors.trackBusCardStroke, width: math.max(1.0, 1)),
           boxShadow: [
             BoxShadow(
               color: AppColors.trackBusCardShadow,
@@ -771,11 +738,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     );
   }
 
-  Widget _infoLine(
-    BuildContext context,
-    String label,
-    String value,
-  ) {
+  Widget _infoLine(BuildContext context, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -805,26 +768,8 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   }
 
   Widget _studentAvatar() {
-    final full = supervisorPhotoFullUrl(_studentPhotoUrl);
-    if (full != null && full.isNotEmpty) {
-      return Image.network(
-        full,
-        width: 52,
-        height: 51,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          width: 52,
-          height: 51,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE5E7EB),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          alignment: Alignment.center,
-          child: const Icon(Icons.person, color: Color(0xFF6B7280)),
-        ),
-      );
-    }
-    return Container(
+    final urls = supervisorPhotoResolvedUrls(_studentPhotoUrl);
+    final fallback = Container(
       width: 52,
       height: 51,
       decoration: BoxDecoration(
@@ -834,6 +779,16 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       alignment: Alignment.center,
       child: const Icon(Icons.person, color: Color(0xFF6B7280)),
     );
+    if (urls.isNotEmpty) {
+      return ResilientNetworkImage(
+        urls: urls,
+        width: 52,
+        height: 51,
+        fit: BoxFit.cover,
+        fallback: fallback,
+      );
+    }
+    return fallback;
   }
 }
 

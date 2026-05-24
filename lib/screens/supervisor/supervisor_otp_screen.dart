@@ -1,6 +1,7 @@
 import 'package:application/helpers/fade_route.dart';
 import 'package:flutter/material.dart';
 import 'package:application/helpers/app_back_button.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:flutter/services.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
@@ -204,12 +205,17 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                       try {
                         await ServiceLocator.supervisorService.sendPasswordResetOtp(email: widget.email);
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('A new code was sent to your email.')),
+                        await showAppFeedback(
+                          context,
+                          'A new code was sent to your email.',
                         );
                       } on SupervisorServiceException catch (e) {
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+                        await showAppFeedback(
+                          context,
+                          e.message,
+                          isError: true,
+                        );
                       }
                     },
                     child: Text(

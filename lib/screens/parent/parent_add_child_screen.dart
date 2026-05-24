@@ -6,6 +6,7 @@ import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/app_back_button.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_profile_screen.dart';
@@ -145,14 +146,14 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
     final dob = _dob;
 
     if (name.isEmpty || grade.isEmpty || dob == null || _selectedSchoolId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields')),
-      );
+      await showAppFeedback(context, 'Please fill all fields', isError: true);
       return;
     }
     if (_studentPhotoFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add a student face photo.')),
+      await showAppFeedback(
+        context,
+        'Please add a student face photo.',
+        isError: true,
       );
       return;
     }
@@ -190,9 +191,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add child: $e')),
-      );
+      await showAppFeedback(context, 'Failed to add child: $e', isError: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -203,8 +202,10 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       final bytes = await file.readAsBytes();
       if (bytes.length < 20 * 1024) {
         if (!mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Face photo is too small. Please retake clearly.')),
+        await showAppFeedback(
+          context,
+          'Face photo is too small. Please retake clearly.',
+          isError: true,
         );
         return false;
       }
@@ -216,16 +217,20 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       final ratio = w / h;
       if (w < 240 || h < 240 || ratio < 0.6 || ratio > 1.8) {
         if (!mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Use a clear front face photo (good lighting).')),
+        await showAppFeedback(
+          context,
+          'Use a clear front face photo (good lighting).',
+          isError: true,
         );
         return false;
       }
       return true;
     } catch (_) {
       if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not process face photo. Please try another image.')),
+      await showAppFeedback(
+        context,
+        'Could not process face photo. Please try another image.',
+        isError: true,
       );
       return false;
     }
@@ -238,10 +243,14 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
 
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
+        top: false,
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const _TopHeader(),
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -249,7 +258,6 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const _TopHeader(),
                     const SizedBox(height: 24),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -552,7 +560,7 @@ class _TopHeader extends StatelessWidget {
             const Positioned.fill(child: ColoredBox(color: AppColors.primaryBlue97)),
             Positioned(
               left: 24,
-              top: 35,
+              top: 44,
               child: AppBackButton(
                 onTap: () => Navigator.of(context).maybePop(),
                 color: AppColors.white,
@@ -563,7 +571,7 @@ class _TopHeader extends StatelessWidget {
             Positioned(
               left: 0,
               right: 0,
-              top: -7,
+              top: 8,
               child: Center(
                 child: Image.asset(
                   AppImages.logo,

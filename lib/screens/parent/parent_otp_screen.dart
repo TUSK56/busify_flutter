@@ -1,5 +1,6 @@
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/helpers/app_back_button.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:application/constants/app_colors.dart';
@@ -75,6 +76,7 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
           ),
         ),
         child: SafeArea(
+          top: false,
           child: SingleChildScrollView(
             child: SizedBox(
               width: double.infinity,
@@ -201,12 +203,17 @@ class _ParentOtpScreenState extends State<ParentOtpScreen> {
                       try {
                         await ServiceLocator.parentService.sendPasswordResetOtp(email: widget.email);
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('A new code was sent to your email.')),
+                        await showAppFeedback(
+                          context,
+                          'A new code was sent to your email.',
                         );
                       } on ParentServiceException catch (e) {
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+                        await showAppFeedback(
+                          context,
+                          e.message,
+                          isError: true,
+                        );
                       }
                     },
                     child: Text(

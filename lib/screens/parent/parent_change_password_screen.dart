@@ -1,5 +1,6 @@
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/app_back_button.dart';
 import 'package:application/routes/fade_route.dart';
@@ -46,20 +47,18 @@ class _ParentChangePasswordScreenState extends State<ParentChangePasswordScreen>
     final confirm = _confirmController.text;
 
     if (current.isEmpty || next.isEmpty || confirm.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields')),
-      );
+      await showAppFeedback(context, 'Please fill all fields', isError: true);
       return;
     }
     if (next != confirm) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
+      await showAppFeedback(context, 'Passwords do not match', isError: true);
       return;
     }
     if (next.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 6 characters')),
+      await showAppFeedback(
+        context,
+        'Password must be at least 6 characters',
+        isError: true,
       );
       return;
     }
@@ -71,15 +70,11 @@ class _ParentChangePasswordScreenState extends State<ParentChangePasswordScreen>
         newPassword: next,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password updated')),
-      );
+      await showAppFeedback(context, 'Password updated');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      await showAppFeedback(context, e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -101,7 +96,10 @@ class _ParentChangePasswordScreenState extends State<ParentChangePasswordScreen>
 
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
+        bottom: false,
+        top: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -282,7 +280,7 @@ class _TopHeader extends StatelessWidget {
             const Positioned.fill(child: ColoredBox(color: AppColors.primaryBlue97)),
             Positioned(
               left: 24,
-              top: 35,
+              top: 44,
               child: AppBackButton(
                 onTap: () => Navigator.of(context).maybePop(),
                 color: AppColors.white,
@@ -293,7 +291,7 @@ class _TopHeader extends StatelessWidget {
             Positioned(
               left: 0,
               right: 0,
-              top: -9,
+              top: 8,
               child: Center(
                 child: Image.asset(
                   AppImages.logo,
@@ -368,6 +366,7 @@ class _PasswordField extends StatelessWidget {
             child: TextField(
               controller: controller,
               obscureText: obscure,
+              textAlignVertical: TextAlignVertical.center,
               style: GoogleFonts.inter(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -376,6 +375,7 @@ class _PasswordField extends StatelessWidget {
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
+                contentPadding: const EdgeInsets.only(bottom: 10),
                 hintText: '************',
                 hintStyle: GoogleFonts.inter(
                   fontSize: 16,

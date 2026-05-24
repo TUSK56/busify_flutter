@@ -8,6 +8,7 @@ import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/api_json.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_attendance_screen.dart';
 import 'package:application/screens/supervisor/supervisor_full_map_screen.dart';
@@ -15,6 +16,7 @@ import 'package:application/screens/supervisor/supervisor_home_screen.dart';
 import 'package:application/screens/supervisor/supervisor_profile_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/utils/api_config.dart';
+import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -90,13 +92,6 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   bool get _allStudentStopsCompleted =>
       _stops.isNotEmpty && _stops.every((s) => s.completed);
 
-  /// Students fully processed for this trip leg (boarded IN or marked absent, etc.).
-  int get _processedPickupCount {
-    if (_totalCount <= 0) return 0;
-    final v = _totalCount - _remainingCount;
-    return v.clamp(0, _totalCount);
-  }
-
   final MapController _mapController = MapController();
   AnimationController? _recenterController;
 
@@ -147,6 +142,24 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     return null;
   }
 
+  bool _readBool(dynamic v) {
+    if (v == null) return false;
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    final s = v.toString().trim().toLowerCase();
+    return s == 'true' || s == '1' || s == 'yes';
+  }
+
+  bool? _readTriBool(dynamic v) {
+    if (v == null) return null;
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    final s = v.toString().trim().toLowerCase();
+    if (s == 'true' || s == '1' || s == 'yes') return true;
+    if (s == 'false' || s == '0' || s == 'no' || s.isEmpty) return false;
+    return null;
+  }
+
   Future<void> _loadTripStops() async {
     final tripId = _activeTripId;
     if (tripId == null || tripId <= 0) return;
@@ -176,14 +189,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       final students = rawStudents is List ? rawStudents : const <dynamic>[];
       final summaryMap =
           _coerceJsonMap(body['attendanceSummary']) ?? _coerceJsonMap(body['summary']);
-      final boarded = _readSummaryInt(summaryMap, const ['boarded', 'Boarded']) ?? 0;
-      var totalCount = _readSummaryInt(summaryMap, const ['total', 'Total']) ?? 0;
-      if (totalCount <= 0) {
-        totalCount = students.length;
-      }
-      var remainingCount =
-          _readSummaryInt(summaryMap, const ['remaining', 'Remaining']) ??
-          math.max(totalCount - boarded, 0);
+      final summaryBoarded = _readSummaryInt(summaryMap, const ['boarded', 'Boarded']);
+      var summaryTotal = _readSummaryInt(summaryMap, const ['total', 'Total']) ?? 0;
+      final summaryRemaining = _readSummaryInt(summaryMap, const ['remaining', 'Remaining']);
 
       final parsed = <_TripStop>[];
       for (final raw in students) {
@@ -192,12 +200,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         final sid = _extractStudentId(m);
         if (sid <= 0) continue;
         final point = _extractStudentPoint(m);
-        final boardedFlag = m['boarded'] == true;
-        final absentFlag = m['absent'] == true;
-        final completedExplicit = m['completed'];
-        final completedResolved = completedExplicit != null
-            ? completedExplicit == true
-            : (boardedFlag || absentFlag);
+        final boardedFlag = _readBool(m['boarded'] ?? m['Boarded']);
+        final absentFlag = _readBool(m['absent'] ?? m['Absent']);
+        final completedExplicit = m['completed'] ?? m['Completed'];
+        final explicit = _readTriBool(completedExplicit);
+        final completedResolved = explicit ?? (boardedFlag || absentFlag);
         parsed.add(
           _TripStop(
             studentId: sid,
@@ -213,6 +220,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         );
       }
 
+      if (summaryTotal <= 0 && parsed.isNotEmpty) {
+        summaryTotal = parsed.length;
+      }
+      final fromSummary = summaryTotal > 0;
+
       if (!mounted) return;
       setState(() {
         if (busNo.isNotEmpty) _busNumber = busNo;
@@ -224,13 +236,24 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
             ..clear()
             ..addAll(parsed);
           _currentDestination = parsed.first.location;
+        } else {
+          _stops.clear();
+        }
+
+        if (fromSummary) {
+          _totalCount = summaryTotal;
+          _boardedCount = summaryBoarded ?? 0;
+          _remainingCount = summaryRemaining ??
+              math.max(_totalCount - _boardedCount, 0);
+        } else if (parsed.isNotEmpty) {
           _boardedCount = parsed.where((s) => s.boarded).length;
           _remainingCount = parsed.where((s) => !s.completed).length;
           _totalCount = parsed.length;
         } else {
-          _boardedCount = boarded;
-          _totalCount = totalCount;
-          _remainingCount = remainingCount;
+          _boardedCount = summaryBoarded ?? 0;
+          _totalCount = summaryTotal;
+          _remainingCount = summaryRemaining ??
+              math.max(_totalCount - _boardedCount, 0);
         }
         _routeProgressIndex = 0;
         _routePoints = null;
@@ -461,12 +484,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       } else {
         msg = '$msg Notified ${sos.fcmDelivered} device(s).';
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      await showAppFeedback(context, msg);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send SOS: $e')),
-      );
+      await showAppFeedback(context, 'Failed to send SOS: $e', isError: true);
     } finally {
       if (mounted) setState(() => _sendingSos = false);
     }
@@ -533,10 +554,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         setState(() {
           _eta = 'Location services off';
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enable location services to track the trip.'),
-          ),
+        await showAppFeedback(
+          context,
+          'Please enable location services to track the trip.',
+          isError: true,
         );
       }
       return;
@@ -550,12 +571,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           setState(() {
             _eta = 'Location permission denied';
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Location permission is required to track the trip.',
-              ),
-            ),
+          await showAppFeedback(
+            context,
+            'Location permission is required to track the trip.',
+            isError: true,
           );
         }
         return;
@@ -566,12 +585,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         setState(() {
           _eta = 'Location permanently denied';
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Location permission permanently denied. Enable it from Settings.',
-            ),
-          ),
+        await showAppFeedback(
+          context,
+          'Location permission permanently denied. Enable it from Settings.',
+          isError: true,
         );
       }
       return;
@@ -870,10 +887,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
 
         if (_activeTripId == null || _activeTripId! <= 0) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Trip is not started correctly. Please restart trip.'),
-            ),
+          await showAppFeedback(
+            context,
+            'Trip is not started correctly. Please restart trip.',
+            isError: true,
           );
           return;
         }
@@ -905,6 +922,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
               studentName: matched ? identified.studentName : '',
               studentGrade: matched ? identified.studentGrade : '',
               studentBirthdate: matched ? identified.studentBirthdate : '',
+              studentPhotoUrl: matched ? identified.photoUrl : null,
               busNumber: _busNumber,
               faceAttemptId:
                   matched ? identified.faceAttemptId : identifyResult.attemptId,
@@ -1009,6 +1027,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           studentBirthdate: (student['birthdate'] ?? stop?.studentBirthdate ?? '').toString(),
           faceAttemptId: attemptId,
           matchConfidence: confidence,
+          photoUrl: readPhotoUrlFromMap(student) ?? stop?.photoUrl,
         ),
         message: null,
         attemptId: attemptId,
@@ -1111,8 +1130,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
+        bottom: false,
+        top: false,
         child: Center(
           child: SizedBox(
             width: double.infinity,
@@ -1121,16 +1143,17 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                 // --- TOP HEADER ---
                 Container(
                   width: double.infinity,
-                  height: 170,
-                  padding: const EdgeInsets.fromLTRB(10, 0, 20, 0),
+                  height: 130,
+                  padding: const EdgeInsets.fromLTRB(10, 7, 20, 0),
                   decoration: const BoxDecoration(
                     color: AppColors.primaryBlue97,
                     borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(16.2),
-                      bottomRight: Radius.circular(16.2),
+                      bottomLeft: Radius.circular(40),
+                      bottomRight: Radius.circular(40),
                     ),
                   ),
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.start,
@@ -1146,7 +1169,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                           Expanded(
                             child: Center(
                               child: SizedBox(
-                                height: 126,
+                                height: 90,
                                 child: FittedBox(
                                   fit: BoxFit.scaleDown,
                                   child: Image.asset(
@@ -1154,7 +1177,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                     height: 126,
                                     fit: BoxFit.contain,
                                     errorBuilder: (context, error, stackTrace) =>
-                                        const Icon(
+                                    const Icon(
                                       Icons.directions_bus,
                                       color: Colors.white,
                                       size: 44,
@@ -1178,30 +1201,29 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                               alignment: Alignment.center,
                               child: _sendingSos
                                   ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
                                   : const Text(
-                                      'SOS',
-                                      style: TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
+                                'SOS',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 0),
                       Row(
                         children: [
-                          const SizedBox(width: 0),
+                          const SizedBox(width: 15),
                           Container(
                             width: 24,
                             height: 24,
@@ -1216,7 +1238,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                 height: 24,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(
+                                const Icon(
                                   Icons.person,
                                   color: Colors.white,
                                   size: 16,
@@ -1247,7 +1269,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                 // --- CONTENT ---
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(15),
+                    padding: const EdgeInsets.fromLTRB(15, 10, 15, 0),
                     child: Column(
                       children: [
                         // On Route Status Bar
@@ -1307,7 +1329,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
 
                         const SizedBox(height: 16),
 
-                        // --- DYNAMIC MAP BOX (OpenStreetMap via flutter_map) ---
+                        // --- MAP ---
                         ClipRRect(
                           borderRadius: BorderRadius.circular(25),
                           child: AspectRatio(
@@ -1317,65 +1339,65 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                 Positioned.fill(
                                   child: _currentLocation == null
                                       ? const Center(
-                                          child: CircularProgressIndicator(),
-                                        )
+                                    child: CircularProgressIndicator(),
+                                  )
                                       : FlutterMap(
-                                          mapController: _mapController,
-                                          options: MapOptions(
-                                            initialCenter: _currentLocation!,
-                                            initialZoom: 15,
-                                            maxZoom: 18,
-                                            minZoom: 3,
-                                            onMapEvent: (event) {
-                                              if (event is MapEventMove ||
-                                                  event is MapEventRotate) {
-                                                if (_isMiniMapFollowing) {
-                                                  setState(() {
-                                                    _isMiniMapFollowing = false;
-                                                  });
-                                                }
-                                              }
-                                            },
+                                    mapController: _mapController,
+                                    options: MapOptions(
+                                      initialCenter: _currentLocation!,
+                                      initialZoom: 15,
+                                      maxZoom: 18,
+                                      minZoom: 3,
+                                      onMapEvent: (event) {
+                                        if (event is MapEventMove ||
+                                            event is MapEventRotate) {
+                                          if (_isMiniMapFollowing) {
+                                            setState(() {
+                                              _isMiniMapFollowing = false;
+                                            });
+                                          }
+                                        }
+                                      },
+                                    ),
+                                    children: [
+                                      TileLayer(
+                                        urlTemplate:
+                                        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                        subdomains: const ['a', 'b', 'c'],
+                                        userAgentPackageName:
+                                        'com.busify.app',
+                                      ),
+                                      MarkerLayer(
+                                        markers: [
+                                          Marker(
+                                            point: _currentLocation!,
+                                            width: 18,
+                                            height: 18,
+                                            child: const Icon(
+                                              Icons.directions_car,
+                                              color: Color(0xFF2D7CFF),
+                                              size: 24,
+                                            ),
                                           ),
-                                          children: [
-                                            TileLayer(
-                                              urlTemplate:
-                                                  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                              subdomains: const ['a', 'b', 'c'],
-                                              userAgentPackageName:
-                                                  'com.busify.app',
+                                          Marker(
+                                            point: _currentDestination,
+                                            width: 40,
+                                            height: 40,
+                                            child: const Icon(
+                                              Icons.location_pin,
+                                              color: Colors.red,
+                                              size: 36,
                                             ),
-                                            MarkerLayer(
-                                              markers: [
-                                                Marker(
-                                                  point: _currentLocation!,
-                                                  width: 18,
-                                                  height: 18,
-                                                  child: const Icon(
-                                                    Icons.directions_car,
-                                                    color: Color(0xFF2D7CFF),
-                                                    size: 24,
-                                                  ),
-                                                ),
-                                                Marker(
-                                                  point: _currentDestination,
-                                                  width: 40,
-                                                  height: 40,
-                                                  child: const Icon(
-                                                    Icons.location_pin,
-                                                    color: Colors.red,
-                                                    size: 36,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            if (_routePoints != null)
-                                              PolylineLayer(
-                                                polylines:
-                                                    _buildColoredRoutePolylines(),
-                                              ),
-                                          ],
+                                          ),
+                                        ],
+                                      ),
+                                      if (_routePoints != null)
+                                        PolylineLayer(
+                                          polylines:
+                                          _buildColoredRoutePolylines(),
                                         ),
+                                    ],
+                                  ),
                                 ),
                                 Positioned(
                                   left: 12,
@@ -1395,8 +1417,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                       width: 40,
                                       height: 40,
                                       decoration: BoxDecoration(
-                                        color:
-                                            context.appOverlayButtonBackground,
+                                        color: context.appOverlayButtonBackground,
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
@@ -1438,15 +1459,13 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                               fadeRoute(
                                                 SupervisorFullMapScreen(
                                                   routeDestination:
-                                                      _currentDestination,
+                                                  _currentDestination,
                                                   tripId: _activeTripId,
                                                 ),
                                               ),
                                             );
                                           },
-                                          borderRadius: BorderRadius.circular(
-                                            25,
-                                          ),
+                                          borderRadius: BorderRadius.circular(25),
                                           child: Center(
                                             child: Text(
                                               'View Full Map',
@@ -1484,8 +1503,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                           child: Column(
                             children: [
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Students Boarded',
@@ -1496,7 +1514,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                     ),
                                   ),
                                   Text(
-                                    '$_processedPickupCount / $_totalCount',
+                                    '$_boardedCount / $_totalCount',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 16,
@@ -1512,19 +1530,20 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                   height: 12,
                                   width: double.infinity,
                                   child: Stack(
+                                    fit: StackFit.expand,
                                     children: [
-                                      Container(
-                                        color: context.appProgressTrack,
-                                      ),
-                                      FractionallySizedBox(
-                                        widthFactor: _totalCount <= 0
-                                            ? 0
-                                            : (_processedPickupCount /
-                                                    _totalCount)
-                                                .clamp(0.0, 1.0),
+                                      Container(color: context.appProgressTrack),
+                                      Align(
                                         alignment: Alignment.centerLeft,
-                                        child: Container(
-                                          color: const Color(0xFF18A74A),
+                                        child: FractionallySizedBox(
+                                          widthFactor: _totalCount <= 0
+                                              ? 0.0
+                                              : (_boardedCount / _totalCount)
+                                              .clamp(0.0, 1.0),
+                                          heightFactor: 1.0,
+                                          child: Container(
+                                            color: const Color(0xFF18A74A),
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -1569,7 +1588,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
 
                         const SizedBox(height: 20),
 
-                        // Take attendance CTA (325x54 with icon + text)
+                        // Take Attendance Button
                         SizedBox(
                           width: 325,
                           height: 54,
@@ -1595,9 +1614,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                         AppImages.attendance,
                                         width: 30,
                                         height: 30,
-                                        color: Color(0xFF8FBFFA),
+                                        color: const Color(0xFF8FBFFA),
                                         errorBuilder: (context, error, stackTrace) =>
-                                            const Icon(
+                                        const Icon(
                                           Icons.fact_check,
                                           color: Color(0xFF8FBFFA),
                                           size: 30,
@@ -1620,13 +1639,15 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                             ),
                           ),
                         ),
+
                         const SizedBox(height: 12),
+
+                        // Make Absent Button
                         SizedBox(
                           width: 325,
                           height: 54,
                           child: _disabledTripCtaBlur(
-                            enabled:
-                                !(_markingAbsent || _allStudentStopsCompleted),
+                            enabled: !(_markingAbsent || _allStudentStopsCompleted),
                             borderRadius: BorderRadius.circular(10),
                             child: DecoratedBox(
                               decoration: BoxDecoration(
@@ -1647,22 +1668,22 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                   child: Center(
                                     child: _markingAbsent
                                         ? const SizedBox(
-                                            width: 22,
-                                            height: 22,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
                                         : const Text(
-                                            'Make Absent',
-                                            style: TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.w500,
-                                              color: AppColors.white,
-                                            ),
-                                          ),
+                                      'Make Absent',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppColors.white,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1675,7 +1696,20 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                 ),
 
                 // --- BOTTOM NAV ---
-                _buildBottomNav(context),
+                SupervisorBottomNavBar(
+                  activeTab: SupervisorNavTab.attendance,
+                  onHomeTap: () => Navigator.pushReplacement(
+                    context,
+                    fadeRoute(const SupervisorHomeScreen()),
+                  ),
+                  onAttendanceTap: _takeAttendance,
+                  onProfileTap: () {
+                    Navigator.push(
+                      context,
+                      fadeRoute(const SupervisorProfileScreen()),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -1684,94 +1718,6 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     );
   }
 
-  Widget _buildBottomNav(BuildContext context) {
-    // README: Home active (2859C5), Attendance inactive (595959), Profile inactive (595959)
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Container(
-        height: 70,
-        decoration: BoxDecoration(
-          color: context.appPanelBackground,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _navItem(
-              context,
-              AppImages.navbarHomeInactive,
-              'Home',
-              false,
-              () => Navigator.pushReplacement(
-                context,
-                fadeRoute(const SupervisorHomeScreen()),
-              ),
-            ),
-            _navItem(
-              context,
-              AppImages.navbarAttendanceActive,
-              'Attendance',
-              true,
-              _takeAttendance,
-            ),
-            _navItem(context, AppImages.navbarProfile, 'Profile', false, () {
-              Navigator.push(
-                context,
-                fadeRoute(const SupervisorProfileScreen()),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _navItem(
-    BuildContext context,
-    String iconPath,
-    String label,
-    bool isActive,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          label == 'Profile'
-              ? Icon(
-                  Icons.person,
-                  size: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                )
-              : Image.asset(
-                  iconPath,
-                  width: 28,
-                  height: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    label == 'Home' ? Icons.home : Icons.fact_check_outlined,
-                    size: 28,
-                    color: isActive
-                        ? AppColors.linkBlue
-                        : context.appInactiveNav,
-                  ),
-                ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: isActive ? AppColors.linkBlue : context.appSecondaryText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// Owns [TextEditingController] for the absent-reason field so it is not
@@ -1866,6 +1812,7 @@ class _FaceIdentifyHit {
   final String studentBirthdate;
   final int faceAttemptId;
   final double matchConfidence;
+  final String? photoUrl;
 
   const _FaceIdentifyHit({
     required this.studentId,
@@ -1874,5 +1821,6 @@ class _FaceIdentifyHit {
     required this.studentBirthdate,
     required this.faceAttemptId,
     required this.matchConfidence,
+    this.photoUrl,
   });
 }

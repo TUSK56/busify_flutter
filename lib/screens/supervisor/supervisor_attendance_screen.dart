@@ -5,12 +5,14 @@ import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/api_json.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_home_screen.dart';
 import 'package:application/screens/supervisor/supervisor_profile_screen.dart';
 import 'package:application/screens/supervisor/supervisor_qr_confirmation_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/utils/api_config.dart';
+import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -38,6 +40,7 @@ class SupervisorAttendanceScreen extends StatefulWidget {
   final String studentName;
   final String studentGrade;
   final String studentBirthdate;
+  final String? studentPhotoUrl;
   final String busNumber;
   final int faceAttemptId;
   final double matchConfidence;
@@ -61,6 +64,7 @@ class SupervisorAttendanceScreen extends StatefulWidget {
     required this.studentName,
     required this.studentGrade,
     required this.studentBirthdate,
+    this.studentPhotoUrl,
     required this.busNumber,
     required this.faceAttemptId,
     required this.matchConfidence,
@@ -77,6 +81,14 @@ class SupervisorAttendanceScreen extends StatefulWidget {
 
 class _SupervisorAttendanceScreenState
     extends State<SupervisorAttendanceScreen> {
+  /// Frosted card height when face matched / normal flow (logical px).
+  static const double _glassCardHeightNormal = 154;
+  /// Frosted card height when manual "Choose student" list is shown (logical px).
+  static const double _glassCardHeightManual = 195;
+
+  /// Max width of the styled "Choose student" field (logical px). Lower = narrower dropdown.
+  static const double _manualStudentDropdownMaxWidth = 220;
+
   late String currentImagePath;
   bool _isSubmitting = false;
   bool _sendingSos = false;
@@ -155,16 +167,20 @@ class _SupervisorAttendanceScreenState
       final resp = await http.post(uri, headers: headers, body: body);
       if (resp.statusCode < 200 || resp.statusCode >= 300) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Attendance failed: HTTP ${resp.statusCode}')),
+        await showAppFeedback(
+          context,
+          'Attendance failed: HTTP ${resp.statusCode}',
+          isError: true,
         );
         return;
       }
       final data = coerceJsonMap(jsonDecode(resp.body));
       if (data == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Attendance failed: invalid response')),
+        await showAppFeedback(
+          context,
+          'Attendance failed: invalid response',
+          isError: true,
         );
         return;
       }
@@ -197,22 +213,29 @@ class _SupervisorAttendanceScreenState
         return 'Trip';
       }
 
+      int summaryInt(dynamic v) {
+        if (v is num) return v.toInt();
+        return int.tryParse(v?.toString() ?? '') ?? 0;
+      }
+
       if (!mounted) return;
       final confirmName = picked?.name ?? widget.studentName;
       final confirmGrade = picked?.grade ?? widget.studentGrade;
       final confirmBirth = picked?.birthdate ?? widget.studentBirthdate;
+      final confirmPhoto = picked?.photoUrl ?? widget.studentPhotoUrl;
       final done = await Navigator.push<bool>(
         context,
         fadeRoute(
           SupervisorQrConfirmationScreen(
             imagePath: currentImagePath,
-            studentPhotoUrl: picked?.photoUrl,
+            studentPhotoUrl: confirmPhoto,
+            preferEnrolledPhoto: picked != null,
             studentName: confirmName,
             studentGrade: confirmGrade,
             studentBirthdate: confirmBirth,
             busNumber: widget.busNumber,
-            boarded: (summary['boarded'] as num?)?.toInt() ?? 0,
-            remaining: (summary['remaining'] as num?)?.toInt() ?? 0,
+            boarded: summaryInt(summary['boarded']),
+            remaining: summaryInt(summary['remaining']),
             tripId: tripId,
             studentId: effectiveStudentId,
             scanTimeLabel: fmtAmPm(scannedLocal),
@@ -236,7 +259,8 @@ class _SupervisorAttendanceScreenState
       if (!mounted) return;
       var msg = 'SOS processed; trip ended.';
       if (sos.recipients <= 0) {
-        msg = '$msg No parents on this bus to notify.';
+        msg =
+            '$msg No push: only parents whose child has boarded (IN scan) this trip are notified.';
       } else if (sos.fcmAttempted <= 0) {
         msg = '$msg Parents have no registered devices — open parent app after login.';
       } else if (sos.fcmDelivered <= 0) {
@@ -245,12 +269,10 @@ class _SupervisorAttendanceScreenState
       } else {
         msg = '$msg Notified ${sos.fcmDelivered} device(s).';
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      await showAppFeedback(context, msg);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send SOS: $e')),
-      );
+      await showAppFeedback(context, 'Failed to send SOS: $e', isError: true);
     } finally {
       if (mounted) setState(() => _sendingSos = false);
     }
@@ -261,6 +283,8 @@ class _SupervisorAttendanceScreenState
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
+        top: false,
+        bottom: false,
         child: Center(
           child: SizedBox(
             width: double.infinity,
@@ -269,7 +293,7 @@ class _SupervisorAttendanceScreenState
                 // Header (Figma Position x:-16 y:-14)
                 Container(
                   width: double.infinity,
-                  height: 198,
+                  height: 190,
                   decoration: const BoxDecoration(
                     color: AppColors.primaryBlue97,
                     borderRadius: BorderRadius.only(
@@ -279,7 +303,6 @@ class _SupervisorAttendanceScreenState
                   ),
                   child: Column(
                     children: [
-                      const SizedBox(height: 0),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Row(
@@ -343,7 +366,6 @@ class _SupervisorAttendanceScreenState
                           ],
                         ),
                       ),
-                      const SizedBox(height: 0),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Row(
@@ -370,7 +392,7 @@ class _SupervisorAttendanceScreenState
                           ],
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 5),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 65),
                         child: Align(
@@ -392,277 +414,259 @@ class _SupervisorAttendanceScreenState
 
                 const SizedBox(height: 10),
 
-                // Scanned Image + Glass Card
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(50),
-                          child: Image.file(
-                            File(currentImagePath),
-                            width: 366,
-                            height: 300,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        // Glass Card (README: 355x154, radius 30, ffffff 37%, blur 30, shadow)
-                        Positioned(
-                          bottom: 15,
-                          left: 10,
-                          right: 10,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(30),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                              child: Container(
-                                height: 154,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.37),
-                                  borderRadius: BorderRadius.circular(30),
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 1,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.25),
-                                      offset: const Offset(0, 4),
-                                      blurRadius: 4,
-                                      spreadRadius: 0,
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  children: [
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        if (widget.allowConfirmAttendance)
-                                          Image.asset(
-                                            AppImages.image14,
-                                            width: 54,
-                                            height: 24,
-                                            errorBuilder: (_, __, ___) =>
-                                                const Icon(
-                                                  Icons.check_circle,
-                                                  color: Color(0xFF16A34A),
-                                                  size: 28,
-                                                ),
-                                          )
-                                        else
-                                          const Icon(
-                                            Icons.highlight_off,
-                                            color: Color(0xFFDC2626),
-                                            size: 28,
-                                          ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          widget.allowConfirmAttendance
-                                              ? 'Attendance Recorded'
-                                              : 'No match',
-                                          style: const TextStyle(
-                                            fontFamily: 'Inter',
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF000000),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (widget.allowConfirmAttendance)
-                                      Text(
-                                        widget.studentName,
-                                        style: const TextStyle(
-                                          fontFamily: 'Inter',
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.black,
-                                        ),
-                                      )
-                                    else if (widget.allowManualStudentPick)
-                                      Expanded(
-                                        child: SingleChildScrollView(
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 2,
-                                            ),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  _noMatchDisplayText(),
-                                                  textAlign: TextAlign.center,
-                                                  maxLines: 3,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize:
-                                                        _noMatchDisplayText().length > 42
-                                                            ? 12
-                                                            : 14,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: const Color(0xFF000000),
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 6),
-                                                InputDecorator(
-                                                  decoration: const InputDecoration(
-                                                    isDense: true,
-                                                    contentPadding:
-                                                        EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 6,
-                                                    ),
-                                                    border: OutlineInputBorder(),
-                                                  ),
-                                                  child: DropdownButtonHideUnderline(
-                                                    child: DropdownButton<int>(
-                                                      isExpanded: true,
-                                                      isDense: true,
-                                                      value: _manualStudentId,
-                                                      hint: const Text(
-                                                        'Choose student',
-                                                        style: TextStyle(
-                                                          fontSize: 13,
-                                                          fontWeight: FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                      items: widget.manualStudentOptions
-                                                          .map(
-                                                            (o) => DropdownMenuItem(
-                                                              value: o.studentId,
-                                                              child: Text(
-                                                                '${o.name} (${o.grade})',
-                                                                overflow:
-                                                                    TextOverflow.ellipsis,
-                                                                maxLines: 1,
-                                                                style: const TextStyle(
-                                                                  fontSize: 13,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          )
-                                                          .toList(),
-                                                      onChanged: (v) {
-                                                        setState(
-                                                            () => _manualStudentId = v);
-                                                      },
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      Builder(
-                                        builder: (context) {
-                                          final detail = _noMatchDisplayText();
-                                          return Expanded(
-                                            child: Padding(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 2,
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  detail,
-                                                  textAlign: TextAlign.center,
-                                                  maxLines: 4,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize:
-                                                        detail.length > 42 ? 13 : 15,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: const Color(
-                                                        0xFF000000),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    if (widget.allowConfirmAttendance)
-                                      const Spacer(),
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 15,
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceEvenly,
-                                        children: [
-                                          _buildRescanBtn(context),
-                                          _buildConfirmBtn(context),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  child: _buildScanWithCard(context),
                 ),
 
                 // Bottom nav (README: Attendance active - 2859c5)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: Container(
-                    height: 70,
-                    decoration: BoxDecoration(
-                      color: context.appPanelBackground,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _navItem(
-                          context,
-                          AppImages.navbarHome,
-                          'Home',
-                          false,
-                          () => Navigator.pushReplacement(
-                            context,
-                            fadeRoute(const SupervisorHomeScreen()),
-                          ),
-                        ),
-                        _navItem(
-                          context,
-                          AppImages.navbarAttendanceActive,
-                          'Attendance',
-                          true,
-                          () {},
-                        ),
-                        _navItem(
-                          context,
-                          AppImages.navbarProfile,
-                          'Profile',
-                          false,
-                          () => Navigator.push(
-                            context,
-                            fadeRoute(const SupervisorProfileScreen()),
-                          ),
-                        ),
-                      ],
-                    ),
+                SupervisorBottomNavBar(
+                  activeTab: SupervisorNavTab.attendance,
+                  onHomeTap: () => Navigator.pushReplacement(
+                    context,
+                    fadeRoute(const SupervisorHomeScreen()),
+                  ),
+                  onAttendanceTap: () {},
+                  onProfileTap: () => Navigator.push(
+                    context,
+                    fadeRoute(const SupervisorProfileScreen()),
                   ),
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  BoxDecoration _glassCardDecoration() {
+    return BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.37),
+      borderRadius: BorderRadius.circular(30),
+      border: Border.all(color: Colors.white, width: 1),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.25),
+          offset: const Offset(0, 4),
+          blurRadius: 4,
+          spreadRadius: 0,
+        ),
+      ],
+    );
+  }
+
+  /// Bottom overlay on the scan preview. Card height: [_glassCardHeightNormal] or [_glassCardHeightManual].
+  Widget _buildScanWithCard(BuildContext context) {
+    final detail = _noMatchDisplayText();
+    final manual = widget.allowManualStudentPick;
+    final glassHeight =
+        manual ? _glassCardHeightManual : _glassCardHeightNormal;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(50),
+            child: Image.file(
+              File(currentImagePath),
+              width: 366,
+              height: 360,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            bottom: 15,
+            left: 10,
+            right: 10,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(30),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                child: Container(
+                  height: glassHeight,
+                  decoration: _glassCardDecoration(),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (widget.allowConfirmAttendance)
+                            Image.asset(
+                              AppImages.image14,
+                              width: 54,
+                              height: 24,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.check_circle,
+                                color: Color(0xFF16A34A),
+                                size: 28,
+                              ),
+                            )
+                          else
+                            const Icon(
+                              Icons.highlight_off,
+                              color: Color(0xFFDC2626),
+                              size: 28,
+                            ),
+                          const SizedBox(width: 8),
+                          Text(
+                            widget.allowConfirmAttendance
+                                ? 'Attendance Recorded'
+                                : 'No match',
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF000000),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (widget.allowConfirmAttendance) ...[
+                        Text(
+                          widget.studentName,
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black,
+                          ),
+                        ),
+                        const Spacer(),
+                      ] else if (manual) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          detail,
+                          textAlign: TextAlign.center,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: detail.length > 42 ? 12 : 14,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF000000),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: _manualStudentDropdownMaxWidth,
+                            ),
+                            child: Theme(
+                              data: Theme.of(context).copyWith(
+                                canvasColor:
+                                    Colors.white.withValues(alpha: 0.96),
+                              ),
+                              child: InputDecorator(
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  filled: true,
+                                  fillColor:
+                                      Colors.white.withValues(alpha: 0.42),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: Colors.white.withValues(alpha: 0.85),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: Colors.white.withValues(alpha: 0.85),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.primaryBlue,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<int>(
+                                    isExpanded: true,
+                                    isDense: true,
+                                    borderRadius: BorderRadius.circular(12),
+                                    value: _manualStudentId,
+                                    hint: Text(
+                                      'Choose student',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.black.withValues(alpha: 0.55),
+                                      ),
+                                    ),
+                                    items: widget.manualStudentOptions
+                                        .map(
+                                          (o) => DropdownMenuItem(
+                                            value: o.studentId,
+                                            child: Text(
+                                              '${o.name} (${o.grade})',
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                              style: const TextStyle(fontSize: 13),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (v) {
+                                      setState(() => _manualStudentId = v);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                      ] else ...[
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            child: Center(
+                              child: Text(
+                                detail,
+                                textAlign: TextAlign.center,
+                                maxLines: 4,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: detail.length > 42 ? 13 : 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF000000),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 15),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildRescanBtn(context),
+                            _buildConfirmBtn(context),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -674,7 +678,7 @@ class _SupervisorAttendanceScreenState
         width: 148,
         height: 46,
         decoration: BoxDecoration(
-          color: AppColors.e6e9ed.withOpacity(0.94),
+          color: AppColors.e6e9ed.withValues(alpha: 0.94),
           borderRadius: BorderRadius.circular(7),
           border: Border.all(color: AppColors.primaryBlue, width: 1),
         ),
@@ -752,50 +756,4 @@ class _SupervisorAttendanceScreenState
     );
   }
 
-  Widget _navItem(
-    BuildContext context,
-    String iconPath,
-    String label,
-    bool isActive,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          label == 'Profile'
-              ? Icon(
-                  Icons.person,
-                  size: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                )
-              : Image.asset(
-                  iconPath,
-                  width: 28,
-                  height: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                  errorBuilder: (_, __, ___) => Icon(
-                    label == 'Home' ? Icons.home : Icons.fact_check,
-                    size: 28,
-                    color: isActive
-                        ? AppColors.linkBlue
-                        : context.appInactiveNav,
-                  ),
-                ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: isActive ? AppColors.linkBlue : context.appSecondaryText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

@@ -311,12 +311,22 @@ class ParentService {
   Future<Map<String, dynamic>> updateProfile({
     required String email,
     required String phone,
+    String? address,
+    String? governorate,
+    String? street,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/profile');
+    final body = <String, dynamic>{
+      'email': email,
+      'phone': phone,
+      if (address != null) 'address': address,
+      if (governorate != null) 'governorate': governorate,
+      if (street != null) 'street': street,
+    };
     final response = await http.patch(
       uri,
       headers: _authHeaders(),
-      body: jsonEncode({'email': email, 'phone': phone}),
+      body: jsonEncode(body),
     );
     if (response.statusCode != 200 && response.statusCode != 201) {
       String message = 'Update profile failed';

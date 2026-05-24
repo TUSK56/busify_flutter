@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:application/helpers/app_back_button.dart';
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
@@ -226,8 +227,10 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
                                     onTap: () async {
                                       final email = _emailController.text.trim();
                                       if (email.isEmpty) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Please enter your email.')),
+                                        await showAppFeedback(
+                                          context,
+                                          'Please enter your email.',
+                                          isError: true,
                                         );
                                         return;
                                       }
@@ -240,8 +243,10 @@ class _SupervisorForgetPasswordScreenState extends State<SupervisorForgetPasswor
                                         );
                                       } on SupervisorServiceException catch (e) {
                                         if (!context.mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text(e.message)),
+                                        await showAppFeedback(
+                                          context,
+                                          e.message,
+                                          isError: true,
                                         );
                                       }
                                     },

@@ -1,11 +1,13 @@
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
+import 'package:application/helpers/app_feedback.dart';
 import 'package:application/helpers/fade_route.dart';
 import 'package:application/screens/supervisor/supervisor_profile_screen.dart';
 import 'package:application/screens/supervisor/supervisor_trip_screen.dart';
 import 'package:application/utils/api_config.dart';
 import 'package:application/services/service_locator.dart';
+import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -57,10 +59,11 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
   }
 
   Future<void> _goToTrip() async {
-    Navigator.push(
+    await Navigator.push(
       context,
       fadeRoute(SupervisorTripScreen(tripId: _activeTripId)),
     );
+    if (mounted) await _load();
   }
 
   Future<void> _startTrip() async {
@@ -81,13 +84,17 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
         return;
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Start trip failed (HTTP ${resp.statusCode})')),
+      await showAppFeedback(
+        context,
+        'Start trip failed (HTTP ${resp.statusCode})',
+        isError: true,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error starting trip: $e')),
+      await showAppFeedback(
+        context,
+        'Error starting trip: $e',
+        isError: true,
       );
     }
   }
@@ -108,19 +115,21 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
       if (resp.statusCode == 200 || resp.statusCode == 201) {
         await _load();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Trip ended')),
-        );
+        await showAppFeedback(context, 'Trip ended');
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('End trip failed (HTTP ${resp.statusCode})')),
+        await showAppFeedback(
+          context,
+          'End trip failed (HTTP ${resp.statusCode})',
+          isError: true,
         );
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error ending trip: $e')),
+      await showAppFeedback(
+        context,
+        'Error ending trip: $e',
+        isError: true,
       );
     } finally {
       if (mounted) setState(() => _endingTrip = false);
@@ -157,8 +166,11 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: context.appScaffoldBackground,
       body: SafeArea(
+        top: false,
+        bottom: false,
         child: Center(
           child: SizedBox(
             width: double.infinity,
@@ -175,13 +187,8 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
                             children: [
                               Container(
                                 width: double.infinity,
-                                height: 200,
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  0,
-                                  20,
-                                  0,
-                                ),
+                                height: 150,
+                                padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
                                 decoration: const BoxDecoration(
                                   color: AppColors.primaryBlue97,
                                   borderRadius: BorderRadius.only(
@@ -190,27 +197,21 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
                                   ),
                                 ),
                                 child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Image.asset(
-                                          AppImages.logo,
-                                          height: 126,
-                                          fit: BoxFit.contain,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              const Icon(
-                                                Icons.bus_alert,
-                                                color: AppColors.white,
-                                                size: 40,
-                                              ),
-                                        ),
-                                      ],
+                                    Center(
+                                      child: Image.asset(
+                                        AppImages.logo,
+                                        height: 98,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                        const Icon(Icons.bus_alert, color: AppColors.white, size: 40),
+                                      ),
                                     ),
                                     const SizedBox(height: 0),
                                     Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.center,
                                       children: [
                                         Expanded(
                                           child: Text(
@@ -219,30 +220,29 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
                                               fontFamily: 'Inter',
                                               fontSize: 20,
                                               fontWeight: FontWeight.w600,
-                                              height: 22 / 32,
                                               color: AppColors.white,
                                             ),
                                           ),
                                         ),
                                         const SizedBox(width: 16),
-                                        Container(
-                                          width: 52,
-                                          height: 52,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: context.appAvatarPlaceholder,
-                                          ),
-                                          child: ClipOval(
-                                            child: Image.asset(
-                                              AppImages.supervisorAvatar,
-                                              width: 52,
-                                              height: 52,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) =>
-                                                  const Icon(
-                                                    Icons.person,
-                                                    color: AppColors.white,
-                                                  ),
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(0, 0, 0, 6),
+                                          child: Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: context.appAvatarPlaceholder,
+                                            ),
+                                            child: ClipOval(
+                                              child: Image.asset(
+                                                AppImages.supervisorAvatar,
+                                                width: 40,
+                                                height: 40,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) =>
+                                                const Icon(Icons.person, color: AppColors.white),
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -252,12 +252,7 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  10,
-                                  30,
-                                  10,
-                                  0,
-                                ),
+                                padding: const EdgeInsets.fromLTRB(10, 30, 10, 0),
                                 child: Column(
                                   children: [
                                     Container(
@@ -371,59 +366,20 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
                         ),
                         Align(
                           alignment: Alignment.bottomCenter,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  height: 70,
-                                  decoration: BoxDecoration(
-                                    color: context.appPanelBackground,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      _buildNavItem(
-                                        context: context,
-                                        iconPath: AppImages.navbarHomeActive,
-                                        label: 'Home',
-                                        isActive: true,
-                                        onTap: () {},
-                                      ),
-                                      _buildNavItem(
-                                        context: context,
-                                        iconPath: AppImages.navbarAttendance,
-                                        label: 'Attendance',
-                                        isActive: false,
-                                        onTap: _loading
-                                            ? () {}
-                                            : (_activeTripId != null &&
-                                                    _activeTripId! > 0)
-                                                ? _goToTrip
-                                                : _startTrip,
-                                      ),
-                                      _buildNavItem(
-                                        context: context,
-                                        iconPath: AppImages.navbarProfile,
-                                        label: 'Profile',
-                                        isActive: false,
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            fadeRoute(
-                                              const SupervisorProfileScreen(),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                          child: SupervisorBottomNavBar(
+                            activeTab: SupervisorNavTab.home,
+                            onHomeTap: () {},
+                            onAttendanceTap: _loading
+                                ? () {}
+                                : (_activeTripId != null && _activeTripId! > 0)
+                                    ? _goToTrip
+                                    : _startTrip,
+                            onProfileTap: () {
+                              Navigator.push(
+                                context,
+                                fadeRoute(const SupervisorProfileScreen()),
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -438,51 +394,6 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
     );
   }
 
-  Widget _buildNavItem({
-    required BuildContext context,
-    required String iconPath,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          label == 'Profile'
-              ? Icon(
-                  Icons.person,
-                  size: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                )
-              : Image.asset(
-                  iconPath,
-                  width: 28,
-                  height: 28,
-                  color: isActive ? AppColors.linkBlue : context.appInactiveNav,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    label == 'Home' ? Icons.home : Icons.grid_view_rounded,
-                    size: 28,
-                    color: isActive
-                        ? AppColors.linkBlue
-                        : context.appInactiveNav,
-                  ),
-                ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: isActive ? AppColors.linkBlue : context.appSecondaryText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // Sub-widget for the Status Card inner elements
@@ -507,28 +418,31 @@ class _StatusCardContent extends StatelessWidget {
         children: [
           Positioned(
             left: 0,
-            top: 0,
-            child: Text(
-              'Students Status',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: context.appPrimaryText,
-              ),
-            ),
-          ),
-          Positioned(
             right: 0,
             top: 0,
-            child: Text(
-              'Bus #$busNumber',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 20,
-                fontWeight: FontWeight.w500,
-                color: context.appPrimaryText,
-              ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'Students Status',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                    color: context.appPrimaryText,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'Bus #$busNumber',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: context.appPrimaryText,
+                  ),
+                ),
+              ],
             ),
           ),
           // Divider line
