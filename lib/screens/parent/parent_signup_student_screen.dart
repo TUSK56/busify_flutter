@@ -10,6 +10,7 @@ import 'package:application/models/parent_signup_data.dart';
 import 'package:application/models/school.dart';
 import 'package:application/screens/parent/parent_login_screen.dart';
 import 'package:application/services/service_locator.dart';
+import 'package:application/widgets/parent/parent_face_enrollment.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:application/constants/app_colors.dart';
@@ -36,6 +37,13 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
   DateTime? _selectedBirthdate;
   bool _isLoading = false;
   XFile? _facePhoto;
+  bool _faceVerified = false;
+  bool _faceChecking = false;
+  String? _faceStatusMessage;
+  String? _faceRejectReason;
+
+  bool get _canSignUp =>
+      _faceVerified && !_faceChecking && !_isLoading && _facePhoto != null;
 
   @override
   void initState() {
@@ -51,72 +59,41 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
   }
 
   Future<void> _pickFacePhoto() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take photo'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source == null || !mounted) return;
-    final picker = ImagePicker();
-    final x = await picker.pickImage(
-      source: source,
-      imageQuality: 88,
-      maxWidth: 1280,
-    );
-    if (x == null || !mounted) return;
-    setState(() => _facePhoto = x);
+    final captured = await pickParentFacePhoto();
+    if (captured == null || !mounted) return;
+    setState(() {
+      _facePhoto = captured;
+      _faceVerified = false;
+      _faceStatusMessage = null;
+      _faceRejectReason = null;
+    });
+    await _verifyFacePhoto(captured);
   }
 
-  Future<bool> _validateFacePhoto(XFile photo) async {
-    try {
-      final bytes = await File(photo.path).readAsBytes();
-      if (bytes.length < 20 * 1024) {
-        if (!mounted) return false;
-        await showAppFeedback(
-          context,
-          'Face photo is too small. Please retake clearly.',
-          isError: true,
-        );
-        return false;
-      }
-      final codec = await instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      final image = frame.image;
-      final ratio = image.width / image.height;
-      if (image.width < 240 || image.height < 240 || ratio < 0.6 || ratio > 1.8) {
-        if (!mounted) return false;
-        await showAppFeedback(
-          context,
-          'Use a clear front face photo (good lighting).',
-          isError: true,
-        );
-        return false;
-      }
-      return true;
-    } catch (_) {
-      if (!mounted) return false;
-      await showAppFeedback(
-        context,
-        'Could not process face photo. Please try another image.',
-        isError: true,
-      );
-      return false;
-    }
+  Future<void> _verifyFacePhoto(XFile photo) async {
+    setState(() {
+      _faceChecking = true;
+      _faceVerified = false;
+      _faceStatusMessage = 'Checking face photo…';
+      _faceRejectReason = null;
+    });
+    final result = await verifyParentFacePhoto(photo);
+    if (!mounted) return;
+    setState(() {
+      _faceChecking = false;
+      _faceVerified = result.verified;
+      _faceStatusMessage = result.statusMessage;
+      _faceRejectReason = result.rejectReason;
+    });
+  }
+
+  Color _faceBorderColor() {
+    return parentFaceBorderColor(
+      hasPhoto: _facePhoto != null,
+      verified: _faceVerified,
+      rejected: _faceRejectReason != null,
+      defaultColor: AppColors.white.withOpacity(0.79),
+    );
   }
 
   String _birthdateForApi(DateTime date) {
@@ -496,7 +473,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                     ),
                                   ),
                                   GestureDetector(
-                                    onTap: _pickFacePhoto,
+                                    onTap: _faceChecking || _isLoading ? null : _pickFacePhoto,
                                     child: Container(
                                       width: 291,
                                       height: 140,
@@ -505,8 +482,8 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                         color: AppColors.white.withOpacity(0.21),
                                         borderRadius: BorderRadius.circular(15),
                                         border: Border.all(
-                                          color: AppColors.white.withOpacity(0.79),
-                                          width: 1,
+                                          color: _faceBorderColor(),
+                                          width: _faceVerified || _faceRejectReason != null ? 2 : 1,
                                         ),
                                       ),
                                       child: _facePhoto == null
@@ -520,7 +497,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Text(
-                                                  'Tap to add a clear face photo',
+                                                  'Tap to take a face photo',
                                                   textAlign: TextAlign.center,
                                                   style: TextStyle(
                                                     fontFamily: 'Inter',
@@ -542,15 +519,49 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                             ),
                                     ),
                                   ),
+                                  if (_facePhoto != null) ...[
+                                    const SizedBox(height: 8),
+                                    ParentFaceStatusRow(
+                                      checking: _faceChecking,
+                                      verified: _faceVerified,
+                                      statusMessage: _faceStatusMessage,
+                                      messageStyle: const TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppColors.primaryBlue,
+                                      ),
+                                    ),
+                                    if (_faceRejectReason != null) ...[
+                                      const SizedBox(height: 8),
+                                      TextButton(
+                                        onPressed: _faceChecking || _isLoading ? null : _pickFacePhoto,
+                                        child: const Text(
+                                          'Retake photo',
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.primaryBlue,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ],
                               ),
                             ),
 
                             const SizedBox(height: 48), // Spacing before button
 
-                            // Sign Up Button
-                            GestureDetector(
-                              onTap: _isLoading ? null : () async {
+                            // Sign Up Button (blurred until face check passes)
+                            SizedBox(
+                              width: 291,
+                              height: 62,
+                              child: parentSubmitDisabledBlur(
+                                enabled: _canSignUp,
+                                borderRadius: BorderRadius.circular(15),
+                                child: GestureDetector(
+                              onTap: !_canSignUp ? null : () async {
                                 final studentName = _studentNameController.text.trim();
                                 final birthdate = _birthdateController.text.trim();
 
@@ -594,9 +605,15 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                   );
                                   return;
                                 }
-                                final faceOk = await _validateFacePhoto(_facePhoto!);
-                                if (!faceOk) return;
-
+                                if (!_faceVerified) {
+                                  await showAppFeedback(
+                                    context,
+                                    _faceStatusMessage ??
+                                        'Please wait for face verification or retake the photo.',
+                                    isError: true,
+                                  );
+                                  return;
+                                }
                                 setState(() => _isLoading = true);
                                 try {
                                   final bytes = await File(_facePhoto!.path).readAsBytes();
@@ -664,6 +681,8 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                 ),
                               ),
                             ),
+                              ),
+                            ),
 
                           ],
                         ),
@@ -679,7 +698,6 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
     );
   }
 
-  // A helper method that builds the deep-blue text label over the specific 55px text field container
   Widget _buildInputWrapper({
     required String label,
     required Widget child,
@@ -716,7 +734,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                 width: 1,
               ),
             ),
-            child: child, // Injects either the TextField or DropdownButton here
+            child: child,
           ),
         ],
       ),

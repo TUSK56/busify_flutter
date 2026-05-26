@@ -1,9 +1,8 @@
-import 'dart:convert';
-
+import 'package:application/constants/location_tracking.dart';
+import 'package:application/helpers/google_geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
 
-/// Result of resolving GPS → governorate/street (same Nominatim flow as parent signup).
+/// Result of resolving GPS → governorate/street (Google Geocoding).
 class ParentResolvedGps {
   const ParentResolvedGps({
     required this.latitude,
@@ -42,37 +41,19 @@ Future<ParentResolvedGps> resolveParentGpsWithNominatim() async {
   }
 
   final position = await Geolocator.getCurrentPosition(
-    desiredAccuracy: LocationAccuracy.bestForNavigation,
+    desiredAccuracy: kFastLocationSettings.accuracy,
+    timeLimit: kFastLocationSettings.timeLimit,
   );
 
-  final url = Uri.parse(
-    'https://nominatim.openstreetmap.org/reverse?lat=${position.latitude}&lon=${position.longitude}&format=jsonv2',
+  final address = await reverseGeocodeGoogle(
+    latitude: position.latitude,
+    longitude: position.longitude,
   );
-  final response = await http.get(
-    url,
-    headers: const {'User-Agent': 'busify-parent-app/1.0'},
-  );
-  if (response.statusCode != 200) {
-    throw Exception('Could not resolve address from location.');
-  }
-  final data = jsonDecode(response.body) as Map<String, dynamic>;
-  final address = (data['address'] as Map<String, dynamic>?) ?? const {};
-  final governorate =
-      (address['state'] ?? address['city'] ?? address['county'] ?? '')
-          .toString()
-          .trim();
-  final street =
-      (address['road'] ?? address['suburb'] ?? address['neighbourhood'] ?? '')
-          .toString()
-          .trim();
-  if (governorate.isEmpty || street.isEmpty) {
-    throw Exception('Could not detect governorate/street from GPS.');
-  }
 
   return ParentResolvedGps(
     latitude: position.latitude,
     longitude: position.longitude,
-    governorate: governorate,
-    street: street,
+    governorate: address.governorate,
+    street: address.street,
   );
 }

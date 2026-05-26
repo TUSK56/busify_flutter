@@ -18,7 +18,9 @@ import 'package:application/services/service_locator.dart';
 import 'package:application/utils/api_config.dart';
 import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:application/constants/location_tracking.dart';
+import 'package:application/helpers/map_lat_lng.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -92,7 +94,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   bool get _allStudentStopsCompleted =>
       _stops.isNotEmpty && _stops.every((s) => s.completed);
 
-  final MapController _mapController = MapController();
+  gmaps.GoogleMapController? _mapController;
+  double _mapZoom = 15;
   AnimationController? _recenterController;
 
   @override
@@ -502,45 +505,13 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   }
 
   void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
-    if (!mounted) return;
-    _recenterController?.stop();
-    _recenterController?.dispose();
-    _recenterController = null;
-
-    final camera = _mapController.camera;
-    final startCenter = camera.center;
-    final endZoom = targetZoom ?? camera.zoom;
-
-    final latTween = Tween<double>(
-      begin: startCenter.latitude,
-      end: target.latitude,
+    final controller = _mapController;
+    if (!mounted || controller == null) return;
+    final zoom = targetZoom ?? _mapZoom;
+    _mapZoom = zoom;
+    controller.animateCamera(
+      gmaps.CameraUpdate.newLatLngZoom(toGoogleLatLng(target), zoom),
     );
-    final lngTween = Tween<double>(
-      begin: startCenter.longitude,
-      end: target.longitude,
-    );
-    final zoomTween = Tween<double>(begin: camera.zoom, end: endZoom);
-
-    _recenterController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-
-    final curved = CurvedAnimation(
-      parent: _recenterController!,
-      curve: Curves.easeOutCubic,
-    );
-
-    _recenterController!.addListener(() {
-      if (!mounted) return;
-      final t = curved.value;
-      _mapController.move(
-        latlng.LatLng(latTween.transform(t), lngTween.transform(t)),
-        zoomTween.transform(t),
-      );
-    });
-
-    _recenterController!.forward();
   }
 
   /// 1. Initialize Tracking & Permissions
@@ -594,11 +565,12 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       return;
     }
 
-    // 2. Start the 2-second loop
-    _locationTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+    // Live GPS loop (~800ms) for fresher coordinates.
+    _locationTimer = Timer.periodic(kLiveLocationInterval, (timer) async {
       try {
         final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
+          desiredAccuracy: kFastLocationSettings.accuracy,
+          timeLimit: kFastLocationSettings.timeLimit,
         );
 
         final nextLocation = latlng.LatLng(
@@ -679,7 +651,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
 
         // 4. Move map camera to follow Supervisor
         if (_isMiniMapFollowing && _currentLocation != null) {
-          _mapController.move(_currentLocation!, _mapController.camera.zoom);
+          _animateMapTo(_currentLocation!, targetZoom: _mapZoom);
         }
       } catch (e) {
         debugPrint('Error during location tracking loop: $e');
@@ -833,35 +805,57 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     return bestIdx;
   }
 
-  List<Polyline> _buildColoredRoutePolylines() {
+  Set<gmaps.Polyline> _buildColoredRoutePolylines() {
     final points = _routePoints;
-    if (points == null || points.length < 2) return const [];
+    if (points == null || points.length < 2) return const {};
 
     final idx = _routeProgressIndex.clamp(0, points.length - 1);
     final split = math.max(1, math.min(idx + 1, points.length - 1));
     final passed = points.sublist(0, split);
     final remaining = points.sublist(split - 1);
 
-    final polylines = <Polyline>[];
+    final polylines = <gmaps.Polyline>{};
     if (passed.length > 1) {
       polylines.add(
-        Polyline(
-          points: passed,
+        gmaps.Polyline(
+          polylineId: const gmaps.PolylineId('passed'),
+          points: toGoogleLatLngList(passed),
           color: Colors.grey.shade400,
-          strokeWidth: 4,
+          width: 4,
         ),
       );
     }
     if (remaining.length > 1) {
       polylines.add(
-        Polyline(
-          points: remaining,
+        gmaps.Polyline(
+          polylineId: const gmaps.PolylineId('remaining'),
+          points: toGoogleLatLngList(remaining),
           color: const Color(0xFF2563EB),
-          strokeWidth: 4,
+          width: 4,
         ),
       );
     }
     return polylines;
+  }
+
+  Set<gmaps.Marker> _buildTripMapMarkers() {
+    if (_currentLocation == null) return const {};
+    return {
+      gmaps.Marker(
+        markerId: const gmaps.MarkerId('supervisor'),
+        position: toGoogleLatLng(_currentLocation!),
+        icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+          gmaps.BitmapDescriptor.hueAzure,
+        ),
+      ),
+      gmaps.Marker(
+        markerId: const gmaps.MarkerId('destination'),
+        position: toGoogleLatLng(_currentDestination),
+        icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+          gmaps.BitmapDescriptor.hueRed,
+        ),
+      ),
+    };
   }
 
   Future<void> _takeAttendance() async {
@@ -1341,62 +1335,29 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                       ? const Center(
                                     child: CircularProgressIndicator(),
                                   )
-                                      : FlutterMap(
-                                    mapController: _mapController,
-                                    options: MapOptions(
-                                      initialCenter: _currentLocation!,
-                                      initialZoom: 15,
-                                      maxZoom: 18,
-                                      minZoom: 3,
-                                      onMapEvent: (event) {
-                                        if (event is MapEventMove ||
-                                            event is MapEventRotate) {
-                                          if (_isMiniMapFollowing) {
-                                            setState(() {
-                                              _isMiniMapFollowing = false;
-                                            });
-                                          }
-                                        }
-                                      },
+                                      : gmaps.GoogleMap(
+                                    initialCameraPosition: gmaps.CameraPosition(
+                                      target: toGoogleLatLng(_currentLocation!),
+                                      zoom: _mapZoom,
                                     ),
-                                    children: [
-                                      TileLayer(
-                                        urlTemplate:
-                                        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                        subdomains: const ['a', 'b', 'c'],
-                                        userAgentPackageName:
-                                        'com.busify.app',
-                                      ),
-                                      MarkerLayer(
-                                        markers: [
-                                          Marker(
-                                            point: _currentLocation!,
-                                            width: 18,
-                                            height: 18,
-                                            child: const Icon(
-                                              Icons.directions_car,
-                                              color: Color(0xFF2D7CFF),
-                                              size: 24,
-                                            ),
-                                          ),
-                                          Marker(
-                                            point: _currentDestination,
-                                            width: 40,
-                                            height: 40,
-                                            child: const Icon(
-                                              Icons.location_pin,
-                                              color: Colors.red,
-                                              size: 36,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      if (_routePoints != null)
-                                        PolylineLayer(
-                                          polylines:
-                                          _buildColoredRoutePolylines(),
-                                        ),
-                                    ],
+                                    onMapCreated: (controller) {
+                                      _mapController = controller;
+                                    },
+                                    onCameraMoveStarted: () {
+                                      if (_isMiniMapFollowing) {
+                                        setState(() {
+                                          _isMiniMapFollowing = false;
+                                        });
+                                      }
+                                    },
+                                    onCameraMove: (position) {
+                                      _mapZoom = position.zoom;
+                                    },
+                                    myLocationEnabled: false,
+                                    zoomControlsEnabled: false,
+                                    mapToolbarEnabled: false,
+                                    markers: _buildTripMapMarkers(),
+                                    polylines: _buildColoredRoutePolylines(),
                                   ),
                                 ),
                                 Positioned(

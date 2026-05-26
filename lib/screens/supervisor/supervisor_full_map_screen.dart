@@ -8,7 +8,9 @@ import 'package:application/helpers/app_theme.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/utils/api_config.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:application/constants/location_tracking.dart';
+import 'package:application/helpers/map_lat_lng.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as latlng;
@@ -35,7 +37,8 @@ class SupervisorFullMapScreen extends StatefulWidget {
 
 class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
     with TickerProviderStateMixin {
-  final MapController _mapController = MapController();
+  gmaps.GoogleMapController? _mapController;
+  double _mapZoom = 15;
   Timer? _locationTimer;
   latlng.LatLng? _currentLocation;
   bool _isFollowing = true;
@@ -74,45 +77,13 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   }
 
   void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
-    if (!mounted) return;
-    _recenterController?.stop();
-    _recenterController?.dispose();
-    _recenterController = null;
-
-    final camera = _mapController.camera;
-    final startCenter = camera.center;
-    final endZoom = targetZoom ?? camera.zoom;
-
-    final latTween = Tween<double>(
-      begin: startCenter.latitude,
-      end: target.latitude,
+    final controller = _mapController;
+    if (!mounted || controller == null) return;
+    final zoom = targetZoom ?? _mapZoom;
+    _mapZoom = zoom;
+    controller.animateCamera(
+      gmaps.CameraUpdate.newLatLngZoom(toGoogleLatLng(target), zoom),
     );
-    final lngTween = Tween<double>(
-      begin: startCenter.longitude,
-      end: target.longitude,
-    );
-    final zoomTween = Tween<double>(begin: camera.zoom, end: endZoom);
-
-    _recenterController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-
-    final curved = CurvedAnimation(
-      parent: _recenterController!,
-      curve: Curves.easeOutCubic,
-    );
-
-    _recenterController!.addListener(() {
-      if (!mounted) return;
-      final t = curved.value;
-      _mapController.move(
-        latlng.LatLng(latTween.transform(t), lngTween.transform(t)),
-        zoomTween.transform(t),
-      );
-    });
-
-    _recenterController!.forward();
   }
 
   bool _needsRouteRefetch(latlng.LatLng start, latlng.LatLng destination) {
@@ -162,12 +133,13 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       return;
     }
 
-    _locationTimer = Timer.periodic(const Duration(seconds: 2), (
+    _locationTimer = Timer.periodic(kLiveLocationInterval, (
       Timer timer,
     ) async {
       try {
         final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
+          desiredAccuracy: kFastLocationSettings.accuracy,
+          timeLimit: kFastLocationSettings.timeLimit,
         );
 
         final nextLocation = latlng.LatLng(
@@ -189,34 +161,12 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
         await _recordToDatabase(position.latitude, position.longitude);
 
         if (_isFollowing && _currentLocation != null) {
-          _animateMapTo(
-            _currentLocation!,
-            targetZoom: _mapController.camera.zoom,
-          );
+          _animateMapTo(_currentLocation!, targetZoom: _mapZoom);
         }
       } catch (e) {
         debugPrint('Full map location loop error: $e');
       }
     });
-  }
-
-  Widget _buildLiveLocationDot() {
-    return Container(
-      width: 18,
-      height: 18,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFF2D7CFF),
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            offset: const Offset(0, 1),
-            blurRadius: 4,
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _recordToDatabase(double lat, double lng) async {
@@ -330,62 +280,47 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
             if (_currentLocation == null)
               const Center(child: CircularProgressIndicator())
             else
-              FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: _currentLocation!,
-                  initialZoom: 15,
-                  maxZoom: 18,
-                  minZoom: 3,
-                  onMapEvent: (event) {
-                    if (event is MapEventMove || event is MapEventRotate) {
-                      if (_isFollowing) {
-                        setState(() {
-                          _isFollowing = false;
-                        });
-                      }
-                    }
-                  },
+              gmaps.GoogleMap(
+                initialCameraPosition: gmaps.CameraPosition(
+                  target: toGoogleLatLng(_currentLocation!),
+                  zoom: _mapZoom,
                 ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    subdomains: const ['a', 'b', 'c'],
-                    userAgentPackageName: 'com.busify.app',
+                onMapCreated: (controller) => _mapController = controller,
+                onCameraMoveStarted: () {
+                  if (_isFollowing) {
+                    setState(() => _isFollowing = false);
+                  }
+                },
+                onCameraMove: (position) => _mapZoom = position.zoom,
+                myLocationEnabled: false,
+                zoomControlsEnabled: false,
+                mapToolbarEnabled: false,
+                markers: {
+                  gmaps.Marker(
+                    markerId: const gmaps.MarkerId('supervisor'),
+                    position: toGoogleLatLng(_currentLocation!),
+                    icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                      gmaps.BitmapDescriptor.hueAzure,
+                    ),
                   ),
-                  if (_currentLocation != null)
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: _currentLocation!,
-                          width: 18,
-                          height: 18,
-                          child: _buildLiveLocationDot(),
-                        ),
-                        Marker(
-                          point: dest,
-                          width: 40,
-                          height: 40,
-                          child: const Icon(
-                            Icons.location_pin,
-                            color: Colors.red,
-                            size: 36,
-                          ),
-                        ),
-                      ],
+                  gmaps.Marker(
+                    markerId: const gmaps.MarkerId('destination'),
+                    position: toGoogleLatLng(dest),
+                    icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                      gmaps.BitmapDescriptor.hueRed,
                     ),
-                  if (_routePoints != null)
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: _routePoints!,
+                  ),
+                },
+                polylines: _routePoints == null
+                    ? const {}
+                    : {
+                        gmaps.Polyline(
+                          polylineId: const gmaps.PolylineId('route'),
+                          points: toGoogleLatLngList(_routePoints!),
                           color: Colors.deepPurpleAccent,
-                          strokeWidth: 4,
+                          width: 4,
                         ),
-                      ],
-                    ),
-                ],
+                      },
               ),
             Positioned(
               left: 16,

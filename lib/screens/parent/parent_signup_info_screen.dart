@@ -1,6 +1,6 @@
 import 'dart:ui';
-import 'dart:convert';
 import 'package:application/helpers/fade_route.dart';
+import 'package:application/helpers/parent_gps_location.dart';
 import 'package:application/helpers/app_back_button.dart';
 import 'package:application/helpers/app_feedback.dart';
 import 'package:application/models/parent_signup_data.dart';
@@ -8,8 +8,6 @@ import 'package:application/screens/parent/parent_signup_student_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
 
 class ParentSignupInfoScreen extends StatefulWidget {
   const ParentSignupInfoScreen({super.key});
@@ -37,55 +35,14 @@ class _ParentSignupInfoScreenState extends State<ParentSignupInfoScreen> {
   Future<void> _pickLocationFromGps() async {
     setState(() => _isResolvingLocation = true);
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        throw Exception('Please enable location services.');
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        throw Exception('Location permission is required to continue.');
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.bestForNavigation,
-      );
-
-      final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse?lat=${position.latitude}&lon=${position.longitude}&format=jsonv2',
-      );
-      final response = await http.get(
-        url,
-        headers: const {'User-Agent': 'busify-parent-signup/1.0'},
-      );
-      if (response.statusCode != 200) {
-        throw Exception('Could not resolve address from location.');
-      }
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final address = (data['address'] as Map<String, dynamic>?) ?? const {};
-      final governorate =
-          (address['state'] ?? address['city'] ?? address['county'] ?? '')
-              .toString()
-              .trim();
-      final street =
-          (address['road'] ?? address['suburb'] ?? address['neighbourhood'] ?? '')
-              .toString()
-              .trim();
-      if (governorate.isEmpty || street.isEmpty) {
-        throw Exception('Could not detect governorate/street from GPS.');
-      }
-
+      final resolved = await resolveParentGpsWithNominatim();
       if (!mounted) return;
       setState(() {
-        _latitude = position.latitude;
-        _longitude = position.longitude;
-        _governorate = governorate;
-        _street = street;
-        _addressController.text = '$governorate, $street';
+        _latitude = resolved.latitude;
+        _longitude = resolved.longitude;
+        _governorate = resolved.governorate;
+        _street = resolved.street;
+        _addressController.text = resolved.displayLine;
       });
     } catch (e) {
       if (!mounted) return;

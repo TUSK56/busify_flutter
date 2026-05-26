@@ -12,7 +12,8 @@ import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:application/widgets/resilient_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:application/helpers/map_lat_lng.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as latlng;
@@ -59,7 +60,9 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   String _driverName = '--';
   List<latlng.LatLng> _polyline = [];
   bool _hasActiveTrip = true;
-  final MapController _mapController = MapController();
+  gmaps.GoogleMapController? _mapController;
+  double _mapZoom = 14;
+  latlng.LatLng? _mapCameraCenter;
   int _routeProgressIndex = 0;
   String _routeDestinationKey = '';
   bool _isMiniMapFollowing = true;
@@ -152,37 +155,21 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   }
 
   void _animateMapTo(
-      latlng.LatLng target, {
-        double? targetZoom,
-        Duration duration = const Duration(milliseconds: 1400),
-        Curve curve = Curves.easeInOutCubicEmphasized,
-      }) {
-    if (!mounted) return;
+    latlng.LatLng target, {
+    double? targetZoom,
+  }) {
+    final controller = _mapController;
+    if (!mounted || controller == null) return;
     _isRecentering = true;
-    _recenterController?.stop();
-    _recenterController?.dispose();
-    _recenterController = null;
-
-    final camera = _mapController.camera;
-    final startCenter = camera.center;
-    final endZoom = targetZoom ?? camera.zoom;
-
-    final latTween = Tween<double>(begin: startCenter.latitude, end: target.latitude);
-    final lngTween = Tween<double>(begin: startCenter.longitude, end: target.longitude);
-    final zoomTween = Tween<double>(begin: camera.zoom, end: endZoom);
-
-    _recenterController = AnimationController(vsync: this, duration: duration);
-    final curved = CurvedAnimation(parent: _recenterController!, curve: curve);
-    _recenterController!.addListener(() {
-      if (!mounted) return;
-      final t = curved.value;
-      _mapController.move(
-        latlng.LatLng(latTween.transform(t), lngTween.transform(t)),
-        zoomTween.transform(t),
-      );
-    });
-    _recenterController!.forward().whenCompleteOrCancel(() {
-      _isRecentering = false;
+    final zoom = targetZoom ?? _mapZoom;
+    _mapZoom = zoom;
+    _mapCameraCenter = target;
+    controller
+        .animateCamera(
+          gmaps.CameraUpdate.newLatLngZoom(toGoogleLatLng(target), zoom),
+        )
+        .whenComplete(() {
+      if (mounted) _isRecentering = false;
     });
   }
 
@@ -318,7 +305,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       });
 
       if (_isMiniMapFollowing && !_isRecentering) {
-        final currentCenter = _mapController.camera.center;
+        final currentCenter = _mapCameraCenter ?? bus;
         final deltaKm = _distanceKm(
           currentCenter.latitude,
           currentCenter.longitude,
@@ -326,14 +313,9 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           bus.longitude,
         );
         if (deltaKm < 0.005) {
-          _mapController.move(bus, _mapController.camera.zoom);
+          _animateMapTo(bus, targetZoom: _mapZoom);
         } else {
-          _animateMapTo(
-            bus,
-            targetZoom: _mapController.camera.zoom,
-            duration: const Duration(milliseconds: 700),
-            curve: Curves.easeOutCubic,
-          );
+          _animateMapTo(bus, targetZoom: _mapZoom);
         }
       }
     } catch (_) {}
@@ -387,20 +369,55 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     return bestIdx;
   }
 
-  List<Polyline> _buildColoredRoutePolylines() {
-    if (_polyline.isEmpty || _polyline.length < 2) return const [];
+  Set<gmaps.Polyline> _buildColoredRoutePolylines() {
+    if (_polyline.isEmpty || _polyline.length < 2) return const {};
     final idx = _routeProgressIndex.clamp(0, _polyline.length - 1);
     final split = math.max(1, math.min(idx + 1, _polyline.length - 1));
     final passed = _polyline.sublist(0, split);
     final remaining = _polyline.sublist(split - 1);
-    final polylines = <Polyline>[];
+    final polylines = <gmaps.Polyline>{};
     if (passed.length > 1) {
-      polylines.add(Polyline(points: passed, color: Colors.grey.shade400, strokeWidth: 4));
+      polylines.add(
+        gmaps.Polyline(
+          polylineId: const gmaps.PolylineId('passed'),
+          points: toGoogleLatLngList(passed),
+          color: Colors.grey.shade400,
+          width: 4,
+        ),
+      );
     }
     if (remaining.length > 1) {
-      polylines.add(Polyline(points: remaining, color: const Color(0xFF2563EB), strokeWidth: 4));
+      polylines.add(
+        gmaps.Polyline(
+          polylineId: const gmaps.PolylineId('remaining'),
+          points: toGoogleLatLngList(remaining),
+          color: const Color(0xFF2563EB),
+          width: 4,
+        ),
+      );
     }
     return polylines;
+  }
+
+  Set<gmaps.Marker> _buildTrackMapMarkers() {
+    if (_busLocation == null) return const {};
+    return {
+      gmaps.Marker(
+        markerId: const gmaps.MarkerId('bus'),
+        position: toGoogleLatLng(_busLocation!),
+        icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+          gmaps.BitmapDescriptor.hueAzure,
+        ),
+      ),
+      if (_destination != null)
+        gmaps.Marker(
+          markerId: const gmaps.MarkerId('destination'),
+          position: toGoogleLatLng(_destination!),
+          icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+            gmaps.BitmapDescriptor.hueRed,
+          ),
+        ),
+    };
   }
 
   @override
@@ -539,47 +556,29 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       )
           : Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _busLocation!,
-              initialZoom: 14,
-              maxZoom: 18,
-              minZoom: 3,
-              onMapEvent: (event) {
-                if (event is MapEventMove || event is MapEventRotate) {
-                  if (_isMiniMapFollowing) {
-                    setState(() => _isMiniMapFollowing = false);
-                  }
-                }
-              },
+          gmaps.GoogleMap(
+            initialCameraPosition: gmaps.CameraPosition(
+              target: toGoogleLatLng(_busLocation!),
+              zoom: _mapZoom,
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                subdomains: const ['a', 'b', 'c'],
-                userAgentPackageName: 'com.busify.app',
-              ),
-              if (_polyline.isNotEmpty)
-                PolylineLayer(polylines: _buildColoredRoutePolylines()),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _busLocation!,
-                    width: 34,
-                    height: 34,
-                    child: const Icon(Icons.directions_car_filled, color: Colors.blue, size: 30),
-                  ),
-                  if (_destination != null)
-                    Marker(
-                      point: _destination!,
-                      width: 34,
-                      height: 34,
-                      child: const Icon(Icons.location_pin, color: Colors.red, size: 30),
-                    ),
-                ],
-              ),
-            ],
+            onMapCreated: (controller) => _mapController = controller,
+            onCameraMoveStarted: () {
+              if (_isMiniMapFollowing) {
+                setState(() => _isMiniMapFollowing = false);
+              }
+            },
+            onCameraMove: (position) {
+              _mapZoom = position.zoom;
+              _mapCameraCenter = latlng.LatLng(
+                position.target.latitude,
+                position.target.longitude,
+              );
+            },
+            myLocationEnabled: false,
+            zoomControlsEnabled: false,
+            mapToolbarEnabled: false,
+            markers: _buildTrackMapMarkers(),
+            polylines: _buildColoredRoutePolylines(),
           ),
           Positioned(
             left: 12,

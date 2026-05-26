@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
@@ -13,6 +12,7 @@ import 'package:application/screens/parent/parent_profile_screen.dart';
 import 'package:application/screens/parent/parent_track_bus_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
+import 'package:application/widgets/parent/parent_face_enrollment.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -39,6 +39,14 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   DateTime? _dob;
 
   File? _studentPhotoFile;
+  XFile? _facePhoto;
+  bool _faceVerified = false;
+  bool _faceChecking = false;
+  String? _faceStatusMessage;
+  String? _faceRejectReason;
+
+  bool get _canAdd =>
+      _faceVerified && !_faceChecking && !_saving && _facePhoto != null;
 
   Map<String, dynamic>? _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
@@ -107,36 +115,43 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
     setState(() => _dob = picked);
   }
 
-  Future<void> _pickStudentPhoto() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take photo'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
+  Future<void> _pickFacePhoto() async {
+    final captured = await pickParentFacePhoto();
+    if (captured == null || !mounted) return;
+    setState(() {
+      _facePhoto = captured;
+      _studentPhotoFile = File(captured.path);
+      _faceVerified = false;
+      _faceStatusMessage = null;
+      _faceRejectReason = null;
+    });
+    await _verifyFacePhoto(captured);
+  }
+
+  Future<void> _verifyFacePhoto(XFile photo) async {
+    setState(() {
+      _faceChecking = true;
+      _faceVerified = false;
+      _faceStatusMessage = 'Checking face photo…';
+      _faceRejectReason = null;
+    });
+    final result = await verifyParentFacePhoto(photo);
+    if (!mounted) return;
+    setState(() {
+      _faceChecking = false;
+      _faceVerified = result.verified;
+      _faceStatusMessage = result.statusMessage;
+      _faceRejectReason = result.rejectReason;
+    });
+  }
+
+  Color _faceBorderColor() {
+    return parentFaceBorderColor(
+      hasPhoto: _studentPhotoFile != null,
+      verified: _faceVerified,
+      rejected: _faceRejectReason != null,
+      defaultColor: AppColors.white.withValues(alpha: 0.79),
     );
-    if (source == null || !mounted) return;
-    final picker = ImagePicker();
-    final x = await picker.pickImage(
-      source: source,
-      imageQuality: 88,
-      maxWidth: 1280,
-    );
-    if (x == null || !mounted) return;
-    setState(() => _studentPhotoFile = File(x.path));
   }
 
   Future<void> _save() async {
@@ -149,7 +164,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       await showAppFeedback(context, 'Please fill all fields', isError: true);
       return;
     }
-    if (_studentPhotoFile == null) {
+    if (_studentPhotoFile == null || _facePhoto == null) {
       await showAppFeedback(
         context,
         'Please add a student face photo.',
@@ -157,8 +172,15 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       );
       return;
     }
-    final faceOk = await _validateFacePhoto(_studentPhotoFile!);
-    if (!faceOk) return;
+    if (!_faceVerified) {
+      await showAppFeedback(
+        context,
+        _faceStatusMessage ??
+            'Please wait for face verification or retake the photo.',
+        isError: true,
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
@@ -194,45 +216,6 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       await showAppFeedback(context, 'Failed to add child: $e', isError: true);
     } finally {
       if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<bool> _validateFacePhoto(File file) async {
-    try {
-      final bytes = await file.readAsBytes();
-      if (bytes.length < 20 * 1024) {
-        if (!mounted) return false;
-        await showAppFeedback(
-          context,
-          'Face photo is too small. Please retake clearly.',
-          isError: true,
-        );
-        return false;
-      }
-      final codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      final image = frame.image;
-      final w = image.width.toDouble();
-      final h = image.height.toDouble();
-      final ratio = w / h;
-      if (w < 240 || h < 240 || ratio < 0.6 || ratio > 1.8) {
-        if (!mounted) return false;
-        await showAppFeedback(
-          context,
-          'Use a clear front face photo (good lighting).',
-          isError: true,
-        );
-        return false;
-      }
-      return true;
-    } catch (_) {
-      if (!mounted) return false;
-      await showAppFeedback(
-        context,
-        'Could not process face photo. Please try another image.',
-        isError: true,
-      );
-      return false;
     }
   }
 
@@ -422,7 +405,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                           ),
                           const SizedBox(height: 10),
                           GestureDetector(
-                            onTap: _pickStudentPhoto,
+                            onTap: _faceChecking || _saving ? null : _pickFacePhoto,
                             child: Container(
                               width: double.infinity,
                               height: 140,
@@ -431,8 +414,8 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                 color: AppColors.white.withValues(alpha: 0.21),
                                 borderRadius: BorderRadius.circular(15),
                                 border: Border.all(
-                                  color: AppColors.white.withValues(alpha: 0.79),
-                                  width: 1,
+                                  color: _faceBorderColor(),
+                                  width: _faceVerified || _faceRejectReason != null ? 2 : 1,
                                 ),
                               ),
                               child: _studentPhotoFile == null
@@ -446,7 +429,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
-                                          'Tap to add a clear face photo',
+                                          'Tap to take a face photo',
                                           textAlign: TextAlign.center,
                                           style: GoogleFonts.inter(
                                             fontSize: 14,
@@ -467,6 +450,33 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                     ),
                             ),
                           ),
+                          if (_studentPhotoFile != null) ...[
+                            const SizedBox(height: 8),
+                            ParentFaceStatusRow(
+                              checking: _faceChecking,
+                              verified: _faceVerified,
+                              statusMessage: _faceStatusMessage,
+                              messageStyle: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.primaryBlue,
+                              ),
+                              loadingColor: AppColors.primaryBlue,
+                            ),
+                            if (_faceRejectReason != null) ...[
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: _faceChecking || _saving ? null : _pickFacePhoto,
+                                child: Text(
+                                  'Retake photo',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primaryBlue,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ],
                       ),
                     ),
@@ -476,32 +486,45 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                       child: SizedBox(
                         width: double.infinity,
                         height: 46,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: AppColors.primaryButtonGradient,
-                            borderRadius: BorderRadius.circular(33),
-                            boxShadow: [
-                              BoxShadow(
-                                offset: const Offset(0, 4),
-                                blurRadius: 4,
-                                color: AppColors.textBlack.withValues(alpha: 0.25),
-                              ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: _saving ? null : _save,
+                        child: parentSubmitDisabledBlur(
+                          enabled: _canAdd,
+                          borderRadius: BorderRadius.circular(33),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: AppColors.primaryButtonGradient,
                               borderRadius: BorderRadius.circular(33),
-                              child: Center(
-                                child: Text(
-                                  _saving ? 'Adding...' : 'Add',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700,
-                                    height: 22 / 24,
-                                    color: AppColors.white,
-                                  ),
+                              boxShadow: [
+                                BoxShadow(
+                                  offset: const Offset(0, 4),
+                                  blurRadius: 4,
+                                  color: AppColors.textBlack.withValues(alpha: 0.25),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: !_canAdd ? null : _save,
+                                borderRadius: BorderRadius.circular(33),
+                                child: Center(
+                                  child: _saving
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.white,
+                                          ),
+                                        )
+                                      : Text(
+                                          'Add',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.w700,
+                                            height: 22 / 24,
+                                            color: AppColors.white,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ),

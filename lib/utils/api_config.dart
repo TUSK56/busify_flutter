@@ -3,5 +3,5 @@
 class ApiConfig {
   ApiConfig._();
 
-  static const String baseUrl = 'https://busify-backend.runasp.net';
+  static const String baseUrl = 'https://busify-eb94148f435f.herokuapp.com';
 }
