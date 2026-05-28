@@ -49,6 +49,13 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
   void initState() {
     super.initState();
     _schoolsFuture = ServiceLocator.schoolService.getSchools();
+    _selectedGrade = _grades.first;
+    _schoolsFuture.then((schools) {
+      if (!mounted || _selectedSchool != null || schools.isEmpty) return;
+      setState(() {
+        _selectedSchool = schools.first;
+      });
+    });
   }
 
   @override

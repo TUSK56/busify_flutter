@@ -17,6 +17,12 @@ String? supervisorPhotoFullUrl(String? relativeOrAbsolute) {
     try {
       final uri = Uri.parse(s);
       if (uri.path.isEmpty) return s;
+      // Keep third-party absolute URLs (e.g. Cloudinary) unchanged.
+      if (!uri.host.contains('herokuapp.com') &&
+          !uri.host.contains('localhost') &&
+          !uri.host.contains('127.0.0.1')) {
+        return s;
+      }
       final normalizedPath = normalizePath(uri.path);
       final base = Uri.parse(ApiConfig.baseUrl);
       if (uri.host != base.host ||

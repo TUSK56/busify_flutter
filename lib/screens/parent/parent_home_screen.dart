@@ -1013,6 +1013,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                   const SizedBox(height: 18),
                   Center(
                     child: _TrackBusButton(
+                      enabled: tripActive && studentId != null,
                       onPressed: () {
                         Navigator.of(context).push(
                           fadeRoute(
@@ -1267,6 +1268,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                   const SizedBox(height: 28),
                   Center(
                     child: _TrackBusButton(
+                      enabled: tripA && sid != null,
                       onPressed: () {
                         Navigator.of(context).push(
                           fadeRoute(
@@ -1394,9 +1396,10 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
 
 /// Track Bus CTA: gradient, press scale animation.
 class _TrackBusButton extends StatefulWidget {
-  const _TrackBusButton({required this.onPressed});
+  const _TrackBusButton({required this.onPressed, this.enabled = true});
 
   final VoidCallback onPressed;
+  final bool enabled;
 
   @override
   State<_TrackBusButton> createState() => _TrackBusButtonState();
@@ -1436,16 +1439,20 @@ class _TrackBusButtonState extends State<_TrackBusButton>
     final arrowSize = _ParentHomeLayout.trackBusBackArrowSize * s;
     final arrowGap = _ParentHomeLayout.trackBusBackArrowGap * s;
 
-    return Listener(
-      onPointerDown: (_) => _press.forward(),
-      onPointerUp: (_) {
-        _press.reverse();
-        widget.onPressed();
-      },
-      onPointerCancel: (_) => _press.reverse(),
-      child: ScaleTransition(
-        scale: _scale,
-        child: SizedBox(
+    return IgnorePointer(
+      ignoring: !widget.enabled,
+      child: Opacity(
+        opacity: widget.enabled ? 1 : 0.45,
+        child: Listener(
+          onPointerDown: (_) => _press.forward(),
+          onPointerUp: (_) {
+            _press.reverse();
+            if (widget.enabled) widget.onPressed();
+          },
+          onPointerCancel: (_) => _press.reverse(),
+          child: ScaleTransition(
+            scale: _scale,
+            child: SizedBox(
           width: btnW,
           height: btnH,
           child: DecoratedBox(
@@ -1494,6 +1501,8 @@ class _TrackBusButtonState extends State<_TrackBusButton>
                   ],
                 ],
               ),
+            ),
+          ),
             ),
           ),
         ),

@@ -566,6 +566,14 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                         final st = students[i];
                         final name = (st['name'] ?? st['Name'])?.toString() ?? '';
                         final grade = (st['grade'] ?? st['Grade'])?.toString() ?? '';
+                        final linkStatusRaw =
+                            (st['linkStatus'] ?? st['link_status'] ?? st['LinkStatus'])
+                                ?.toString()
+                                .toLowerCase()
+                                .trim();
+                        final linkStatus = (linkStatusRaw == null || linkStatusRaw.isEmpty)
+                            ? 'approved'
+                            : linkStatusRaw;
                         final studentBusNo =
                         (st['busNumber'] ?? st['BusNumber'] ?? st['bus_number'])
                             ?.toString()
@@ -585,14 +593,49 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
-                                  child: Text(
-                                    name,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      height: 35 / 16,
-                                      color: context.appPrimaryText,
-                                    ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          name,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            height: 35 / 16,
+                                            color: context.appPrimaryText,
+                                          ),
+                                        ),
+                                      ),
+                                      _StatusBadge(status: linkStatus),
+                                      if (linkStatus == 'rejected') ...[
+                                        const SizedBox(width: 8),
+                                        TextButton(
+                                          onPressed: () async {
+                                            await Navigator.of(context).push(
+                                              fadeRoute(
+                                                ParentAddChildScreen(
+                                                  readOnly: true,
+                                                  details: st,
+                                                ),
+                                              ),
+                                            );
+                                            if (!mounted) return;
+                                            setState(() {
+                                              _childOverviewFuture =
+                                                  ServiceLocator.parentService
+                                                      .getChildOverview();
+                                            });
+                                          },
+                                          style: TextButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: Size.zero,
+                                            tapTargetSize:
+                                                MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          child: const Text('Details'),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                               ],
@@ -1030,6 +1073,37 @@ class _StudentAvatar extends StatelessWidget {
       );
     }
     return fallback;
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = status.toLowerCase();
+    final (bg, fg, text) = switch (normalized) {
+      'approved' => (const Color(0xFFD1FAE5), const Color(0xFF065F46), 'Approved'),
+      'rejected' => (const Color(0xFFFEE2E2), const Color(0xFF991B1B), 'Rejected'),
+      _ => (const Color(0xFFFEF3C7), const Color(0xFF92400E), 'Pending'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
+      ),
+    );
   }
 }
 

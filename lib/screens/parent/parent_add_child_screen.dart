@@ -19,7 +19,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class ParentAddChildScreen extends StatefulWidget {
-  const ParentAddChildScreen({super.key});
+  const ParentAddChildScreen({
+    super.key,
+    this.readOnly = false,
+    this.details,
+  });
+
+  final bool readOnly;
+  final Map<String, dynamic>? details;
 
   @override
   State<ParentAddChildScreen> createState() => _ParentAddChildScreenState();
@@ -46,6 +53,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   String? _faceRejectReason;
 
   bool get _canAdd =>
+      !widget.readOnly &&
       _faceVerified && !_faceChecking && !_saving && _facePhoto != null;
 
   @override
@@ -55,14 +63,53 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   }
 
   Future<void> _bootstrap() async {
+    if (widget.readOnly) {
+      final details = widget.details ?? const <String, dynamic>{};
+      final name = (details['name'] ?? details['Name'])?.toString() ?? '';
+      final grade = (details['grade'] ?? details['Grade'])?.toString();
+      final dobRaw = (details['birthdate'] ?? details['Birthdate'])?.toString();
+      final reason = (details['linkRejectReason'] ??
+              details['link_reject_reason'] ??
+              details['LinkRejectReason'])
+          ?.toString();
+      final photo = (details['photoUrl'] ?? details['photo_url'])?.toString();
+      DateTime? parsedDob;
+      if (dobRaw != null && dobRaw.isNotEmpty) {
+        parsedDob = DateTime.tryParse(dobRaw);
+      }
+      if (!mounted) return;
+      setState(() {
+        _nameController.text = name;
+        _selectedGrade = grade ?? _grades.first;
+        _dob = parsedDob;
+        _faceRejectReason = (reason == null || reason.trim().isEmpty)
+            ? 'Rejected by school'
+            : reason.trim();
+        if (photo != null && photo.trim().isNotEmpty) {
+          _faceStatusMessage = photo.trim();
+        }
+      });
+      return;
+    }
+
     try {
       final profile = await ServiceLocator.parentService.getProfile();
       final sid = (profile['schoolAdminId'] as num?)?.toInt();
       final schools = await ServiceLocator.parentService.getSchools();
+      int? firstSchoolId;
+      if (schools.isNotEmpty) {
+        final first = schools.first;
+        final rawId = first['id'] ?? first['Id'];
+        if (rawId is num) {
+          firstSchoolId = rawId.toInt();
+        } else if (rawId is String) {
+          firstSchoolId = int.tryParse(rawId.trim());
+        }
+      }
       if (!mounted) return;
       setState(() {
         _schools = schools;
-        _selectedSchoolId = sid ?? (schools.isNotEmpty ? (schools.first['id'] as num?)?.toInt() : null);
+        _selectedSchoolId = sid ?? firstSchoolId;
         _selectedGrade ??= _grades.first;
       });
     } catch (_) {
@@ -237,7 +284,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
-                        'Add Child',
+                        widget.readOnly ? 'Child Details' : 'Add Child',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
                           fontSize: 24,
@@ -274,6 +321,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                           _InputBox(
                             child: TextField(
                               controller: _nameController,
+                              readOnly: widget.readOnly,
                               style: GoogleFonts.inter(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
@@ -320,7 +368,10 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (v) => setState(() => _selectedSchoolId = v),
+                            onChanged: widget.readOnly
+                                ? (_) {}
+                                : (v) => setState(() => _selectedSchoolId = v),
+                            enabled: !widget.readOnly,
                           ),
                           const SizedBox(height: 18),
                           _IconLabel(
@@ -348,7 +399,10 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (v) => setState(() => _selectedGrade = v),
+                            onChanged: widget.readOnly
+                                ? (_) {}
+                                : (v) => setState(() => _selectedGrade = v),
+                            enabled: !widget.readOnly,
                           ),
                           const SizedBox(height: 18),
                           _IconLabel(
@@ -358,7 +412,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                           ),
                           const SizedBox(height: 10),
                           _InputBox(
-                            onTap: _pickDob,
+                            onTap: widget.readOnly ? null : _pickDob,
                             child: Row(
                               children: [
                                 const SizedBox(width: 16),
@@ -376,7 +430,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                   ),
                                 ),
                                 GestureDetector(
-                                  onTap: _pickDob,
+                                  onTap: widget.readOnly ? null : _pickDob,
                                   child: Padding(
                                     padding: const EdgeInsets.only(right: 16),
                                     child: Icon(
@@ -393,11 +447,13 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                           _IconLabel(
                             iconPath: AppImages.studentIcon,
                             iconSize: const Size(40, 40),
-                            label: 'Student Face Photo',
+                            label: widget.readOnly ? 'Description' : 'Student Face Photo',
                           ),
                           const SizedBox(height: 10),
                           GestureDetector(
-                            onTap: _faceChecking || _saving ? null : _pickFacePhoto,
+                            onTap: widget.readOnly || _faceChecking || _saving
+                                ? null
+                                : _pickFacePhoto,
                             child: Container(
                               width: double.infinity,
                               height: 140,
@@ -410,39 +466,73 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                   width: _faceVerified || _faceRejectReason != null ? 2 : 1,
                                 ),
                               ),
-                              child: _studentPhotoFile == null
-                                  ? Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.face_outlined,
-                                          size: 40,
-                                          color: AppColors.grayText.withValues(alpha: 0.72),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Tap to take a face photo',
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            color: AppColors.grayText.withValues(alpha: 0.68),
+                              child: widget.readOnly
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: _faceStatusMessage != null
+                                          ? Image.network(
+                                              _faceStatusMessage!,
+                                              width: double.infinity,
+                                              height: 140,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Image.asset(
+                                                AppImages.studentIcon,
+                                                width: double.infinity,
+                                                height: 140,
+                                                fit: BoxFit.cover,
+                                              ),
+                                            )
+                                          : Image.asset(
+                                              AppImages.studentIcon,
+                                              width: double.infinity,
+                                              height: 140,
+                                              fit: BoxFit.cover,
+                                            ),
+                                    )
+                                  : _studentPhotoFile == null
+                                      ? Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.face_outlined,
+                                              size: 40,
+                                              color: AppColors.grayText.withValues(alpha: 0.72),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Tap to take a face photo',
+                                              textAlign: TextAlign.center,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                                color: AppColors.grayText.withValues(alpha: 0.68),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : ClipRRect(
+                                          borderRadius: BorderRadius.circular(14),
+                                          child: Image.file(
+                                            _studentPhotoFile!,
+                                            width: double.infinity,
+                                            height: 140,
+                                            fit: BoxFit.cover,
                                           ),
                                         ),
-                                      ],
-                                    )
-                                  : ClipRRect(
-                                      borderRadius: BorderRadius.circular(14),
-                                      child: Image.file(
-                                        _studentPhotoFile!,
-                                        width: double.infinity,
-                                        height: 140,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
                             ),
                           ),
-                          if (_studentPhotoFile != null) ...[
+                          if (widget.readOnly && _faceRejectReason != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              _faceRejectReason!,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: context.appPrimaryText,
+                              ),
+                            ),
+                          ],
+                          if (!widget.readOnly && _studentPhotoFile != null) ...[
                             const SizedBox(height: 8),
                             ParentFaceStatusRow(
                               checking: _faceChecking,
@@ -479,7 +569,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                         width: double.infinity,
                         height: 46,
                         child: parentSubmitDisabledBlur(
-                          enabled: _canAdd,
+                          enabled: widget.readOnly ? true : _canAdd,
                           borderRadius: BorderRadius.circular(33),
                           child: DecoratedBox(
                             decoration: BoxDecoration(
@@ -496,7 +586,13 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: !_canAdd ? null : _save,
+                                onTap: widget.readOnly
+                                    ? () {
+                                        Navigator.of(context).push(
+                                          fadeRoute(const ParentAddChildScreen()),
+                                        );
+                                      }
+                                    : (!_canAdd ? null : _save),
                                 borderRadius: BorderRadius.circular(33),
                                 child: Center(
                                   child: _saving
@@ -509,7 +605,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                           ),
                                         )
                                       : Text(
-                                          'Add',
+                                          widget.readOnly ? 'Retry Again' : 'Add',
                                           style: GoogleFonts.inter(
                                             fontSize: 24,
                                             fontWeight: FontWeight.w700,
@@ -680,12 +776,14 @@ class _DropdownBox<T> extends StatelessWidget {
     required this.items,
     required this.onChanged,
     required this.hint,
+    this.enabled = true,
   });
 
   final T? value;
   final List<DropdownMenuItem<T>> items;
   final ValueChanged<T?> onChanged;
   final String hint;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -702,7 +800,7 @@ class _DropdownBox<T> extends StatelessWidget {
         child: DropdownButton<T>(
           value: value,
           items: items,
-          onChanged: onChanged,
+          onChanged: enabled ? onChanged : null,
           isExpanded: true,
           icon: Icon(
             Icons.keyboard_arrow_down_rounded,
