@@ -42,8 +42,11 @@ class SupervisorDashboard {
       activeTripId = (t != null && t > 0) ? t : null;
     }
 
+    final idRaw = json['id'] ?? json['Id'];
+    final supervisorId = idRaw is num ? idRaw.toInt() : int.parse(idRaw.toString());
+
     return SupervisorDashboard(
-      id: (json['id'] as num).toInt(),
+      id: supervisorId,
       name: (json['name'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       phone: (json['phone'] ?? '').toString(),

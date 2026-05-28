@@ -18,9 +18,12 @@ class MapsConfig {
   ///
   /// Pass at build/run time:
   /// `flutter run --dart-define=GEOAPIFY_API_KEY=your_key`
+  ///
+  /// If no dart-define is provided (common in local debug runs), the app falls
+  /// back to the project key below so GPS address capture still works.
   static const String geoapifyApiKey = String.fromEnvironment(
     'GEOAPIFY_API_KEY',
-    defaultValue: '',
+    defaultValue: 'b19812ce46a6464a9bb152536fa2b8fe',
   );
 
   static bool get hasApiKey => googleMapsApiKey.trim().isNotEmpty;

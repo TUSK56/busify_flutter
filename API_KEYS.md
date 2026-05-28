@@ -12,11 +12,10 @@ Enable these APIs in [Google Cloud Console](https://console.cloud.google.com/):
 
 1. **Maps SDK for Android**
 2. **Maps SDK for iOS**
-3. **Geocoding API** (parent address from GPS)
 
 Optional (if you later switch routing from OSRM to Google):
 
-4. **Directions API**
+3. **Directions API**
 
 ### Where to put the key
 
@@ -24,12 +23,13 @@ Optional (if you later switch routing from OSRM to Google):
 |----------|------|
 | Android | `android/app/src/main/res/values/strings.xml` → `google_maps_key` |
 | iOS | `ios/Runner/Info.plist` → `GMSApiKey` |
-| Flutter run/build (geocoding) | `--dart-define=GOOGLE_MAPS_API_KEY=your_key` |
+| Flutter run/build (Geoapify geocoding) | `--dart-define=GEOAPIFY_API_KEY=your_geoapify_key` |
 
 Example:
 
 ```bash
-flutter run --dart-define=GOOGLE_MAPS_API_KEY=AIza...
+flutter run --dart-define=GEOAPIFY_API_KEY=b19812ce46a6464a9bb152536fa2b8fe
+flutter build apk --dart-define=GEOAPIFY_API_KEY=b19812ce46a6464a9bb152536fa2b8fe
 ```
 
 Replace `YOUR_GOOGLE_MAPS_API_KEY` placeholders in the Android/iOS files above with the same key.

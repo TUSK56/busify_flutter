@@ -48,12 +48,6 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   bool get _canAdd =>
       _faceVerified && !_faceChecking && !_saving && _facePhoto != null;
 
-  Map<String, dynamic>? _asMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) return value.map((k, v) => MapEntry(k.toString(), v));
-    return null;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -184,10 +178,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
 
     setState(() => _saving = true);
     try {
-      final overview = await ServiceLocator.parentService.getChildOverview();
-      final parent = _asMap(overview['parent'] ?? overview['Parent']) ?? {};
-      final parentId =
-          (parent['id'] ?? parent['Id']) as int? ?? ServiceLocator.tokenStorage.getUserId();
+      final parentId = ServiceLocator.tokenStorage.getUserId();
 
       if (parentId == null || parentId <= 0) {
         throw Exception('Could not detect parent account');

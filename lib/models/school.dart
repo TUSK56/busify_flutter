@@ -9,8 +9,10 @@ class School {
   });
 
   factory School.fromJson(Map<String, dynamic> json) {
+    final idRaw = json['id'] ?? json['Id'];
+    final schoolId = idRaw is num ? idRaw.toInt() : int.parse(idRaw.toString());
     return School(
-      id: json['id'] as int,
+      id: schoolId,
       name: json['name'] as String,
     );
   }

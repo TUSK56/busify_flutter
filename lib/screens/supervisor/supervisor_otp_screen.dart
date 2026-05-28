@@ -25,6 +25,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
 
   // Error state for wrong OTP
   String? _errorMessage;
+  bool _verifying = false;
 
   @override
   void dispose() {
@@ -37,7 +38,8 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
     super.dispose();
   }
 
-  void _verifyOtp() {
+  Future<void> _verifyOtp() async {
+    if (_verifying) return;
     final otp = _controllers.map((c) => c.text).join();
 
     // Backend sends 6 digits; "0000" remains supported as a dev fallback.
@@ -54,11 +56,32 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
 
     setState(() {
       _errorMessage = null;
+      _verifying = true;
     });
-    Navigator.push(
-      context,
-      fadeRoute(SupervisorResetPasswordScreen(email: widget.email, otp: otp)),
-    );
+    try {
+      await ServiceLocator.supervisorService.verifyResetOtp(
+        email: widget.email,
+        otp: otp,
+      );
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        fadeRoute(SupervisorResetPasswordScreen(email: widget.email, otp: otp)),
+      );
+    } on SupervisorServiceException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.message;
+      });
+      for (var controller in _controllers) {
+        controller.clear();
+      }
+      _focusNodes[0].requestFocus();
+    } finally {
+      if (mounted) {
+        setState(() => _verifying = false);
+      }
+    }
   }
 
   @override
@@ -176,7 +199,7 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
 
                   // Verify / Get OTP Button (Rectangle 221x45)
                   GestureDetector(
-                    onTap: _verifyOtp,
+                    onTap: _verifying ? null : _verifyOtp,
                     child: Container(
                       width: 221,
                       height: 45,
@@ -185,15 +208,24 @@ class _SupervisorOtpScreenState extends State<SupervisorOtpScreen> {
                         gradient: AppColors.primaryButtonGradient,
                         borderRadius: BorderRadius.circular(15),
                       ),
-                      child: const Text(
-                        'Reset Password',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w600, // SemiBold
-                          fontSize: 18,
-                          color: AppColors.white, // ffffff 100%
-                        ),
-                      ),
+                      child: _verifying
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Reset Password',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontWeight: FontWeight.w600, // SemiBold
+                                fontSize: 18,
+                                color: AppColors.white, // ffffff 100%
+                              ),
+                            ),
                     ),
                   ),
 

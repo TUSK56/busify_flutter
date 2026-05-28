@@ -166,6 +166,33 @@ class SupervisorService {
 
   /// POST /v1/Supervisor/reset-password
   /// Same structure as parent.
+  Future<void> verifyResetOtp({
+    required String email,
+    required String otp,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/verify-reset-otp');
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim(),
+        'otp': otp.trim(),
+      }),
+    );
+    if (response.statusCode != 200) {
+      String message = 'Invalid or expired OTP';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['message'] != null) {
+          message = decoded['message'] as String;
+        }
+      } catch (_) {}
+      throw SupervisorServiceException(message, statusCode: response.statusCode);
+    }
+  }
+
+  /// POST /v1/Supervisor/reset-password
+  /// Same structure as parent.
   Future<void> resetPassword({
     required String email,
     required String otp,

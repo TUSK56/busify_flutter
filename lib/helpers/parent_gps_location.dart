@@ -41,8 +41,8 @@ Future<ParentResolvedGps> resolveParentGpsWithNominatim() async {
   }
 
   final position = await Geolocator.getCurrentPosition(
-    desiredAccuracy: kFastLocationSettings.accuracy,
-    timeLimit: kFastLocationSettings.timeLimit,
+    desiredAccuracy: kParentLocationSettings.accuracy,
+    timeLimit: kParentLocationSettings.timeLimit,
   );
 
   final address = await reverseGeocodeGeoapify(

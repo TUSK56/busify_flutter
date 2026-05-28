@@ -569,8 +569,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     _locationTimer = Timer.periodic(kLiveLocationInterval, (timer) async {
       try {
         final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: kFastLocationSettings.accuracy,
-          timeLimit: kFastLocationSettings.timeLimit,
+          desiredAccuracy: kLiveTrackingAccuracy,
         );
 
         final nextLocation = latlng.LatLng(

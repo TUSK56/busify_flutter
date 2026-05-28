@@ -129,6 +129,33 @@ class ParentService {
   }
 
   /// POST /v1/parent/reset-password
+  Future<void> verifyResetOtp({
+    required String email,
+    required String otp,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/verify-reset-otp');
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim(),
+        'otp': otp.trim(),
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      String message = 'Invalid or expired OTP';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['message'] != null) {
+          message = decoded['message'] as String;
+        }
+      } catch (_) {}
+      throw ParentServiceException(message, statusCode: response.statusCode);
+    }
+  }
+
+  /// POST /v1/parent/reset-password
   Future<void> resetPassword({
     required String email,
     required String otp,
@@ -372,10 +399,14 @@ class ParentService {
     if (response.statusCode != 200 &&
         response.statusCode != 201 &&
         response.statusCode != 204) {
-      throw ParentServiceException(
-        'Failed to add child (${response.statusCode})',
-        statusCode: response.statusCode,
-      );
+      String message = 'Failed to add child';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['message'] != null) {
+          message = decoded['message'] as String;
+        }
+      } catch (_) {}
+      throw ParentServiceException('$message (${response.statusCode})', statusCode: response.statusCode);
     }
     if (response.body.isEmpty) {
       return const <String, dynamic>{};
