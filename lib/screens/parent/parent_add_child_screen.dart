@@ -448,7 +448,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                           _IconLabel(
                             iconPath: AppImages.studentIcon,
                             iconSize: const Size(40, 40),
-                            label: widget.readOnly ? 'Description' : 'Student Face Photo',
+                            label: 'Student Face Photo',
                           ),
                           const SizedBox(height: 10),
                           GestureDetector(
@@ -522,14 +522,30 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                         ),
                             ),
                           ),
-                          if (widget.readOnly && _faceRejectReason != null) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              _faceRejectReason!,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: context.appPrimaryText,
+                          if (widget.readOnly) ...[
+                            const SizedBox(height: 18),
+                            _ReadOnlyDescriptionLabel(),
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.white.withValues(alpha: 0.58),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.textBlack.withValues(alpha: 0.20),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                (_faceRejectReason == null || _faceRejectReason!.trim().isEmpty)
+                                    ? 'Rejected by school'
+                                    : _faceRejectReason!,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: context.appPrimaryText,
+                                ),
                               ),
                             ),
                           ],
@@ -734,6 +750,42 @@ class _IconLabel extends StatelessWidget {
         Expanded(
           child: Text(
             label,
+            style: GoogleFonts.inter(
+              fontSize: 20,
+              fontWeight: FontWeight.w500,
+              height: 22 / 20,
+              color: AppColors.primaryBlue,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReadOnlyDescriptionLabel extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(50),
+          ),
+          alignment: Alignment.center,
+          child: const Icon(
+            FluentIcons.document_text_20_filled,
+            size: 22,
+            color: AppColors.primaryBlue,
+          ),
+        ),
+        const SizedBox(width: 23),
+        Expanded(
+          child: Text(
+            'Description',
             style: GoogleFonts.inter(
               fontSize: 20,
               fontWeight: FontWeight.w500,
