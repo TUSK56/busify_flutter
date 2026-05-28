@@ -1108,6 +1108,51 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   }
 
   Widget buildStudentCard(BuildContext context, double cardW) {
+    if (_students.isEmpty) {
+      return Center(
+        child: Container(
+          width: cardW,
+          constraints: const BoxConstraints(minHeight: 220),
+          decoration: BoxDecoration(
+            color: context.appPanelBackground,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.only(left: 22, top: 11),
+                color: AppColors.studentCardHeaderBar,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Student',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: context.appPrimaryText,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+                child: Text(
+                  'No student linked yet',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: context.appSecondaryText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final sid = _studentId;
     final tripA = sid != null ? (_tripActiveByStudent[sid] ?? false) : _tripActive;
     final today = sid == null ? _todayLatestScanType : _todayScanByStudent[sid];

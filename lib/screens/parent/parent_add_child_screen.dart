@@ -6,6 +6,7 @@ import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/app_back_button.dart';
 import 'package:application/helpers/app_feedback.dart';
+import 'package:application/helpers/supervisor_photo.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_profile_screen.dart';
@@ -86,7 +87,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
             ? 'Rejected by school'
             : reason.trim();
         if (photo != null && photo.trim().isNotEmpty) {
-          _faceStatusMessage = photo.trim();
+          _faceStatusMessage = supervisorPhotoFullUrl(photo.trim()) ?? photo.trim();
         }
       });
       return;
