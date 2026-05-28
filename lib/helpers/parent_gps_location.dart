@@ -2,7 +2,7 @@ import 'package:application/constants/location_tracking.dart';
 import 'package:application/helpers/google_geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
-/// Result of resolving GPS → governorate/street (Google Geocoding).
+/// Result of resolving GPS → governorate/street (Geoapify Geocoding).
 class ParentResolvedGps {
   const ParentResolvedGps({
     required this.latitude,
@@ -45,7 +45,7 @@ Future<ParentResolvedGps> resolveParentGpsWithNominatim() async {
     timeLimit: kFastLocationSettings.timeLimit,
   );
 
-  final address = await reverseGeocodeGoogle(
+  final address = await reverseGeocodeGeoapify(
     latitude: position.latitude,
     longitude: position.longitude,
   );

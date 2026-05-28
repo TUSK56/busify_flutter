@@ -216,7 +216,13 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
       final data = await ServiceLocator.parentService.getChildOverview();
       final parent =
           (data['parent'] ?? data['Parent']) as Map<String, dynamic>?;
-      final students = coerceJsonMapList(data['students'] ?? data['Students']);
+      final allStudents = coerceJsonMapList(data['students'] ?? data['Students']);
+      final students = allStudents.where((s) {
+        final raw = s['linkStatus'] ?? s['link_status'] ?? s['LinkStatus'];
+        if (raw == null) return true; // backward-compatible: treat as approved
+        final st = raw.toString().toLowerCase().trim();
+        return st == 'approved';
+      }).toList();
       final busByStudent = <int, String>{};
       for (final s in students) {
         final sidRaw = s['id'] ?? s['Id'];

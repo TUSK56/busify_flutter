@@ -349,6 +349,7 @@ class ParentService {
     required String birthdate, // yyyy-MM-dd
     required String grade,
     required int parentId,
+    required int schoolId,
     int? busId,
     String? photoBase64,
   }) async {
@@ -358,6 +359,7 @@ class ParentService {
       'birthdate': birthdate,
       'grade': grade,
       'parentId': parentId,
+      'schoolId': schoolId,
       if (busId != null) 'busId': busId,
       if (photoBase64 != null && photoBase64.trim().isNotEmpty)
         'photoBase64': photoBase64.trim(),

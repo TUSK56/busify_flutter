@@ -206,6 +206,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
         birthdate: _dobForApi(),
         grade: grade,
         parentId: parentId,
+        schoolId: _selectedSchoolId!,
         photoBase64: photoB64,
       );
 

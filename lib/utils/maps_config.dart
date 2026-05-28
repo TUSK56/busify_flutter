@@ -14,5 +14,15 @@ class MapsConfig {
     defaultValue: '',
   );
 
+  /// Geoapify Geocoding API key used by mobile geocoding helpers.
+  ///
+  /// Pass at build/run time:
+  /// `flutter run --dart-define=GEOAPIFY_API_KEY=your_key`
+  static const String geoapifyApiKey = String.fromEnvironment(
+    'GEOAPIFY_API_KEY',
+    defaultValue: '',
+  );
+
   static bool get hasApiKey => googleMapsApiKey.trim().isNotEmpty;
+  static bool get hasGeoapifyKey => geoapifyApiKey.trim().isNotEmpty;
 }
