@@ -6,7 +6,7 @@ import 'package:application/utils/api_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-/// Sends GPS fixes in overlapping batches (never blocked by a slow HTTP response).
+/// Sends GPS fixes in parallel batches — never waits for a slow HTTP response.
 class LiveLocationUploader {
   LiveLocationUploader._();
 
@@ -16,11 +16,11 @@ class LiveLocationUploader {
   final List<Map<String, dynamic>> _pending = [];
   Timer? _flushTimer;
   int _inFlight = 0;
-  static const int _maxInFlight = 5;
+  static const int _maxInFlight = 12;
 
   void start() {
     _flushTimer ??= Timer.periodic(
-      const Duration(milliseconds: 300),
+      const Duration(milliseconds: 250),
       (_) => _scheduleFlush(),
     );
   }
@@ -33,21 +33,29 @@ class LiveLocationUploader {
   }
 
   void enqueue(double lat, double lng) {
+    final now = DateTime.now().toUtc();
     final last = _pending.isNotEmpty ? _pending.last : null;
-    if (last != null &&
-        (last['latitude'] as num).toDouble() == lat &&
-        (last['longitude'] as num).toDouble() == lng) {
-      // Keep one stationary sample; skip identical back-to-back fixes.
-      return;
+    if (last != null) {
+      final lastAt = DateTime.tryParse(last['timestamp'] as String? ?? '');
+      final sameCoords =
+          (last['latitude'] as num).toDouble() == lat &&
+          (last['longitude'] as num).toDouble() == lng;
+      if (sameCoords &&
+          lastAt != null &&
+          now.difference(lastAt).inMilliseconds < 800) {
+        return;
+      }
     }
 
     _pending.add({
       'latitude': lat,
       'longitude': lng,
-      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'timestamp': now.toIso8601String(),
     });
 
-    _scheduleFlush();
+    if (_pending.length >= 3) {
+      _scheduleFlush();
+    }
   }
 
   void _scheduleFlush() {
@@ -84,18 +92,18 @@ class LiveLocationUploader {
             headers: headers,
             body: jsonEncode({'points': points}),
           )
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 8));
 
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
         return;
       }
 
       debugPrint('Batch location save failed: HTTP ${resp.statusCode}');
-      if (points.isNotEmpty) {
-        final last = points.last;
+      for (final point in points) {
         await _postSingle(
-          (last['latitude'] as num).toDouble(),
-          (last['longitude'] as num).toDouble(),
+          (point['latitude'] as num).toDouble(),
+          (point['longitude'] as num).toDouble(),
+          point['timestamp'] as String?,
         );
       }
     } catch (e) {
@@ -103,7 +111,11 @@ class LiveLocationUploader {
     }
   }
 
-  Future<void> _postSingle(double lat, double lng) async {
+  Future<void> _postSingle(
+    double lat,
+    double lng,
+    String? timestamp,
+  ) async {
     try {
       final uri = Uri.parse('${ApiConfig.baseUrl}/v1/Supervisor/live-location');
       final token = ServiceLocator.tokenStorage.getToken();
@@ -118,10 +130,10 @@ class LiveLocationUploader {
             body: jsonEncode({
               'latitude': lat,
               'longitude': lng,
-              'timestamp': DateTime.now().toUtc().toIso8601String(),
+              'timestamp': timestamp ?? DateTime.now().toUtc().toIso8601String(),
             }),
           )
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 6));
       if (resp.statusCode < 200 || resp.statusCode >= 300) {
         debugPrint('Location save failed: HTTP ${resp.statusCode}');
       }

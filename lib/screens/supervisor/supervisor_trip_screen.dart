@@ -20,7 +20,7 @@ import 'package:application/utils/api_config.dart';
 import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/location_tracking.dart';
-import 'package:application/helpers/gps_stream_helper.dart';
+import 'package:application/helpers/live_gps_tracker.dart';
 import 'package:application/helpers/map_bus_marker.dart';
 import 'package:application/helpers/map_lat_lng.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -41,7 +41,7 @@ class SupervisorTripScreen extends StatefulWidget {
 class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     with TickerProviderStateMixin {
   // --- LOGIC VARIABLES ---
-  StreamSubscription<Position>? _positionSub;
+  final LiveGpsTracker _gpsTracker = LiveGpsTracker();
   latlng.LatLng? _currentLocation;
   String _eta = "-- min";
   List<latlng.LatLng>? _routePoints;
@@ -513,17 +513,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   @override
   void dispose() {
     LiveLocationUploader.instance.stop();
-    detachPositionSubscription(_positionSub);
-    _positionSub = null;
+    unawaited(_gpsTracker.stop());
     _recenterController?.dispose();
     _recenterController = null;
     super.dispose();
-  }
-
-  Future<void> _stopPositionStream() async {
-    final sub = _positionSub;
-    _positionSub = null;
-    await cancelPositionSubscription(sub);
   }
 
   void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
@@ -587,13 +580,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       return;
     }
 
-    // Continuous GPS stream (~300ms on Android) — map updates immediately, uploads queued.
+    // Continuous GPS (stream + 1s poll) — map updates immediately, uploads queued.
     LiveLocationUploader.instance.start();
-    await _stopPositionStream();
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: liveTripStreamSettings(),
-    ).listen(
-      (position) async {
+    await _gpsTracker.start((position) async {
       try {
         final nextLocation = latlng.LatLng(
           position.latitude,
@@ -681,8 +670,6 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       } catch (e) {
         debugPrint('Error during location tracking loop: $e');
       }
-    }, onError: (Object e) {
-      debugPrint('GPS stream error: $e');
     });
   }
 

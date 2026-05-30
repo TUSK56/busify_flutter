@@ -8,7 +8,7 @@ import 'package:application/helpers/app_theme.dart';
 import 'package:application/services/live_location_uploader.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/location_tracking.dart';
-import 'package:application/helpers/gps_stream_helper.dart';
+import 'package:application/helpers/live_gps_tracker.dart';
 import 'package:application/helpers/map_bus_marker.dart';
 import 'package:application/helpers/map_lat_lng.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -41,7 +41,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   gmaps.GoogleMapController? _mapController;
   gmaps.BitmapDescriptor? _busMarkerIcon;
   double _mapZoom = 15;
-  StreamSubscription<Position>? _positionSub;
+  final LiveGpsTracker _gpsTracker = LiveGpsTracker();
   int _routeProgressIndex = 0;
   latlng.LatLng? _currentLocation;
   bool _isFollowing = true;
@@ -103,17 +103,10 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   @override
   void dispose() {
     LiveLocationUploader.instance.stop();
-    detachPositionSubscription(_positionSub);
-    _positionSub = null;
+    unawaited(_gpsTracker.stop());
     _recenterController?.dispose();
     _recenterController = null;
     super.dispose();
-  }
-
-  Future<void> _stopPositionStream() async {
-    final sub = _positionSub;
-    _positionSub = null;
-    await cancelPositionSubscription(sub);
   }
 
   void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
@@ -174,10 +167,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
     }
 
     LiveLocationUploader.instance.start();
-    await _stopPositionStream();
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: liveTripStreamSettings(),
-    ).listen((position) async {
+    await _gpsTracker.start((position) async {
       try {
         final nextLocation = latlng.LatLng(
           position.latitude,
@@ -210,8 +200,6 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       } catch (e) {
         debugPrint('Full map location loop error: $e');
       }
-    }, onError: (Object e) {
-      debugPrint('Full map GPS stream error: $e');
     });
   }
 
