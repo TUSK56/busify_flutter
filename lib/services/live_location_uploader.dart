@@ -6,8 +6,7 @@ import 'package:application/utils/api_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-/// Buffers GPS fixes and uploads them in batches so Railway gets ~1 row/sec
-/// without one HTTP round-trip per fix (which caused 4–6s gaps under load).
+/// Sends GPS fixes in overlapping batches (never blocked by a slow HTTP response).
 class LiveLocationUploader {
   LiveLocationUploader._();
 
@@ -16,12 +15,13 @@ class LiveLocationUploader {
 
   final List<Map<String, dynamic>> _pending = [];
   Timer? _flushTimer;
-  bool _flushing = false;
+  int _inFlight = 0;
+  static const int _maxInFlight = 3;
 
   void start() {
     _flushTimer ??= Timer.periodic(
-      const Duration(milliseconds: 900),
-      (_) => unawaited(flush()),
+      const Duration(milliseconds: 500),
+      (_) => _scheduleFlush(),
     );
   }
 
@@ -29,43 +29,49 @@ class LiveLocationUploader {
     _flushTimer?.cancel();
     _flushTimer = null;
     _pending.clear();
+    _inFlight = 0;
   }
 
   void enqueue(double lat, double lng) {
+    final last = _pending.isNotEmpty ? _pending.last : null;
+    if (last != null &&
+        (last['latitude'] as num).toDouble() == lat &&
+        (last['longitude'] as num).toDouble() == lng) {
+      // Keep one stationary sample; skip identical back-to-back fixes.
+      return;
+    }
+
     _pending.add({
       'latitude': lat,
       'longitude': lng,
       'timestamp': DateTime.now().toUtc().toIso8601String(),
     });
-    if (_pending.length >= 3) {
-      unawaited(flush());
+
+    if (_pending.length >= 2) {
+      _scheduleFlush();
     }
   }
 
-  Future<void> flush() async {
-    if (_flushing || _pending.isEmpty) return;
-    _flushing = true;
+  void _scheduleFlush() {
+    if (_pending.isEmpty || _inFlight >= _maxInFlight) return;
+
     final batch = List<Map<String, dynamic>>.from(_pending);
     _pending.clear();
+    _inFlight++;
 
-    try {
-      final ok = await _postBatch(batch);
-      if (!ok && batch.isNotEmpty) {
-        final last = batch.last;
-        await _postSingle(
-          (last['latitude'] as num).toDouble(),
-          (last['longitude'] as num).toDouble(),
-        );
-      }
-    } finally {
-      _flushing = false;
-      if (_pending.isNotEmpty) {
-        unawaited(flush());
-      }
-    }
+    unawaited(
+      _postBatch(batch).whenComplete(() {
+        _inFlight--;
+        if (_pending.isNotEmpty) {
+          _scheduleFlush();
+        }
+      }),
+    );
   }
 
-  Future<bool> _postBatch(List<Map<String, dynamic>> points) async {
+  Future<void> _postBatch(List<Map<String, dynamic>> points) async {
+    if (points.isEmpty) return;
+
     try {
       final uri =
           Uri.parse('${ApiConfig.baseUrl}/v1/Supervisor/live-location/batch');
@@ -80,15 +86,22 @@ class LiveLocationUploader {
             headers: headers,
             body: jsonEncode({'points': points}),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 12));
+
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        return true;
+        return;
       }
+
       debugPrint('Batch location save failed: HTTP ${resp.statusCode}');
-      return false;
+      if (points.isNotEmpty) {
+        final last = points.last;
+        await _postSingle(
+          (last['latitude'] as num).toDouble(),
+          (last['longitude'] as num).toDouble(),
+        );
+      }
     } catch (e) {
       debugPrint('Batch location upload error: $e');
-      return false;
     }
   }
 
