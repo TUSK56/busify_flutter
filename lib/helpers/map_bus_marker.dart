@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -22,16 +21,16 @@ class MapBusMarker {
     const emoji = '🚌';
 
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
+    final canvas = ui.Canvas(recorder);
     final builder = ui.ParagraphBuilder(
       ui.ParagraphStyle(
         fontSize: 22,
-        textAlign: TextAlign.center,
+        textAlign: ui.TextAlign.center,
       ),
     )..addText(emoji);
     final paragraph = builder.build()
       ..layout(ui.ParagraphConstraints(width: size));
-    canvas.drawParagraph(paragraph, Offset.zero);
+    canvas.drawParagraph(paragraph, ui.Offset.zero);
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(size.ceil(), size.ceil());
