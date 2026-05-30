@@ -12,6 +12,7 @@ import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:application/widgets/resilient_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:application/helpers/map_bus_marker.dart';
 import 'package:application/helpers/map_lat_lng.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:google_fonts/google_fonts.dart';
@@ -65,7 +66,8 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   latlng.LatLng? _mapCameraCenter;
   int _routeProgressIndex = 0;
   String _routeDestinationKey = '';
-  bool _isMiniMapFollowing = true;
+  bool _isMiniMapFollowing = false;
+  gmaps.BitmapDescriptor? _busMarkerIcon;
   AnimationController? _recenterController;
   int? _childStudentId;
   bool _isRecentering = false;
@@ -91,8 +93,16 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     _childStudentId = widget.studentId;
     _studentName = widget.studentName ?? '';
     _studentPhotoUrl = widget.studentPhotoUrl;
+    unawaited(_loadBusMarkerIcon());
     _loadStudentOverview();
     _bootstrapLiveTracking();
+  }
+
+  Future<void> _loadBusMarkerIcon() async {
+    try {
+      final icon = await MapBusMarker.icon();
+      if (mounted) setState(() => _busMarkerIcon = icon);
+    } catch (_) {}
   }
 
   Future<void> _loadStudentOverview() async {
@@ -386,13 +396,15 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
   Set<gmaps.Marker> _buildTrackMapMarkers() {
     if (_busLocation == null) return const {};
+    final busIcon = _busMarkerIcon ??
+        gmaps.BitmapDescriptor.defaultMarkerWithHue(
+          gmaps.BitmapDescriptor.hueOrange,
+        );
     return {
       gmaps.Marker(
         markerId: const gmaps.MarkerId('bus'),
         position: toGoogleLatLng(_busLocation!),
-        icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
-          gmaps.BitmapDescriptor.hueOrange,
-        ),
+        icon: busIcon,
       ),
       if (_destination != null)
         gmaps.Marker(
