@@ -5,8 +5,7 @@ import 'dart:math' as math;
 import 'package:application/constants/app_colors.dart';
 import 'package:application/helpers/api_json.dart';
 import 'package:application/helpers/app_theme.dart';
-import 'package:application/services/service_locator.dart';
-import 'package:application/utils/api_config.dart';
+import 'package:application/services/live_location_uploader.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/location_tracking.dart';
 import 'package:application/helpers/map_bus_marker.dart';
@@ -41,8 +40,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   gmaps.GoogleMapController? _mapController;
   gmaps.BitmapDescriptor? _busMarkerIcon;
   double _mapZoom = 15;
-  Timer? _locationTimer;
-  bool _locationUploadInFlight = false;
+  StreamSubscription<Position>? _positionSub;
   int _routeProgressIndex = 0;
   latlng.LatLng? _currentLocation;
   bool _isFollowing = true;
@@ -103,7 +101,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
 
   @override
   void dispose() {
-    _locationTimer?.cancel();
+    _positionSub?.cancel();
     _recenterController?.dispose();
     _recenterController = null;
     super.dispose();
@@ -166,20 +164,15 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       return;
     }
 
-    _locationTimer = Timer.periodic(kLiveLocationInterval, (
-      Timer timer,
-    ) async {
+    _positionSub?.cancel();
+    _positionSub = Geolocator.getPositionStream(
+      locationSettings: liveTripStreamSettings(),
+    ).listen((position) async {
       try {
-        final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: kLiveTrackingAccuracy,
-        );
-
         final nextLocation = latlng.LatLng(
           position.latitude,
           position.longitude,
         );
-
-        if (!mounted) return;
 
         final dest = widget.routeDestination;
         if (_needsRouteRefetch(nextLocation, dest)) {
@@ -196,14 +189,10 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
           }
         });
 
-        if (!_locationUploadInFlight) {
-          _locationUploadInFlight = true;
-          unawaited(
-            _recordToDatabase(position.latitude, position.longitude).whenComplete(
-              () => _locationUploadInFlight = false,
-            ),
-          );
-        }
+        LiveLocationUploader.instance.enqueue(
+          position.latitude,
+          position.longitude,
+        );
 
         if (_isFollowing && _currentLocation != null) {
           _animateMapTo(_currentLocation!, targetZoom: _mapZoom);
@@ -211,33 +200,9 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       } catch (e) {
         debugPrint('Full map location loop error: $e');
       }
+    }, onError: (Object e) {
+      debugPrint('Full map GPS stream error: $e');
     });
-  }
-
-  Future<void> _recordToDatabase(double lat, double lng) async {
-    try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}/v1/Supervisor/live-location');
-      final token = ServiceLocator.tokenStorage.getToken();
-      final headers = <String, String>{'Content-Type': 'application/json'};
-      if (token != null && token.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $token';
-      }
-      final body = {
-        'latitude': lat,
-        'longitude': lng,
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
-      };
-      final resp = await http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode(body),
-      );
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        debugPrint('Full map location save failed: ${resp.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Error sending full map location: $e');
-    }
   }
 
   Future<void> _fetchRoute(

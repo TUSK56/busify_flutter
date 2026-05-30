@@ -1,20 +1,42 @@
+import 'dart:io';
+
 import 'package:geolocator/geolocator.dart';
 
-/// Live supervisor GPS sampling interval (target: under 1s between fixes).
-const Duration kLiveLocationInterval = Duration(milliseconds: 500);
+/// Platform-tuned GPS stream for live trip tracking.
+LocationSettings liveTripStreamSettings() {
+  if (Platform.isAndroid) {
+    return AndroidSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 0,
+      intervalDuration: const Duration(milliseconds: 500),
+      foregroundNotificationConfig: const ForegroundNotificationConfig(
+        notificationText: 'Busify is tracking your trip location.',
+        notificationTitle: 'Live trip tracking',
+        enableWakeLock: true,
+      ),
+    );
+  }
 
-/// Stream settings for continuous GPS during an active trip.
-const LocationSettings kLiveTripStreamSettings = LocationSettings(
-  accuracy: LocationAccuracy.bestForNavigation,
-  distanceFilter: 3,
-);
+  if (Platform.isIOS) {
+    return AppleSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 5,
+      activityType: ActivityType.automotiveNavigation,
+      pauseLocationUpdatesAutomatically: false,
+      showBackgroundLocationIndicator: true,
+    );
+  }
+
+  return const LocationSettings(
+    accuracy: LocationAccuracy.bestForNavigation,
+    distanceFilter: 0,
+  );
+}
 
 /// One-shot parent GPS capture for signup/profile address.
-/// Kept generous to avoid timeout errors on slower devices/networks.
 const LocationSettings kParentLocationSettings = LocationSettings(
   accuracy: LocationAccuracy.bestForNavigation,
   timeLimit: Duration(seconds: 12),
 );
 
-/// Continuous live-trip tracking should not hard-timeout every sub-second tick.
 const LocationAccuracy kLiveTrackingAccuracy = LocationAccuracy.bestForNavigation;

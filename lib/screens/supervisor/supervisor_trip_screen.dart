@@ -14,6 +14,7 @@ import 'package:application/screens/supervisor/supervisor_attendance_screen.dart
 import 'package:application/screens/supervisor/supervisor_full_map_screen.dart';
 import 'package:application/screens/supervisor/supervisor_home_screen.dart';
 import 'package:application/screens/supervisor/supervisor_profile_screen.dart';
+import 'package:application/services/live_location_uploader.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/utils/api_config.dart';
 import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
@@ -39,7 +40,7 @@ class SupervisorTripScreen extends StatefulWidget {
 class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     with TickerProviderStateMixin {
   // --- LOGIC VARIABLES ---
-  Timer? _locationTimer;
+  StreamSubscription<Position>? _positionSub;
   latlng.LatLng? _currentLocation;
   String _eta = "-- min";
   List<latlng.LatLng>? _routePoints;
@@ -99,7 +100,6 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   gmaps.BitmapDescriptor? _busMarkerIcon;
   double _mapZoom = 15;
   AnimationController? _recenterController;
-  bool _locationUploadInFlight = false;
 
   @override
   void initState() {
@@ -511,7 +511,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
 
   @override
   void dispose() {
-    _locationTimer?.cancel(); // Stop tracking when leaving screen
+    _positionSub?.cancel();
     _recenterController?.dispose();
     _recenterController = null;
     super.dispose();
@@ -578,13 +578,13 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       return;
     }
 
-    // Live GPS loop (~800ms) for fresher coordinates.
-    _locationTimer = Timer.periodic(kLiveLocationInterval, (timer) async {
+    // Continuous GPS stream (~500ms on Android) — map updates immediately, uploads queued.
+    _positionSub?.cancel();
+    _positionSub = Geolocator.getPositionStream(
+      locationSettings: liveTripStreamSettings(),
+    ).listen(
+      (position) async {
       try {
-        final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: kLiveTrackingAccuracy,
-        );
-
         final nextLocation = latlng.LatLng(
           position.latitude,
           position.longitude,
@@ -658,15 +658,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           await _fetchRoute(nextLocation, _currentDestination);
         }
 
-        // 3. Record to backend (non-blocking so GPS loop stays sub-second)
-        if (!_locationUploadInFlight) {
-          _locationUploadInFlight = true;
-          unawaited(
-            _recordToDatabase(position.latitude, position.longitude).whenComplete(
-              () => _locationUploadInFlight = false,
-            ),
-          );
-        }
+        // 3. Record to backend without blocking the GPS stream
+        LiveLocationUploader.instance.enqueue(
+          position.latitude,
+          position.longitude,
+        );
 
         // 4. Move map camera to follow Supervisor
         if (_isMiniMapFollowing && _currentLocation != null) {
@@ -675,34 +671,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       } catch (e) {
         debugPrint('Error during location tracking loop: $e');
       }
+    }, onError: (Object e) {
+      debugPrint('GPS stream error: $e');
     });
-  }
-
-  /// Send location to backend so it can be stored in DB.
-  Future<void> _recordToDatabase(double lat, double lng) async {
-    try {
-      // Backend endpoint (see `backend/src/API/Controllers/SupervisorController.cs`)
-      // POST /v1/Supervisor/live-location
-      final uri = Uri.parse('${ApiConfig.baseUrl}/v1/Supervisor/live-location');
-      final token = ServiceLocator.tokenStorage.getToken();
-      final headers = <String, String>{'Content-Type': 'application/json'};
-      if (token != null && token.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $token';
-      }
-      final body = jsonEncode({
-        'latitude': lat,
-        'longitude': lng,
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
-      });
-      final resp = await http.post(uri, headers: headers, body: body);
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        debugPrint(
-          'Location save failed: HTTP ${resp.statusCode} ${resp.body}',
-        );
-      }
-    } catch (e) {
-      debugPrint('Error sending location to backend: $e');
-    }
   }
 
   /// ETA engine (Option 1 + Option 2):
