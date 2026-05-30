@@ -149,7 +149,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
   Future<void> _bootstrapLiveTracking() async {
     await _refreshLiveData();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 1000), (_) {
       _refreshLiveData();
     });
   }
@@ -372,31 +372,16 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   Set<gmaps.Polyline> _buildColoredRoutePolylines() {
     if (_polyline.isEmpty || _polyline.length < 2) return const {};
     final idx = _routeProgressIndex.clamp(0, _polyline.length - 1);
-    final split = math.max(1, math.min(idx + 1, _polyline.length - 1));
-    final passed = _polyline.sublist(0, split);
-    final remaining = _polyline.sublist(split - 1);
-    final polylines = <gmaps.Polyline>{};
-    if (passed.length > 1) {
-      polylines.add(
-        gmaps.Polyline(
-          polylineId: const gmaps.PolylineId('passed'),
-          points: toGoogleLatLngList(passed),
-          color: Colors.grey.shade400,
-          width: 4,
-        ),
-      );
-    }
-    if (remaining.length > 1) {
-      polylines.add(
-        gmaps.Polyline(
-          polylineId: const gmaps.PolylineId('remaining'),
-          points: toGoogleLatLngList(remaining),
-          color: const Color(0xFF2563EB),
-          width: 4,
-        ),
-      );
-    }
-    return polylines;
+    final remaining = _polyline.sublist(idx);
+    if (remaining.length < 2) return const {};
+    return {
+      gmaps.Polyline(
+        polylineId: const gmaps.PolylineId('remaining'),
+        points: toGoogleLatLngList(remaining),
+        color: const Color(0xFF2563EB),
+        width: 4,
+      ),
+    };
   }
 
   Set<gmaps.Marker> _buildTrackMapMarkers() {
@@ -406,7 +391,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         markerId: const gmaps.MarkerId('bus'),
         position: toGoogleLatLng(_busLocation!),
         icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
-          gmaps.BitmapDescriptor.hueAzure,
+          gmaps.BitmapDescriptor.hueOrange,
         ),
       ),
       if (_destination != null)

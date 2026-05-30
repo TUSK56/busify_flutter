@@ -1,7 +1,13 @@
 import 'package:geolocator/geolocator.dart';
 
-/// Live supervisor GPS sampling interval (was 2s; now sub-second for accuracy).
-const Duration kLiveLocationInterval = Duration(milliseconds: 800);
+/// Live supervisor GPS sampling interval (target: under 1s between fixes).
+const Duration kLiveLocationInterval = Duration(milliseconds: 500);
+
+/// Stream settings for continuous GPS during an active trip.
+const LocationSettings kLiveTripStreamSettings = LocationSettings(
+  accuracy: LocationAccuracy.bestForNavigation,
+  distanceFilter: 3,
+);
 
 /// One-shot parent GPS capture for signup/profile address.
 /// Kept generous to avoid timeout errors on slower devices/networks.

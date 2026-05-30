@@ -9,6 +9,7 @@ import 'package:application/services/service_locator.dart';
 import 'package:application/utils/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/location_tracking.dart';
+import 'package:application/helpers/map_bus_marker.dart';
 import 'package:application/helpers/map_lat_lng.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:geolocator/geolocator.dart';
@@ -38,8 +39,11 @@ class SupervisorFullMapScreen extends StatefulWidget {
 class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
     with TickerProviderStateMixin {
   gmaps.GoogleMapController? _mapController;
+  gmaps.BitmapDescriptor? _busMarkerIcon;
   double _mapZoom = 15;
   Timer? _locationTimer;
+  bool _locationUploadInFlight = false;
+  int _routeProgressIndex = 0;
   latlng.LatLng? _currentLocation;
   bool _isFollowing = true;
   AnimationController? _recenterController;
@@ -51,7 +55,36 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(_loadBusMarkerIcon());
     _startLocationLoop();
+  }
+
+  Future<void> _loadBusMarkerIcon() async {
+    try {
+      final icon = await MapBusMarker.icon();
+      if (mounted) setState(() => _busMarkerIcon = icon);
+    } catch (e) {
+      debugPrint('Bus map marker load failed: $e');
+    }
+  }
+
+  int _closestRouteIndex(latlng.LatLng current, List<latlng.LatLng> points) {
+    var bestIdx = 0;
+    var bestDist = double.infinity;
+    for (var i = 0; i < points.length; i++) {
+      final p = points[i];
+      final d = _coordinateDistance(
+        current.latitude,
+        current.longitude,
+        p.latitude,
+        p.longitude,
+      );
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
   }
 
   @override
@@ -148,16 +181,29 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
 
         if (!mounted) return;
 
-        setState(() {
-          _currentLocation = nextLocation;
-        });
-
         final dest = widget.routeDestination;
         if (_needsRouteRefetch(nextLocation, dest)) {
           await _fetchRoute(nextLocation, dest);
         }
 
-        await _recordToDatabase(position.latitude, position.longitude);
+        if (!mounted) return;
+
+        setState(() {
+          _currentLocation = nextLocation;
+          if (_routePoints != null && _routePoints!.isNotEmpty) {
+            _routeProgressIndex =
+                _closestRouteIndex(nextLocation, _routePoints!);
+          }
+        });
+
+        if (!_locationUploadInFlight) {
+          _locationUploadInFlight = true;
+          unawaited(
+            _recordToDatabase(position.latitude, position.longitude).whenComplete(
+              () => _locationUploadInFlight = false,
+            ),
+          );
+        }
 
         if (_isFollowing && _currentLocation != null) {
           _animateMapTo(_currentLocation!, targetZoom: _mapZoom);
@@ -296,11 +342,13 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
                 mapToolbarEnabled: false,
                 markers: {
                   gmaps.Marker(
-                    markerId: const gmaps.MarkerId('supervisor'),
+                    markerId: const gmaps.MarkerId('bus'),
                     position: toGoogleLatLng(_currentLocation!),
-                    icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
-                      gmaps.BitmapDescriptor.hueAzure,
-                    ),
+                    icon: _busMarkerIcon ??
+                        gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                          gmaps.BitmapDescriptor.hueOrange,
+                        ),
+                    anchor: const Offset(0.5, 0.5),
                   ),
                   gmaps.Marker(
                     markerId: const gmaps.MarkerId('destination'),
@@ -310,16 +358,21 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
                     ),
                   ),
                 },
-                polylines: _routePoints == null
-                    ? const {}
-                    : {
-                        gmaps.Polyline(
-                          polylineId: const gmaps.PolylineId('route'),
-                          points: toGoogleLatLngList(_routePoints!),
-                          color: Colors.deepPurpleAccent,
-                          width: 4,
-                        ),
-                      },
+                polylines: () {
+                  final points = _routePoints;
+                  if (points == null || points.length < 2) return const <gmaps.Polyline>{};
+                  final idx = _routeProgressIndex.clamp(0, points.length - 1);
+                  final remaining = points.sublist(idx);
+                  if (remaining.length < 2) return const <gmaps.Polyline>{};
+                  return {
+                    gmaps.Polyline(
+                      polylineId: const gmaps.PolylineId('remaining'),
+                      points: toGoogleLatLngList(remaining),
+                      color: const Color(0xFF2563EB),
+                      width: 4,
+                    ),
+                  };
+                }(),
               ),
             Positioned(
               left: 16,

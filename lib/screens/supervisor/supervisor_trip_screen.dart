@@ -19,6 +19,7 @@ import 'package:application/utils/api_config.dart';
 import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/location_tracking.dart';
+import 'package:application/helpers/map_bus_marker.dart';
 import 'package:application/helpers/map_lat_lng.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:geolocator/geolocator.dart';
@@ -95,15 +96,27 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       _stops.isNotEmpty && _stops.every((s) => s.completed);
 
   gmaps.GoogleMapController? _mapController;
+  gmaps.BitmapDescriptor? _busMarkerIcon;
   double _mapZoom = 15;
   AnimationController? _recenterController;
+  bool _locationUploadInFlight = false;
 
   @override
   void initState() {
     super.initState();
     _supervisorName = ServiceLocator.tokenStorage.getUserName() ?? '';
     unawaited(_bootstrapSupervisorSession());
+    unawaited(_loadBusMarkerIcon());
     _startTripTracking();
+  }
+
+  Future<void> _loadBusMarkerIcon() async {
+    try {
+      final icon = await MapBusMarker.icon();
+      if (mounted) setState(() => _busMarkerIcon = icon);
+    } catch (e) {
+      debugPrint('Bus map marker load failed: $e');
+    }
   }
 
   /// Resolves [activeTripId] from GET /Supervisor/me when this screen was opened without [tripId]
@@ -645,8 +658,15 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           await _fetchRoute(nextLocation, _currentDestination);
         }
 
-        // 3. Record to backend (DB)
-        await _recordToDatabase(position.latitude, position.longitude);
+        // 3. Record to backend (non-blocking so GPS loop stays sub-second)
+        if (!_locationUploadInFlight) {
+          _locationUploadInFlight = true;
+          unawaited(
+            _recordToDatabase(position.latitude, position.longitude).whenComplete(
+              () => _locationUploadInFlight = false,
+            ),
+          );
+        }
 
         // 4. Move map camera to follow Supervisor
         if (_isMiniMapFollowing && _currentLocation != null) {
@@ -809,43 +829,32 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     if (points == null || points.length < 2) return const {};
 
     final idx = _routeProgressIndex.clamp(0, points.length - 1);
-    final split = math.max(1, math.min(idx + 1, points.length - 1));
-    final passed = points.sublist(0, split);
-    final remaining = points.sublist(split - 1);
+    final remaining = points.sublist(idx);
 
-    final polylines = <gmaps.Polyline>{};
-    if (passed.length > 1) {
-      polylines.add(
-        gmaps.Polyline(
-          polylineId: const gmaps.PolylineId('passed'),
-          points: toGoogleLatLngList(passed),
-          color: Colors.grey.shade400,
-          width: 4,
-        ),
-      );
-    }
-    if (remaining.length > 1) {
-      polylines.add(
-        gmaps.Polyline(
-          polylineId: const gmaps.PolylineId('remaining'),
-          points: toGoogleLatLngList(remaining),
-          color: const Color(0xFF2563EB),
-          width: 4,
-        ),
-      );
-    }
-    return polylines;
+    if (remaining.length < 2) return const {};
+
+    return {
+      gmaps.Polyline(
+        polylineId: const gmaps.PolylineId('remaining'),
+        points: toGoogleLatLngList(remaining),
+        color: const Color(0xFF2563EB),
+        width: 4,
+      ),
+    };
   }
 
   Set<gmaps.Marker> _buildTripMapMarkers() {
     if (_currentLocation == null) return const {};
+    final busIcon = _busMarkerIcon ??
+        gmaps.BitmapDescriptor.defaultMarkerWithHue(
+          gmaps.BitmapDescriptor.hueOrange,
+        );
     return {
       gmaps.Marker(
-        markerId: const gmaps.MarkerId('supervisor'),
+        markerId: const gmaps.MarkerId('bus'),
         position: toGoogleLatLng(_currentLocation!),
-        icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
-          gmaps.BitmapDescriptor.hueAzure,
-        ),
+        icon: busIcon,
+        anchor: const Offset(0.5, 0.5),
       ),
       gmaps.Marker(
         markerId: const gmaps.MarkerId('destination'),
