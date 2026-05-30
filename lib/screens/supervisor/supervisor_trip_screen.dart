@@ -20,6 +20,7 @@ import 'package:application/utils/api_config.dart';
 import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/location_tracking.dart';
+import 'package:application/helpers/gps_stream_helper.dart';
 import 'package:application/helpers/map_bus_marker.dart';
 import 'package:application/helpers/map_lat_lng.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -512,10 +513,17 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   @override
   void dispose() {
     LiveLocationUploader.instance.stop();
-    _positionSub?.cancel();
+    detachPositionSubscription(_positionSub);
+    _positionSub = null;
     _recenterController?.dispose();
     _recenterController = null;
     super.dispose();
+  }
+
+  Future<void> _stopPositionStream() async {
+    final sub = _positionSub;
+    _positionSub = null;
+    await cancelPositionSubscription(sub);
   }
 
   void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
@@ -579,9 +587,9 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       return;
     }
 
-    // Continuous GPS stream (~500ms on Android) — map updates immediately, uploads queued.
+    // Continuous GPS stream (~300ms on Android) — map updates immediately, uploads queued.
     LiveLocationUploader.instance.start();
-    _positionSub?.cancel();
+    await _stopPositionStream();
     _positionSub = Geolocator.getPositionStream(
       locationSettings: liveTripStreamSettings(),
     ).listen(

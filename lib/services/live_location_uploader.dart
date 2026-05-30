@@ -16,11 +16,11 @@ class LiveLocationUploader {
   final List<Map<String, dynamic>> _pending = [];
   Timer? _flushTimer;
   int _inFlight = 0;
-  static const int _maxInFlight = 3;
+  static const int _maxInFlight = 5;
 
   void start() {
     _flushTimer ??= Timer.periodic(
-      const Duration(milliseconds: 500),
+      const Duration(milliseconds: 300),
       (_) => _scheduleFlush(),
     );
   }
@@ -47,9 +47,7 @@ class LiveLocationUploader {
       'timestamp': DateTime.now().toUtc().toIso8601String(),
     });
 
-    if (_pending.length >= 2) {
-      _scheduleFlush();
-    }
+    _scheduleFlush();
   }
 
   void _scheduleFlush() {

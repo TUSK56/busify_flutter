@@ -8,6 +8,7 @@ import 'package:application/helpers/app_theme.dart';
 import 'package:application/services/live_location_uploader.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/location_tracking.dart';
+import 'package:application/helpers/gps_stream_helper.dart';
 import 'package:application/helpers/map_bus_marker.dart';
 import 'package:application/helpers/map_lat_lng.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -102,10 +103,17 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   @override
   void dispose() {
     LiveLocationUploader.instance.stop();
-    _positionSub?.cancel();
+    detachPositionSubscription(_positionSub);
+    _positionSub = null;
     _recenterController?.dispose();
     _recenterController = null;
     super.dispose();
+  }
+
+  Future<void> _stopPositionStream() async {
+    final sub = _positionSub;
+    _positionSub = null;
+    await cancelPositionSubscription(sub);
   }
 
   void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
@@ -166,7 +174,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
     }
 
     LiveLocationUploader.instance.start();
-    _positionSub?.cancel();
+    await _stopPositionStream();
     _positionSub = Geolocator.getPositionStream(
       locationSettings: liveTripStreamSettings(),
     ).listen((position) async {
