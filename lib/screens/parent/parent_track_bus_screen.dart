@@ -149,7 +149,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
   Future<void> _bootstrapLiveTracking() async {
     await _refreshLiveData();
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 1000), (_) {
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       _refreshLiveData();
     });
   }

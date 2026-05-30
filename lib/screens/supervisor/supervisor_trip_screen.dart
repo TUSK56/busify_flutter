@@ -580,8 +580,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       return;
     }
 
-    // Continuous GPS (stream + 1s poll) — map updates immediately, uploads queued.
-    LiveLocationUploader.instance.start();
+    // Continuous GPS — map updates immediately; 1 upload/sec to backend.
+    final tripId = _activeTripId;
+    if (tripId == null || tripId <= 0) return;
+    LiveLocationUploader.instance.start(tripId: tripId);
     await _gpsTracker.start((position) async {
       try {
         final nextLocation = latlng.LatLng(

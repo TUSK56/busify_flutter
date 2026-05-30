@@ -166,7 +166,10 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       return;
     }
 
-    LiveLocationUploader.instance.start();
+    final tripId = widget.tripId;
+    if (tripId == null || tripId <= 0) return;
+
+    LiveLocationUploader.instance.start(tripId: tripId);
     await _gpsTracker.start((position) async {
       try {
         final nextLocation = latlng.LatLng(
