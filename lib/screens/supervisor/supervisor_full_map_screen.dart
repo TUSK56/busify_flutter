@@ -101,6 +101,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
 
   @override
   void dispose() {
+    LiveLocationUploader.instance.stop();
     _positionSub?.cancel();
     _recenterController?.dispose();
     _recenterController = null;
@@ -164,6 +165,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       return;
     }
 
+    LiveLocationUploader.instance.start();
     _positionSub?.cancel();
     _positionSub = Geolocator.getPositionStream(
       locationSettings: liveTripStreamSettings(),

@@ -8,7 +8,7 @@ LocationSettings liveTripStreamSettings() {
     return AndroidSettings(
       accuracy: LocationAccuracy.bestForNavigation,
       distanceFilter: 0,
-      intervalDuration: const Duration(milliseconds: 500),
+      intervalDuration: const Duration(milliseconds: 300),
       foregroundNotificationConfig: const ForegroundNotificationConfig(
         notificationText: 'Busify is tracking your trip location.',
         notificationTitle: 'Live trip tracking',
@@ -20,7 +20,7 @@ LocationSettings liveTripStreamSettings() {
   if (Platform.isIOS) {
     return AppleSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 5,
+      distanceFilter: 0,
       activityType: ActivityType.automotiveNavigation,
       pauseLocationUpdatesAutomatically: false,
       showBackgroundLocationIndicator: true,

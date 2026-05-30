@@ -511,6 +511,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
 
   @override
   void dispose() {
+    LiveLocationUploader.instance.stop();
     _positionSub?.cancel();
     _recenterController?.dispose();
     _recenterController = null;
@@ -579,6 +580,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     }
 
     // Continuous GPS stream (~500ms on Android) — map updates immediately, uploads queued.
+    LiveLocationUploader.instance.start();
     _positionSub?.cancel();
     _positionSub = Geolocator.getPositionStream(
       locationSettings: liveTripStreamSettings(),

@@ -1,8 +1,10 @@
-import 'package:application/constants/app_images.dart';
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:ui' as ui;
+
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 
-/// Small vehicle marker (~24px), matching the pre-Google-Maps trip map size.
+/// Same 🚌 marker as the Busify website map (32px emoji, not the large bus asset).
 class MapBusMarker {
   MapBusMarker._();
 
@@ -16,9 +18,34 @@ class MapBusMarker {
   }
 
   static Future<gmaps.BitmapDescriptor> _load() async {
-    final loaded = await gmaps.BitmapDescriptor.asset(
-      const ImageConfiguration(size: Size(24, 24), devicePixelRatio: 1.0),
-      AppImages.bus,
+    const size = 32.0;
+    const emoji = '🚌';
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final builder = ui.ParagraphBuilder(
+      ui.ParagraphStyle(
+        fontSize: 22,
+        textAlign: TextAlign.center,
+      ),
+    )..addText(emoji);
+    final paragraph = builder.build()
+      ..layout(ui.ParagraphConstraints(width: size));
+    canvas.drawParagraph(paragraph, Offset.zero);
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.ceil(), size.ceil());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) {
+      return gmaps.BitmapDescriptor.defaultMarkerWithHue(
+        gmaps.BitmapDescriptor.hueOrange,
+      );
+    }
+
+    final loaded = gmaps.BitmapDescriptor.bytes(
+      byteData.buffer.asUint8List(),
+      width: size,
+      height: size,
     );
     _icon = loaded;
     return loaded;
