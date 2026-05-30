@@ -658,7 +658,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         }
 
         // 3. Record to backend without blocking the GPS stream
-        LiveLocationUploader.instance.enqueue(
+        LiveLocationUploader.instance.updatePosition(
           position.latitude,
           position.longitude,
         );

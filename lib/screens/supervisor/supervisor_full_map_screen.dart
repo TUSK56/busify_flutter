@@ -189,7 +189,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
           }
         });
 
-        LiveLocationUploader.instance.enqueue(
+        LiveLocationUploader.instance.updatePosition(
           position.latitude,
           position.longitude,
         );
