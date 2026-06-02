@@ -303,6 +303,91 @@ class SupervisorService {
       fcmFailed: fcmFailed,
     );
   }
+
+  /// GET /v1/Supervisor/trip/students — live boarded / remaining for active trip.
+  Future<TripAttendanceSummary?> getTripAttendanceSummary(int tripId) async {
+    if (tripId <= 0) return null;
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}$_basePath/trip/students?tripId=$tripId',
+    );
+    final resp = await http.get(uri, headers: _authHeaders());
+    if (resp.statusCode != 200) return null;
+
+    final body = jsonDecode(resp.body);
+    if (body is! Map<String, dynamic>) return null;
+
+    Map<String, dynamic>? summary;
+    final rawSummary = body['attendanceSummary'] ?? body['summary'] ?? body['Summary'];
+    if (rawSummary is Map<String, dynamic>) {
+      summary = rawSummary;
+    } else if (rawSummary is Map) {
+      summary = Map<String, dynamic>.from(rawSummary);
+    }
+
+    int readInt(dynamic v) {
+      if (v is num) return v.toInt();
+      return int.tryParse(v?.toString() ?? '') ?? 0;
+    }
+
+    var boarded = 0;
+    var remaining = 0;
+    var total = 0;
+    if (summary != null) {
+      boarded = readInt(summary['boarded'] ?? summary['Boarded']);
+      remaining = readInt(summary['remaining'] ?? summary['Remaining']);
+      total = readInt(summary['total'] ?? summary['Total']);
+    }
+
+    final students = body['students'] ?? body['Students'];
+    if (students is List && students.isNotEmpty) {
+      var boardedFromStops = 0;
+      var completedFromStops = 0;
+      for (final raw in students) {
+        if (raw is! Map) continue;
+        final m = raw is Map<String, dynamic> ? raw : Map<String, dynamic>.from(raw);
+        final boardedFlag = m['boarded'] == true || m['Boarded'] == true;
+        final absentFlag = m['absent'] == true || m['Absent'] == true;
+        final completedRaw = m['completed'] ?? m['Completed'];
+        final completed = completedRaw == true ||
+            completedRaw == 1 ||
+            boardedFlag ||
+            absentFlag;
+        if (boardedFlag) boardedFromStops++;
+        if (completed) completedFromStops++;
+      }
+      if (total <= 0) total = students.length;
+      if (boarded <= 0 && boardedFromStops > 0) boarded = boardedFromStops;
+      if (remaining <= 0) {
+        remaining = (total - completedFromStops).clamp(0, total);
+      }
+    }
+
+    if (total <= 0 && boarded > 0) {
+      total = boarded + remaining;
+    }
+    if (remaining <= 0 && total > boarded) {
+      remaining = total - boarded;
+    }
+
+    return TripAttendanceSummary(
+      boarded: boarded,
+      remaining: remaining,
+      total: total,
+    );
+  }
+}
+
+/// Live trip attendance counts from GET /v1/Supervisor/trip/students.
+class TripAttendanceSummary {
+  final int boarded;
+  final int remaining;
+  final int total;
+
+  const TripAttendanceSummary({
+    required this.boarded,
+    required this.remaining,
+    required this.total,
+  });
 }
 
 /// Outcome of [SupervisorService.sendSos]; [fcm] is null on the wire when there were no parent recipients.

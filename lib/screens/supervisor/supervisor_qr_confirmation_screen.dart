@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'dart:io';
+
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/supervisor_photo.dart';
+import 'package:application/services/service_locator.dart';
+import 'package:application/services/trip_live_updates.dart';
 import 'package:application/widgets/safe_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-
-class SupervisorQrConfirmationScreen extends StatelessWidget {
+class SupervisorQrConfirmationScreen extends StatefulWidget {
   final String imagePath;
   final String? studentPhotoUrl;
   final bool preferEnrolledPhoto;
@@ -41,6 +44,52 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
   });
 
   @override
+  State<SupervisorQrConfirmationScreen> createState() =>
+      _SupervisorQrConfirmationScreenState();
+}
+
+class _SupervisorQrConfirmationScreenState
+    extends State<SupervisorQrConfirmationScreen> {
+  late int _boarded;
+  late int _remaining;
+  Timer? _pollTimer;
+  StreamSubscription<String>? _liveUpdatesSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _boarded = widget.boarded;
+    _remaining = widget.remaining;
+    unawaited(_refreshCounts());
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      unawaited(_refreshCounts());
+    });
+    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((_) {
+      unawaited(_refreshCounts());
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _liveUpdatesSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refreshCounts() async {
+    final summary = await ServiceLocator.supervisorService
+        .getTripAttendanceSummary(widget.tripId);
+    if (!mounted || summary == null) return;
+    if (_boarded == summary.boarded && _remaining == summary.remaining) {
+      return;
+    }
+    setState(() {
+      _boarded = summary.boarded;
+      _remaining = summary.remaining;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
@@ -49,7 +98,6 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
         bottom: false,
         child: Column(
           children: [
-            // Sticky Blue Header
             Container(
               width: double.infinity,
               height: 125,
@@ -68,15 +116,11 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Scrollable Content
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
                   children: [
                     const SizedBox(height: 0),
-
-                    // Success Checkmark
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -102,10 +146,7 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 10),
-
-                    // Attendance Confirmed Text
                     const Text(
                       'Attendance Confirmed',
                       style: TextStyle(
@@ -115,34 +156,25 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                         color: AppColors.linkBlue,
                       ),
                     ),
-
                     const SizedBox(height: 10),
-
-                    // Student Photo
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: _confirmationPhoto(
-                        imagePath: imagePath,
-                        studentPhotoUrl: studentPhotoUrl,
-                        preferEnrolledPhoto: preferEnrolledPhoto,
+                        imagePath: widget.imagePath,
+                        studentPhotoUrl: widget.studentPhotoUrl,
+                        preferEnrolledPhoto: widget.preferEnrolledPhoto,
                       ),
                     ),
-
                     const SizedBox(height: 10),
-
-                    // Student Name
                     Text(
-                      studentName,
+                      widget.studentName,
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w600,
                         color: context.appPrimaryText,
                       ),
                     ),
-
                     const SizedBox(height: 15),
-
-                    // Trip Details Section
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 30),
                       child: Column(
@@ -157,22 +189,54 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 5),
-                          _detailRow(context, "Scan Time :", scanTimeLabel, context.appPrimaryText),
-                          _detailRow(context, "Trip Type :", tripTypeLabel, context.appPrimaryText),
-                          _detailRow(context, "Bus :", '#$busNumber', context.appPrimaryText),
+                          _detailRow(
+                            context,
+                            'Scan Time :',
+                            widget.scanTimeLabel,
+                            context.appPrimaryText,
+                          ),
+                          _detailRow(
+                            context,
+                            'Trip Type :',
+                            widget.tripTypeLabel,
+                            context.appPrimaryText,
+                          ),
+                          _detailRow(
+                            context,
+                            'Bus :',
+                            '#${widget.busNumber}',
+                            context.appPrimaryText,
+                          ),
                           const SizedBox(height: 5),
-                          _detailRow(context, "Grade :", studentGrade, context.appPrimaryText),
-                          _detailRow(context, "Birthdate :", studentBirthdate, context.appPrimaryText),
+                          _detailRow(
+                            context,
+                            'Grade :',
+                            widget.studentGrade,
+                            context.appPrimaryText,
+                          ),
+                          _detailRow(
+                            context,
+                            'Birthdate :',
+                            widget.studentBirthdate,
+                            context.appPrimaryText,
+                          ),
                           const SizedBox(height: 7),
-                          _detailRow(context, "• Boarded Students :", '$boarded', const Color(0xFF18A74A)),
-                          _detailRow(context, "• Remaining :", '$remaining', const Color(0xFFFFCA07)),
+                          _detailRow(
+                            context,
+                            '• Boarded Students :',
+                            '$_boarded',
+                            const Color(0xFF18A74A),
+                          ),
+                          _detailRow(
+                            context,
+                            '• Remaining :',
+                            '$_remaining',
+                            const Color(0xFFFFCA07),
+                          ),
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 7),
-
-                    // Done Button
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 45),
                       child: SizedBox(
@@ -204,7 +268,6 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -274,11 +337,11 @@ class SupervisorQrConfirmationScreen extends StatelessWidget {
   }
 
   Widget _detailRow(
-      BuildContext context,
-      String title,
-      String value,
-      Color valueColor,
-      ) {
+    BuildContext context,
+    String title,
+    String value,
+    Color valueColor,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(

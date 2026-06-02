@@ -11,6 +11,7 @@ import 'package:application/screens/supervisor/supervisor_home_screen.dart';
 import 'package:application/screens/supervisor/supervisor_profile_screen.dart';
 import 'package:application/screens/supervisor/supervisor_qr_confirmation_screen.dart';
 import 'package:application/services/service_locator.dart';
+import 'package:application/services/trip_live_updates.dart';
 import 'package:application/utils/api_config.dart';
 import 'package:application/widgets/supervisor/supervisor_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
@@ -217,6 +218,8 @@ class _SupervisorAttendanceScreenState
         if (v is num) return v.toInt();
         return int.tryParse(v?.toString() ?? '') ?? 0;
       }
+
+      TripLiveUpdates.instance.notify('attendance_in');
 
       if (!mounted) return;
       final confirmName = picked?.name ?? widget.studentName;
