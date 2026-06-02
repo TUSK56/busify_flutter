@@ -379,6 +379,7 @@ class ParentService {
     required int schoolId,
     int? busId,
     String? photoBase64,
+    String? embeddingJson,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/child');
     final body = {
@@ -390,6 +391,8 @@ class ParentService {
       if (busId != null) 'busId': busId,
       if (photoBase64 != null && photoBase64.trim().isNotEmpty)
         'photoBase64': photoBase64.trim(),
+      if (embeddingJson != null && embeddingJson.trim().isNotEmpty)
+        'embeddingJson': embeddingJson.trim(),
     };
     final response = await http.post(
       uri,
@@ -411,6 +414,51 @@ class ParentService {
     if (response.body.isEmpty) {
       return const <String, dynamic>{};
     }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// PUT /v1/parent/child/{studentId}/resubmit
+  Future<Map<String, dynamic>> resubmitChild({
+    required int studentId,
+    required String name,
+    required String birthdate,
+    required String grade,
+    required int parentId,
+    required int schoolId,
+    int? busId,
+    String? photoBase64,
+    String? embeddingJson,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$_basePath/child/$studentId/resubmit');
+    final body = {
+      'name': name,
+      'birthdate': birthdate,
+      'grade': grade,
+      'parentId': parentId,
+      'schoolId': schoolId,
+      if (busId != null) 'busId': busId,
+      if (photoBase64 != null && photoBase64.trim().isNotEmpty)
+        'photoBase64': photoBase64.trim(),
+      if (embeddingJson != null && embeddingJson.trim().isNotEmpty)
+        'embeddingJson': embeddingJson.trim(),
+    };
+    final response = await http.put(
+      uri,
+      headers: _authHeaders(),
+      body: jsonEncode(body),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      String message = 'Failed to resubmit child';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['message'] != null) {
+          message = decoded['message'] as String;
+        }
+      } catch (_) {}
+      throw ParentServiceException('$message (${response.statusCode})',
+          statusCode: response.statusCode);
+    }
+    if (response.body.isEmpty) return const <String, dynamic>{};
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 

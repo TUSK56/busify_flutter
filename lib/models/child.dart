@@ -7,6 +7,8 @@ class Child {
   final String? photoUrl;
   /// JPEG/PNG bytes as base64 (optional; server saves file and sets [photoUrl]).
   final String? photoBase64;
+  /// Averaged embedding JSON from five live scans (optional).
+  final String? embeddingJson;
 
   const Child({
     required this.name,
@@ -15,10 +17,12 @@ class Child {
     required this.grade,
     this.photoUrl,
     this.photoBase64,
+    this.embeddingJson,
   });
 
   Map<String, dynamic> toJson() {
     final pb = photoBase64;
+    final emb = embeddingJson;
     return {
       'name': name,
       'schoolId': schoolId,
@@ -26,6 +30,7 @@ class Child {
       'grade': grade,
       'photoUrl': photoUrl,
       if (pb != null && pb.isNotEmpty) 'photoBase64': pb,
+      if (emb != null && emb.isNotEmpty) 'embeddingJson': emb,
     };
   }
 }

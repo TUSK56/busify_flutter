@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +12,9 @@ const String kParentFaceApiBaseUrl = String.fromEnvironment(
   'FACE_API_URL',
   defaultValue: 'https://tusk000-yolo-arc.hf.space',
 );
+
+/// Live scans required for parent enrollment (matches backend 5-crop average).
+const int kParentEnrollmentScanCount = 5;
 
 String parentFaceLowQualityMessage(String? reason) {
   switch (reason) {
@@ -35,7 +39,6 @@ Color parentFaceBorderColor({
   return defaultColor;
 }
 
-/// Dim + block taps on submit buttons until face check passes (same pattern as supervisor End Trip).
 Widget parentSubmitDisabledBlur({
   required bool enabled,
   required BorderRadius borderRadius,
@@ -60,7 +63,6 @@ Widget parentSubmitDisabledBlur({
   );
 }
 
-/// Opens the device camera (front) — no custom overlay screen.
 Future<XFile?> pickParentFacePhoto() async {
   final picker = ImagePicker();
   return picker.pickImage(
@@ -71,17 +73,112 @@ Future<XFile?> pickParentFacePhoto() async {
   );
 }
 
-/// Result of POST /embed for parent enrollment flows.
+/// Result of one POST /embed call during enrollment.
 class ParentFaceEmbedResult {
   const ParentFaceEmbedResult({
     required this.verified,
     required this.statusMessage,
     this.rejectReason,
+    this.embedding,
+    this.scansCompleted = 0,
+    this.requiredScans = kParentEnrollmentScanCount,
   });
 
   final bool verified;
   final String statusMessage;
   final String? rejectReason;
+  final List<double>? embedding;
+  final int scansCompleted;
+  final int requiredScans;
+
+  bool get enrollmentComplete => scansCompleted >= requiredScans;
+}
+
+/// Collects [kParentEnrollmentScanCount] live embeddings, then averages for storage.
+class ParentFaceEnrollmentSession {
+  ParentFaceEnrollmentSession({this.requiredScans = kParentEnrollmentScanCount});
+
+  final int requiredScans;
+  final List<List<double>> _embeddings = [];
+
+  int get scansCompleted => _embeddings.length;
+  bool get isComplete => scansCompleted >= requiredScans;
+  XFile? lastPhoto;
+
+  void reset() {
+    _embeddings.clear();
+    lastPhoto = null;
+  }
+
+  /// Runs one camera scan + /embed. On success, prompts caller to open camera again until complete.
+  Future<ParentFaceEmbedResult> captureNextScan() async {
+    final photo = await pickParentFacePhoto();
+    if (photo == null) {
+      return ParentFaceEmbedResult(
+        verified: false,
+        statusMessage: 'Camera cancelled',
+        rejectReason: 'cancelled',
+        scansCompleted: scansCompleted,
+        requiredScans: requiredScans,
+      );
+    }
+    return addScan(photo);
+  }
+
+  Future<ParentFaceEmbedResult> addScan(XFile photo) async {
+    final single = await verifyParentFacePhoto(photo);
+    if (!single.verified || single.embedding == null) {
+      return ParentFaceEmbedResult(
+        verified: false,
+        statusMessage: single.statusMessage,
+        rejectReason: single.rejectReason,
+        scansCompleted: scansCompleted,
+        requiredScans: requiredScans,
+      );
+    }
+
+    _embeddings.add(single.embedding!);
+    lastPhoto = photo;
+    final done = isComplete;
+    return ParentFaceEmbedResult(
+      verified: done,
+      statusMessage: done
+          ? 'All $requiredScans face scans completed'
+          : 'Scan $scansCompleted of $requiredScans OK — tap the photo box for scan ${scansCompleted + 1}',
+      scansCompleted: scansCompleted,
+      requiredScans: requiredScans,
+      embedding: done ? averagedEmbedding() : null,
+    );
+  }
+
+  List<double>? averagedEmbedding() {
+    if (_embeddings.isEmpty) return null;
+    final dim = _embeddings.first.length;
+    final sum = List<double>.filled(dim, 0);
+    for (final vec in _embeddings) {
+      if (vec.length != dim) continue;
+      for (var i = 0; i < dim; i++) {
+        sum[i] += vec[i];
+      }
+    }
+    final n = _embeddings.length;
+    for (var i = 0; i < dim; i++) {
+      sum[i] /= n;
+    }
+    var norm = 0.0;
+    for (final v in sum) {
+      norm += v * v;
+    }
+    norm = math.sqrt(norm);
+    if (norm < 1e-6) return null;
+    return sum.map((v) => v / norm).toList();
+  }
+
+  String? averagedEmbeddingJson() {
+    final vec = averagedEmbedding();
+    if (vec == null) return null;
+    return jsonEncode(vec);
+  }
 }
 
 Future<ParentFaceEmbedResult> verifyParentFacePhoto(XFile photo) async {
@@ -125,9 +222,18 @@ Future<ParentFaceEmbedResult> verifyParentFacePhoto(XFile photo) async {
     }
     final status = (decoded['status'] as String?)?.trim() ?? '';
     if (status == 'ok') {
-      return const ParentFaceEmbedResult(
+      final emb = _parseEmbeddingList(decoded['embedding']);
+      if (emb == null || emb.length < 512) {
+        return const ParentFaceEmbedResult(
+          verified: false,
+          statusMessage: 'Invalid embedding from face service',
+          rejectReason: 'bad_embedding',
+        );
+      }
+      return ParentFaceEmbedResult(
         verified: true,
-        statusMessage: 'Face verified successfully',
+        statusMessage: 'Face scan accepted',
+        embedding: emb,
       );
     }
     if (status == 'no_face_detected') {
@@ -161,7 +267,19 @@ Future<ParentFaceEmbedResult> verifyParentFacePhoto(XFile photo) async {
   }
 }
 
-/// Status row under the face photo box (spinner / success / error).
+List<double>? _parseEmbeddingList(dynamic raw) {
+  if (raw is! List) return null;
+  final out = <double>[];
+  for (final v in raw) {
+    if (v is num) {
+      out.add(v.toDouble());
+    } else {
+      return null;
+    }
+  }
+  return out;
+}
+
 class ParentFaceStatusRow extends StatelessWidget {
   const ParentFaceStatusRow({
     super.key,

@@ -571,6 +571,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                                 ?.toString()
                                 .toLowerCase()
                                 .trim();
+                        final needsReenroll = _needsReenrollment(st);
                         final linkStatus = (linkStatusRaw == null || linkStatusRaw.isEmpty)
                             ? 'approved'
                             : linkStatusRaw;
@@ -606,7 +607,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                                           ),
                                         ),
                                       ),
-                                      _StatusBadge(status: linkStatus),
+                                      _StatusBadge(
+                                        status: linkStatus,
+                                        needsReenrollment: needsReenroll,
+                                      ),
                                       if (linkStatus == 'rejected') ...[
                                         const SizedBox(width: 8),
                                         TextButton(
@@ -1076,15 +1080,28 @@ class _StudentAvatar extends StatelessWidget {
   }
 }
 
+bool _needsReenrollment(Map<String, dynamic> student) {
+  final v = student['needsReenrollment'] ?? student['needs_reenrollment'];
+  if (v is bool) return v;
+  if (v is num) return v != 0;
+  return v?.toString().trim().toLowerCase() == 'true';
+}
+
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.status});
+  const _StatusBadge({
+    required this.status,
+    this.needsReenrollment = false,
+  });
 
   final String status;
+  final bool needsReenrollment;
 
   @override
   Widget build(BuildContext context) {
     final normalized = status.toLowerCase();
     final (bg, fg, text) = switch (normalized) {
+      'approved' when needsReenrollment =>
+        (const Color(0xFFDBEAFE), const Color(0xFF1E40AF), 'Re-scan'),
       'approved' => (const Color(0xFFD1FAE5), const Color(0xFF065F46), 'Approved'),
       'rejected' => (const Color(0xFFFEE2E2), const Color(0xFF991B1B), 'Rejected'),
       _ => (const Color(0xFFFEF3C7), const Color(0xFF92400E), 'Pending'),

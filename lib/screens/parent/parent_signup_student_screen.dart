@@ -41,9 +41,15 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
   bool _faceChecking = false;
   String? _faceStatusMessage;
   String? _faceRejectReason;
+  final ParentFaceEnrollmentSession _faceEnrollment = ParentFaceEnrollmentSession();
+  String? _embeddingJson;
 
   bool get _canSignUp =>
-      _faceVerified && !_faceChecking && !_isLoading && _facePhoto != null;
+      _faceVerified &&
+      !_faceChecking &&
+      !_isLoading &&
+      _facePhoto != null &&
+      _faceEnrollment.isComplete;
 
   @override
   void initState() {
@@ -66,31 +72,35 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
   }
 
   Future<void> _pickFacePhoto() async {
-    final captured = await pickParentFacePhoto();
-    if (captured == null || !mounted) return;
-    setState(() {
-      _facePhoto = captured;
-      _faceVerified = false;
-      _faceStatusMessage = null;
-      _faceRejectReason = null;
-    });
-    await _verifyFacePhoto(captured);
-  }
-
-  Future<void> _verifyFacePhoto(XFile photo) async {
+    if (_faceEnrollment.isComplete) {
+      _faceEnrollment.reset();
+      setState(() {
+        _facePhoto = null;
+        _faceVerified = false;
+        _faceStatusMessage = 'Starting enrollment scans again…';
+        _faceRejectReason = null;
+        _embeddingJson = null;
+      });
+    }
     setState(() {
       _faceChecking = true;
-      _faceVerified = false;
-      _faceStatusMessage = 'Checking face photo…';
+      _faceStatusMessage = _faceEnrollment.scansCompleted == 0
+          ? 'Opening camera for scan 1 of ${kParentEnrollmentScanCount}…'
+          : 'Opening camera for scan ${_faceEnrollment.scansCompleted + 1} of ${kParentEnrollmentScanCount}…';
       _faceRejectReason = null;
     });
-    final result = await verifyParentFacePhoto(photo);
+    final result = await _faceEnrollment.captureNextScan();
     if (!mounted) return;
+    final photo = _faceEnrollment.lastPhoto;
     setState(() {
       _faceChecking = false;
-      _faceVerified = result.verified;
+      _faceVerified = result.enrollmentComplete;
       _faceStatusMessage = result.statusMessage;
-      _faceRejectReason = result.rejectReason;
+      _faceRejectReason = result.verified ? null : result.rejectReason;
+      if (photo != null) _facePhoto = photo;
+      if (result.enrollmentComplete) {
+        _embeddingJson = _faceEnrollment.averagedEmbeddingJson();
+      }
     });
   }
 
@@ -504,7 +514,9 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Text(
-                                                  'Tap to take a face photo',
+                                                  _faceEnrollment.scansCompleted == 0
+                                                      ? 'Tap to start scan 1 of $kParentEnrollmentScanCount'
+                                                      : 'Tap for scan ${_faceEnrollment.scansCompleted + 1} of $kParentEnrollmentScanCount',
                                                   textAlign: TextAlign.center,
                                                   style: TextStyle(
                                                     fontFamily: 'Inter',
@@ -631,6 +643,7 @@ class _ParentSignupStudentScreenState extends State<ParentSignupStudentScreen> {
                                     birthdate: birthdate,
                                     grade: _selectedGrade!,
                                     photoBase64: b64,
+                                    embeddingJson: _embeddingJson,
                                   );
                                   await ServiceLocator.parentService.register(
                                     name: widget.parentData.name,

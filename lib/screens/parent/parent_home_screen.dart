@@ -678,8 +678,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                         const SizedBox(height: 28),
                         buildGreeting(context),
                         const SizedBox(height: 25),
-                        if (_buildReenrollmentBanner(context) != null)
-                          _buildReenrollmentBanner(context)!,
                         ..._buildStudentCards(context, cardW),
                         const SizedBox(height: 32),
                       ],
@@ -718,48 +716,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
               },
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  bool _studentNeedsReenrollment(Map<String, dynamic> student) {
-    final v = student['needsReenrollment'] ?? student['needs_reenrollment'];
-    if (v is bool) return v;
-    if (v is num) return v != 0;
-    return v?.toString().trim().toLowerCase() == 'true';
-  }
-
-  Widget? _buildReenrollmentBanner(BuildContext context) {
-    final pending = _students.where(_studentNeedsReenrollment).toList();
-    if (pending.isEmpty) return null;
-    final label = pending.length == 1
-        ? 'Please re-scan ${(pending.first['name'] ?? pending.first['Name'])?.toString() ?? 'your child'}\'s face for improved attendance matching.'
-        : 'Please re-scan face photos for ${pending.length} children (tap Add Child / update photo).';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.info_outline, color: Colors.orange.shade800, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.orange.shade900,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

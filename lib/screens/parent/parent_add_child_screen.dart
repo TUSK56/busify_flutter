@@ -24,10 +24,13 @@ class ParentAddChildScreen extends StatefulWidget {
     super.key,
     this.readOnly = false,
     this.details,
+    this.resubmitStudentId,
   });
 
   final bool readOnly;
   final Map<String, dynamic>? details;
+  /// When set, updates a rejected student back to pending instead of creating a new row.
+  final int? resubmitStudentId;
 
   @override
   State<ParentAddChildScreen> createState() => _ParentAddChildScreenState();
@@ -52,10 +55,16 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   bool _faceChecking = false;
   String? _faceStatusMessage;
   String? _faceRejectReason;
+  final ParentFaceEnrollmentSession _faceEnrollment = ParentFaceEnrollmentSession();
+  String? _embeddingJson;
 
   bool get _canAdd =>
       !widget.readOnly &&
-      _faceVerified && !_faceChecking && !_saving && _facePhoto != null;
+      _faceVerified &&
+      !_faceChecking &&
+      !_saving &&
+      _facePhoto != null &&
+      _faceEnrollment.isComplete;
 
   @override
   void initState() {
@@ -158,32 +167,39 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   }
 
   Future<void> _pickFacePhoto() async {
-    final captured = await pickParentFacePhoto();
-    if (captured == null || !mounted) return;
-    setState(() {
-      _facePhoto = captured;
-      _studentPhotoFile = File(captured.path);
-      _faceVerified = false;
-      _faceStatusMessage = null;
-      _faceRejectReason = null;
-    });
-    await _verifyFacePhoto(captured);
-  }
-
-  Future<void> _verifyFacePhoto(XFile photo) async {
+    if (_faceEnrollment.isComplete) {
+      _faceEnrollment.reset();
+      setState(() {
+        _facePhoto = null;
+        _studentPhotoFile = null;
+        _faceVerified = false;
+        _faceStatusMessage = 'Starting enrollment scans again…';
+        _faceRejectReason = null;
+        _embeddingJson = null;
+      });
+    }
     setState(() {
       _faceChecking = true;
-      _faceVerified = false;
-      _faceStatusMessage = 'Checking face photo…';
+      _faceStatusMessage = _faceEnrollment.scansCompleted == 0
+          ? 'Opening camera for scan 1 of ${kParentEnrollmentScanCount}…'
+          : 'Opening camera for scan ${_faceEnrollment.scansCompleted + 1} of ${kParentEnrollmentScanCount}…';
       _faceRejectReason = null;
     });
-    final result = await verifyParentFacePhoto(photo);
+    final result = await _faceEnrollment.captureNextScan();
     if (!mounted) return;
+    final photo = _faceEnrollment.lastPhoto;
     setState(() {
       _faceChecking = false;
-      _faceVerified = result.verified;
+      _faceVerified = result.enrollmentComplete;
       _faceStatusMessage = result.statusMessage;
-      _faceRejectReason = result.rejectReason;
+      _faceRejectReason = result.verified ? null : result.rejectReason;
+      if (photo != null) {
+        _facePhoto = photo;
+        _studentPhotoFile = File(photo.path);
+      }
+      if (result.enrollmentComplete) {
+        _embeddingJson = _faceEnrollment.averagedEmbeddingJson();
+      }
     });
   }
 
@@ -240,14 +256,29 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
         }
       }
 
-      await ServiceLocator.parentService.addChild(
-        name: name,
-        birthdate: _dobForApi(),
-        grade: grade,
-        parentId: parentId,
-        schoolId: _selectedSchoolId!,
-        photoBase64: photoB64,
-      );
+      final resubmitId = widget.resubmitStudentId;
+      if (resubmitId != null && resubmitId > 0) {
+        await ServiceLocator.parentService.resubmitChild(
+          studentId: resubmitId,
+          name: name,
+          birthdate: _dobForApi(),
+          grade: grade,
+          parentId: parentId,
+          schoolId: _selectedSchoolId!,
+          photoBase64: photoB64,
+          embeddingJson: _embeddingJson,
+        );
+      } else {
+        await ServiceLocator.parentService.addChild(
+          name: name,
+          birthdate: _dobForApi(),
+          grade: grade,
+          parentId: parentId,
+          schoolId: _selectedSchoolId!,
+          photoBase64: photoB64,
+          embeddingJson: _embeddingJson,
+        );
+      }
 
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -285,7 +316,11 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
-                        widget.readOnly ? 'Child Details' : 'Add Child',
+                        widget.readOnly
+                            ? 'Rejected — Child Details'
+                            : (widget.resubmitStudentId != null
+                                ? 'Resubmit Child'
+                                : 'Add Child'),
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
                           fontSize: 24,
@@ -501,7 +536,9 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                             ),
                                             const SizedBox(height: 8),
                                             Text(
-                                              'Tap to take a face photo',
+                                              _faceEnrollment.scansCompleted == 0
+                                                  ? 'Tap to start scan 1 of $kParentEnrollmentScanCount'
+                                                  : 'Tap for scan ${_faceEnrollment.scansCompleted + 1} of $kParentEnrollmentScanCount',
                                               textAlign: TextAlign.center,
                                               style: GoogleFonts.inter(
                                                 fontSize: 14,
@@ -605,8 +642,17 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                               child: InkWell(
                                 onTap: widget.readOnly
                                     ? () {
-                                        Navigator.of(context).push(
-                                          fadeRoute(const ParentAddChildScreen()),
+                                        final details = widget.details ?? {};
+                                        final sid = details['id'] ?? details['Id'];
+                                        final studentId = sid is num
+                                            ? sid.toInt()
+                                            : int.tryParse('$sid');
+                                        Navigator.of(context).pushReplacement(
+                                          fadeRoute(
+                                            ParentAddChildScreen(
+                                              resubmitStudentId: studentId,
+                                            ),
+                                          ),
                                         );
                                       }
                                     : (!_canAdd ? null : _save),
@@ -622,7 +668,11 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                                           ),
                                         )
                                       : Text(
-                                          widget.readOnly ? 'Retry Again' : 'Add',
+                                          widget.readOnly
+                                              ? 'Try again'
+                                              : (widget.resubmitStudentId != null
+                                                  ? 'Resubmit'
+                                                  : 'Add'),
                                           style: GoogleFonts.inter(
                                             fontSize: 24,
                                             fontWeight: FontWeight.w700,
