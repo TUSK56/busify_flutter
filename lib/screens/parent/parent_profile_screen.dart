@@ -13,6 +13,7 @@ import 'package:application/screens/parent/parent_change_password_screen.dart';
 import 'package:application/screens/parent/parent_edit_profile_screen.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_track_bus_screen.dart';
+import 'package:application/services/push_notifications_service.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:application/widgets/resilient_network_image.dart';
@@ -131,10 +132,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed && mounted) {
-      setState(() {
-        _childOverviewFuture = ServiceLocator.parentService.getChildOverview();
-      });
-      _loadParentOverview();
+      unawaited(PushNotificationsService.registerTokenAfterParentLogin());
     }
   }
 
@@ -637,6 +635,41 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                                                 MaterialTapTargetSize.shrinkWrap,
                                           ),
                                           child: const Text('Details'),
+                                        ),
+                                      ],
+                                      if (needsReenroll && linkStatus == 'approved') ...[
+                                        const SizedBox(width: 8),
+                                        TextButton(
+                                          onPressed: () async {
+                                            final sidRaw = st['id'] ?? st['Id'];
+                                            final sid = sidRaw is num
+                                                ? sidRaw.toInt()
+                                                : int.tryParse('$sidRaw');
+                                            if (sid == null || sid <= 0) return;
+                                            final done = await Navigator.of(context).push<bool>(
+                                              fadeRoute(
+                                                ParentAddChildScreen(
+                                                  reenrollStudentId: sid,
+                                                  details: st,
+                                                ),
+                                              ),
+                                            );
+                                            if (!mounted) return;
+                                            if (done == true) {
+                                              setState(() {
+                                                _childOverviewFuture =
+                                                    ServiceLocator.parentService
+                                                        .getChildOverview();
+                                              });
+                                            }
+                                          },
+                                          style: TextButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: Size.zero,
+                                            tapTargetSize:
+                                                MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          child: const Text('Re-scan'),
                                         ),
                                       ],
                                     ],

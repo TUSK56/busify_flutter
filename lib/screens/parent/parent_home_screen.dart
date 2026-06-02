@@ -11,6 +11,7 @@ import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:application/widgets/resilient_network_image.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/services/push_notifications_service.dart';
+import 'package:application/services/trip_live_updates.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -85,6 +86,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   String? _todayLatestScanType;
 
   Timer? _homePollTimer;
+  StreamSubscription<String>? _liveUpdatesSub;
 
   static const Duration _homePollInterval = Duration(seconds: 5);
 
@@ -177,6 +179,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         );
     _entranceController.forward();
     unawaited(PushNotificationsService.registerTokenAfterParentLogin());
+    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((_) {
+      if (mounted) unawaited(_refreshTripAttendanceState());
+    });
     _loadParentOverview();
   }
 
@@ -185,7 +190,11 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       unawaited(PushNotificationsService.registerTokenAfterParentLogin());
-      unawaited(_loadParentOverview());
+      if (_students.isEmpty) {
+        unawaited(_loadParentOverview());
+      } else {
+        unawaited(_refreshTripAttendanceState());
+      }
     } else if (state == AppLifecycleState.paused) {
       _stopHomePolling();
     }
@@ -639,6 +648,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
 
   @override
   void dispose() {
+    _liveUpdatesSub?.cancel();
     _stopHomePolling();
     WidgetsBinding.instance.removeObserver(this);
     _entranceController.dispose();

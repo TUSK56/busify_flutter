@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
@@ -78,9 +79,26 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
       );
       final resp = await http.post(uri, headers: headers);
       if (resp.statusCode == 200 || resp.statusCode == 201) {
+        int? newTripId;
+        try {
+          final body = jsonDecode(resp.body);
+          if (body is Map) {
+            final id = body['id'] ?? body['Id'];
+            if (id is int) {
+              newTripId = id;
+            } else {
+              newTripId = int.tryParse(id?.toString() ?? '');
+            }
+          }
+        } catch (_) {}
         await _load();
         if (!mounted) return;
-        await _goToTrip();
+        final tripId = newTripId ?? _activeTripId;
+        await Navigator.push(
+          context,
+          fadeRoute(SupervisorTripScreen(tripId: tripId)),
+        );
+        if (mounted) await _load();
         return;
       }
       if (!mounted) return;

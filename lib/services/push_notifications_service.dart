@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:application/services/service_locator.dart';
+import 'package:application/services/trip_live_updates.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -78,6 +79,27 @@ class PushNotificationsService {
     });
 
     _attachNotificationOpenHandlers(messaging);
+    _attachForegroundMessageHandler(messaging);
+  }
+
+  static void _attachForegroundMessageHandler(FirebaseMessaging messaging) {
+    FirebaseMessaging.onMessage.listen((message) {
+      final type = (message.data['type'] ?? '').toString().toLowerCase();
+      if (type.isEmpty) return;
+      const tripTypes = {
+        'attendance_in',
+        'attendance_out',
+        'attendance_absent',
+        'student_boarded',
+        'student_absent',
+        'trip_started',
+        'trip_ended',
+        'emergency_trip_ended',
+      };
+      if (tripTypes.contains(type)) {
+        TripLiveUpdates.instance.notify(type);
+      }
+    });
   }
 
   static Future<void> _openMapFromEmergencyData(Map<String, dynamic> data) async {

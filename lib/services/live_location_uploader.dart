@@ -18,16 +18,20 @@ class LiveLocationUploader {
   double? _lastLat;
   double? _lastLng;
   bool _uploadInFlight = false;
+  bool _pendingTick = false;
 
   void setTripId(int? tripId) {
     _tripId = tripId;
   }
 
   void start({required int tripId}) {
+    stop();
     _tripId = tripId;
-    _tickTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+    _tickTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       _uploadTick();
     });
+    // Don't wait for the first GPS stream event — try an upload on the next tick.
+    Future<void>.delayed(const Duration(milliseconds: 200), _uploadTick);
   }
 
   void stop() {
@@ -37,6 +41,7 @@ class LiveLocationUploader {
     _lastLat = null;
     _lastLng = null;
     _uploadInFlight = false;
+    _pendingTick = false;
   }
 
   void updatePosition(double lat, double lng) {
@@ -49,7 +54,10 @@ class LiveLocationUploader {
     final lat = _lastLat;
     final lng = _lastLng;
     if (tripId == null || tripId <= 0 || lat == null || lng == null) return;
-    if (_uploadInFlight) return;
+    if (_uploadInFlight) {
+      _pendingTick = true;
+      return;
+    }
 
     _uploadInFlight = true;
     unawaited(
@@ -61,6 +69,10 @@ class LiveLocationUploader {
         },
       ]).whenComplete(() {
         _uploadInFlight = false;
+        if (_pendingTick) {
+          _pendingTick = false;
+          _uploadTick();
+        }
       }),
     );
   }
@@ -87,7 +99,9 @@ class LiveLocationUploader {
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
         return;
       }
-      debugPrint('Batch location save failed: HTTP ${resp.statusCode}');
+      debugPrint(
+        'Batch location save failed: tripId=$tripId HTTP ${resp.statusCode} ${resp.body}',
+      );
     } catch (e) {
       debugPrint('Batch location upload error: $e');
     }

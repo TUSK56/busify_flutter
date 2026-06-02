@@ -45,6 +45,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   latlng.LatLng? _currentLocation;
   String _eta = "-- min";
   List<latlng.LatLng>? _routePoints;
+  latlng.LatLng? _routeBuiltForStart;
+  latlng.LatLng? _routeBuiltForDestination;
+  DateTime? _lastGpsUiUpdate;
+  DateTime? _lastMapFollowAt;
+  latlng.LatLng? _lastMapFollowLocation;
   latlng.LatLng? _lastLocation;
   DateTime? _lastSampleTime;
   DateTime? _lastValidEta;
@@ -329,7 +334,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     if (!mounted) return;
     _recomputeNearestNextStop();
     final loc = _currentLocation ?? _mapFocusPoint;
-    unawaited(_fetchRoute(loc, _currentDestination));
+    await _fetchRoute(loc, _currentDestination);
+    if (_isMiniMapFollowing && mounted) {
+      _maybeFollowMap(loc);
+    }
     if (openNextScan && !_allStudentStopsCompleted && mounted) {
       await Future<void>.delayed(const Duration(milliseconds: 350));
       if (mounted) await _takeAttendance();
@@ -406,41 +414,105 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   }
 
   void _recomputeNearestNextStop() {
-    if (_currentLocation == null || _stops.isEmpty) return;
+    if (_stops.isEmpty) return;
     final remaining = <int>[];
     for (var i = 0; i < _stops.length; i++) {
       if (!_stops[i].completed) remaining.add(i);
     }
     if (remaining.isEmpty) {
+      if (!mounted) return;
       setState(() {
+        _currentStopIndex = null;
         _currentDestination = _schoolDestination;
         _routePoints = null;
+        _routeBuiltForStart = null;
+        _routeBuiltForDestination = null;
         _routeProgressIndex = 0;
       });
       return;
     }
 
     var bestIndex = remaining.first;
-    var bestDistance = double.infinity;
-    for (final idx in remaining) {
-      final stop = _stops[idx];
-      final d = _coordinateDistance(
-        _currentLocation!.latitude,
-        _currentLocation!.longitude,
-        stop.location.latitude,
-        stop.location.longitude,
-      );
-      if (d < bestDistance) {
-        bestDistance = d;
-        bestIndex = idx;
+    if (_currentLocation != null) {
+      var bestDistance = double.infinity;
+      for (final idx in remaining) {
+        final stop = _stops[idx];
+        final d = _coordinateDistance(
+          _currentLocation!.latitude,
+          _currentLocation!.longitude,
+          stop.location.latitude,
+          stop.location.longitude,
+        );
+        if (d < bestDistance) {
+          bestDistance = d;
+          bestIndex = idx;
+        }
       }
     }
+
+    final nextDest = _stops[bestIndex].location;
+    final destChanged =
+        _coordinateDistance(
+          _currentDestination.latitude,
+          _currentDestination.longitude,
+          nextDest.latitude,
+          nextDest.longitude,
+        ) >
+        0.0001;
+
+    if (!mounted) return;
     setState(() {
       _currentStopIndex = bestIndex;
-      _currentDestination = _stops[bestIndex].location;
-      _routePoints = null;
-      _routeProgressIndex = 0;
+      _currentDestination = nextDest;
+      if (destChanged) {
+        _routePoints = null;
+        _routeBuiltForStart = null;
+        _routeBuiltForDestination = null;
+        _routeProgressIndex = 0;
+      }
     });
+  }
+
+  bool _needsRouteRefetch(latlng.LatLng start, latlng.LatLng destination) {
+    if (_routePoints == null || _routePoints!.isEmpty) return true;
+    if (_routeBuiltForDestination == null || _routeBuiltForStart == null) {
+      return true;
+    }
+    final dDest = _coordinateDistance(
+      _routeBuiltForDestination!.latitude,
+      _routeBuiltForDestination!.longitude,
+      destination.latitude,
+      destination.longitude,
+    );
+    final dStart = _coordinateDistance(
+      _routeBuiltForStart!.latitude,
+      _routeBuiltForStart!.longitude,
+      start.latitude,
+      start.longitude,
+    );
+    return dDest > 0.0005 || dStart > 0.002;
+  }
+
+  void _maybeFollowMap(latlng.LatLng location) {
+    if (!_isMiniMapFollowing) return;
+    final now = DateTime.now();
+    final lastAt = _lastMapFollowAt;
+    final lastLoc = _lastMapFollowLocation;
+    if (lastAt != null && lastLoc != null) {
+      final movedKm = _coordinateDistance(
+        lastLoc.latitude,
+        lastLoc.longitude,
+        location.latitude,
+        location.longitude,
+      );
+      if (movedKm < 0.00006 &&
+          now.difference(lastAt) < const Duration(milliseconds: 900)) {
+        return;
+      }
+    }
+    _lastMapFollowAt = now;
+    _lastMapFollowLocation = location;
+    _animateMapTo(location, targetZoom: _mapZoom);
   }
 
   Future<String?> _askAbsentReason() async {
@@ -697,7 +769,18 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           _smoothedSpeedKmh ?? 0,
         );
 
-        if (mounted) {
+        final dest = _currentDestination;
+        final shouldRefetchRoute = _needsRouteRefetch(nextLocation, dest);
+        if (shouldRefetchRoute) {
+          await _fetchRoute(nextLocation, dest);
+        }
+
+        final nowUi = DateTime.now();
+        final throttleUi = _lastGpsUiUpdate == null ||
+            nowUi.difference(_lastGpsUiUpdate!) >=
+                const Duration(milliseconds: 350);
+        if (mounted && throttleUi) {
+          _lastGpsUiUpdate = nowUi;
           setState(() {
             _currentLocation = nextLocation;
             _eta = nextEta;
@@ -706,25 +789,22 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                   _closestRouteIndex(nextLocation, _routePoints!);
             }
           });
-        }
-        if (_stops.isNotEmpty) {
-          _recomputeNearestNextStop();
+        } else {
+          _currentLocation = nextLocation;
+          _eta = nextEta;
+          if (_routePoints != null) {
+            _routeProgressIndex =
+                _closestRouteIndex(nextLocation, _routePoints!);
+          }
         }
 
-        // Fetch road-based route once when we get the first fix
-        if (_routePoints == null) {
-          await _fetchRoute(nextLocation, _currentDestination);
-        }
-
-        // 3. Record to backend without blocking the GPS stream
         LiveLocationUploader.instance.updatePosition(
           position.latitude,
           position.longitude,
         );
 
-        // 4. Move map camera to follow Supervisor
-        if (_isMiniMapFollowing && _currentLocation != null) {
-          _animateMapTo(_currentLocation!, targetZoom: _mapZoom);
+        if (_currentLocation != null) {
+          _maybeFollowMap(_currentLocation!);
         }
       } catch (e) {
         debugPrint('Error during location tracking loop: $e');
@@ -871,7 +951,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   }
 
   Set<gmaps.Marker> _buildTripMapMarkers() {
-    if (_currentLocation == null) return const {};
+    final busPos = _currentLocation ?? _mapFocusPoint;
     final busIcon = _busMarkerIcon ??
         gmaps.BitmapDescriptor.defaultMarkerWithHue(
           gmaps.BitmapDescriptor.hueOrange,
@@ -879,7 +959,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     return {
       gmaps.Marker(
         markerId: const gmaps.MarkerId('bus'),
-        position: toGoogleLatLng(_currentLocation!),
+        position: toGoogleLatLng(busPos),
         icon: busIcon,
         anchor: const Offset(0.5, 0.5),
       ),
@@ -1116,9 +1196,11 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       if (points.isNotEmpty && mounted) {
         setState(() {
           _routePoints = points;
-          if (_currentLocation != null) {
-            _routeProgressIndex =
-                _closestRouteIndex(_currentLocation!, _routePoints!);
+          _routeBuiltForStart = start;
+          _routeBuiltForDestination = destination;
+          final loc = _currentLocation;
+          if (loc != null) {
+            _routeProgressIndex = _closestRouteIndex(loc, _routePoints!);
           }
         });
       }
@@ -1362,7 +1444,6 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                               children: [
                                 Positioned.fill(
                                   child: gmaps.GoogleMap(
-                                    liteModeEnabled: true,
                                     initialCameraPosition: gmaps.CameraPosition(
                                       target: toGoogleLatLng(_mapFocusPoint),
                                       zoom: _mapZoom,
@@ -1380,6 +1461,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                     onCameraMove: (position) {
                                       _mapZoom = position.zoom;
                                     },
+                                    scrollGesturesEnabled: true,
+                                    zoomGesturesEnabled: true,
+                                    rotateGesturesEnabled: true,
+                                    tiltGesturesEnabled: true,
                                     myLocationEnabled: false,
                                     zoomControlsEnabled: false,
                                     mapToolbarEnabled: false,

@@ -462,6 +462,38 @@ class ParentService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  /// PUT /v1/parent/child/{studentId}/reenroll-face
+  Future<Map<String, dynamic>> reenrollChildFace({
+    required int studentId,
+    required String photoBase64,
+    required String embeddingJson,
+  }) async {
+    final uri =
+        Uri.parse('${ApiConfig.baseUrl}$_basePath/child/$studentId/reenroll-face');
+    final body = {
+      'photoBase64': photoBase64.trim(),
+      'embeddingJson': embeddingJson.trim(),
+    };
+    final response = await http.put(
+      uri,
+      headers: _authHeaders(),
+      body: jsonEncode(body),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      String message = 'Failed to save face re-scan';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['message'] != null) {
+          message = decoded['message'] as String;
+        }
+      } catch (_) {}
+      throw ParentServiceException('$message (${response.statusCode})',
+          statusCode: response.statusCode);
+    }
+    if (response.body.isEmpty) return const <String, dynamic>{};
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   /// GET /v1/parent/current-trip
   Future<Map<String, dynamic>> getCurrentTrip({int? studentId}) async {
     final qp = <String, String>{};

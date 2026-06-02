@@ -25,12 +25,15 @@ class ParentAddChildScreen extends StatefulWidget {
     this.readOnly = false,
     this.details,
     this.resubmitStudentId,
+    this.reenrollStudentId,
   });
 
   final bool readOnly;
   final Map<String, dynamic>? details;
   /// When set, updates a rejected student back to pending instead of creating a new row.
   final int? resubmitStudentId;
+  /// When set, saves a new 5-scan embedding for an approved child (needs re-scan).
+  final int? reenrollStudentId;
 
   @override
   State<ParentAddChildScreen> createState() => _ParentAddChildScreenState();
@@ -58,6 +61,9 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   final ParentFaceEnrollmentSession _faceEnrollment = ParentFaceEnrollmentSession();
   String? _embeddingJson;
 
+  bool get _isReenrollMode =>
+      widget.reenrollStudentId != null && widget.reenrollStudentId! > 0;
+
   bool get _canAdd =>
       !widget.readOnly &&
       _faceVerified &&
@@ -73,6 +79,30 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   }
 
   Future<void> _bootstrap() async {
+    if (_isReenrollMode) {
+      final details = widget.details ?? const <String, dynamic>{};
+      final name = (details['name'] ?? details['Name'])?.toString() ?? '';
+      final grade = (details['grade'] ?? details['Grade'])?.toString();
+      final dobRaw = (details['birthdate'] ?? details['Birthdate'])?.toString();
+      final schoolRaw = details['schoolAdminId'] ?? details['SchoolAdminId'];
+      DateTime? parsedDob;
+      if (dobRaw != null && dobRaw.isNotEmpty) {
+        parsedDob = DateTime.tryParse(dobRaw);
+      }
+      int? schoolId;
+      if (schoolRaw is num) schoolId = schoolRaw.toInt();
+      if (!mounted) return;
+      setState(() {
+        _nameController.text = name;
+        _selectedGrade = grade ?? _grades.first;
+        _dob = parsedDob;
+        _selectedSchoolId = schoolId;
+        _faceStatusMessage =
+            'Complete ${kParentEnrollmentScanCount} face scans to re-enroll.';
+      });
+      return;
+    }
+
     if (widget.readOnly) {
       final details = widget.details ?? const <String, dynamic>{};
       final name = (details['name'] ?? details['Name'])?.toString() ?? '';
@@ -218,7 +248,8 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
     final grade = _selectedGrade ?? '';
     final dob = _dob;
 
-    if (name.isEmpty || grade.isEmpty || dob == null || _selectedSchoolId == null) {
+    if (!_isReenrollMode &&
+        (name.isEmpty || grade.isEmpty || dob == null || _selectedSchoolId == null)) {
       await showAppFeedback(context, 'Please fill all fields', isError: true);
       return;
     }
@@ -256,6 +287,20 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
         }
       }
 
+      final reenrollId = widget.reenrollStudentId;
+      if (reenrollId != null && reenrollId > 0) {
+        if (photoB64 == null || photoB64.isEmpty) {
+          throw Exception('Face photo is required');
+        }
+        if (_embeddingJson == null || _embeddingJson!.trim().isEmpty) {
+          throw Exception('Complete all ${kParentEnrollmentScanCount} face scans');
+        }
+        await ServiceLocator.parentService.reenrollChildFace(
+          studentId: reenrollId,
+          photoBase64: photoB64,
+          embeddingJson: _embeddingJson!,
+        );
+      } else {
       final resubmitId = widget.resubmitStudentId;
       if (resubmitId != null && resubmitId > 0) {
         await ServiceLocator.parentService.resubmitChild(
@@ -278,6 +323,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
           photoBase64: photoB64,
           embeddingJson: _embeddingJson,
         );
+      }
       }
 
       if (!mounted) return;
@@ -318,9 +364,11 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                       child: Text(
                         widget.readOnly
                             ? 'Rejected — Child Details'
-                            : (widget.resubmitStudentId != null
-                                ? 'Resubmit Child'
-                                : 'Add Child'),
+                            : (_isReenrollMode
+                                ? 'Re-scan face'
+                                : (widget.resubmitStudentId != null
+                                    ? 'Resubmit Child'
+                                    : 'Add Child')),
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
                           fontSize: 24,

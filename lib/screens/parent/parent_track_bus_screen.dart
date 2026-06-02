@@ -19,6 +19,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as latlng;
 import 'package:application/services/service_locator.dart';
+import 'package:application/services/trip_live_updates.dart';
 
 import 'parent_home_screen.dart';
 import 'parent_profile_screen.dart';
@@ -51,6 +52,8 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   late final Animation<double> _entranceFade;
   late final Animation<Offset> _entranceSlide;
   Timer? _pollTimer;
+  StreamSubscription<String>? _liveUpdatesSub;
+  static const Duration _pollInterval = Duration(milliseconds: 1200);
   latlng.LatLng? _busLocation;
   latlng.LatLng? _destination;
   String _statusText = 'Loading';
@@ -95,6 +98,9 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     _studentPhotoUrl = widget.studentPhotoUrl;
     unawaited(_loadBusMarkerIcon());
     _loadStudentOverview();
+    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((_) {
+      if (mounted) unawaited(_refreshLiveData());
+    });
     _bootstrapLiveTracking();
   }
 
@@ -159,7 +165,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
   Future<void> _bootstrapLiveTracking() async {
     await _refreshLiveData();
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
       _refreshLiveData();
     });
   }
@@ -235,6 +241,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           current['child_afternoon_dropped_off'] == true ||
               current['childAfternoonDroppedOff'] == true;
 
+      bool childPickedOnTrip = false;
       String? resolvedStudentName;
       for (final raw in stops) {
         if (raw is! Map<String, dynamic>) continue;
@@ -244,6 +251,8 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         if (_childStudentId != null && sidNum != null && sidNum.toInt() == _childStudentId) {
           resolvedStudentName =
               (raw['student_name'] ?? raw['studentName'] ?? raw['StudentName'])?.toString();
+          final pickedRaw = raw['picked'] ?? raw['Picked'];
+          childPickedOnTrip = pickedRaw == true;
           break;
         }
       }
@@ -264,10 +273,20 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       final statusComputed = () {
         if (isAfternoon) {
           if (childDroppedAfternoon) return 'Arrived home';
-          if (destType == 'school') return 'Heading to school';
-          return 'On the way home';
+          if (destType == 'school') {
+            return childPickedOnTrip
+                ? 'Your child is on the bus — heading to school'
+                : 'Bus heading to school';
+          }
+          return childPickedOnTrip ? 'On the way home' : 'Bus on the way';
         }
-        return destType == 'school' ? 'On the way to school' : 'On the way';
+        if (destType == 'school') {
+          return childPickedOnTrip
+              ? 'Your child is on the bus — heading to school'
+              : 'Bus heading to school';
+        }
+        if (childPickedOnTrip) return 'Your child is on the bus';
+        return 'Bus on the way to next stop';
       }();
 
       final live = await ServiceLocator.parentService.getLiveLocation(tripId);
@@ -298,35 +317,50 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         _routeProgressIndex = _closestRouteIndex(bus, _polyline);
       }
 
-      setState(() {
-        _hasActiveTrip = true;
+      final nextBusNumber = () {
+        if (busInfo == null) return _busNumber;
+        final busNumber = busInfo['busNumber'] ?? busInfo['BusNumber'] ?? busInfo['id'];
+        return busNumber?.toString() ?? _busNumber;
+      }();
+      final nextDriver =
+          (dName == null || dName.trim().isEmpty) ? _driverName : dName.trim();
+      final nextEta = _computeEta(bus, target);
+      final changed = _hasActiveTrip != true ||
+          _busLocation?.latitude != bus.latitude ||
+          _busLocation?.longitude != bus.longitude ||
+          _destination?.latitude != target?.latitude ||
+          _destination?.longitude != target?.longitude ||
+          _statusText != statusComputed ||
+          _etaText != nextEta ||
+          _busNumber != nextBusNumber ||
+          _driverName != nextDriver ||
+          (resolvedStudentName != null &&
+              resolvedStudentName.isNotEmpty &&
+              _studentName != resolvedStudentName);
+
+      if (changed) {
+        setState(() {
+          _hasActiveTrip = true;
+          _busLocation = bus;
+          _destination = target;
+          _statusText = statusComputed;
+          _etaText = nextEta;
+          if (resolvedStudentName != null && resolvedStudentName.isNotEmpty) {
+            _studentName = resolvedStudentName;
+          }
+          _busNumber = nextBusNumber;
+          _driverName = nextDriver;
+        });
+      } else {
         _busLocation = bus;
         _destination = target;
-        _statusText = statusComputed;
-        _etaText = _computeEta(bus, target);
-        if (resolvedStudentName != null && resolvedStudentName.isNotEmpty) {
-          _studentName = resolvedStudentName;
+        if (_polyline.isNotEmpty) {
+          _routeProgressIndex = _closestRouteIndex(bus, _polyline);
         }
-        if (busInfo != null) {
-          final busNumber = busInfo['busNumber'] ?? busInfo['BusNumber'] ?? busInfo['id'];
-          if (busNumber != null) _busNumber = busNumber.toString();
-        }
-        _driverName = (dName == null || dName.trim().isEmpty) ? '--' : dName.trim();
-      });
+      }
 
       if (_isMiniMapFollowing && !_isRecentering) {
-        final currentCenter = _mapCameraCenter ?? bus;
-        final deltaKm = _distanceKm(
-          currentCenter.latitude,
-          currentCenter.longitude,
-          bus.latitude,
-          bus.longitude,
-        );
-        if (deltaKm < 0.005) {
-          _animateMapTo(bus, targetZoom: _mapZoom);
-        } else {
-          _animateMapTo(bus, targetZoom: _mapZoom);
-        }
+        _animateMapTo(bus, targetZoom: _mapZoom);
       }
     } catch (_) {}
   }
@@ -419,6 +453,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
   @override
   void dispose() {
+    _liveUpdatesSub?.cancel();
     _pollTimer?.cancel();
     _recenterController?.dispose();
     _entranceController.dispose();
