@@ -97,6 +97,25 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   bool get _allStudentStopsCompleted =>
       _stops.isNotEmpty && _stops.every((s) => s.completed);
 
+  /// Map camera target before first GPS fix (school or next stop).
+  latlng.LatLng get _mapFocusPoint {
+    if (_currentLocation != null) return _currentLocation!;
+    if (_currentStopIndex != null &&
+        _currentStopIndex! >= 0 &&
+        _currentStopIndex! < _stops.length) {
+      return _stops[_currentStopIndex!].location;
+    }
+    if (_stops.isNotEmpty) {
+      final next = _stops.cast<_TripStop?>().firstWhere(
+            (s) => s != null && !s.completed,
+            orElse: () => null,
+          );
+      if (next != null) return next.location;
+      return _stops.first.location;
+    }
+    return _schoolDestination;
+  }
+
   gmaps.GoogleMapController? _mapController;
   gmaps.BitmapDescriptor? _busMarkerIcon;
   double _mapZoom = 15;
@@ -108,7 +127,14 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     _supervisorName = ServiceLocator.tokenStorage.getUserName() ?? '';
     unawaited(_bootstrapSupervisorSession());
     unawaited(_loadBusMarkerIcon());
-    _startTripTracking();
+  }
+
+  @override
+  void didUpdateWidget(covariant SupervisorTripScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tripId != widget.tripId && _activeTripId != null) {
+      unawaited(_restartTripTracking());
+    }
   }
 
   Future<void> _loadBusMarkerIcon() async {
@@ -138,6 +164,14 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     } catch (_) {}
     if (!mounted) return;
     await _loadTripStops();
+    await _restartTripTracking();
+  }
+
+  /// Start or restart GPS + uploads when we know the active trip id.
+  Future<void> _restartTripTracking() async {
+    LiveLocationUploader.instance.stop();
+    await _gpsTracker.stop();
+    await _startTripTracking();
   }
 
   Map<String, dynamic>? _coerceJsonMap(dynamic v) {
@@ -257,18 +291,13 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
           _stops.clear();
         }
 
-        if (fromSummary) {
-          _totalCount = summaryTotal;
-          _boardedCount = summaryBoarded ?? 0;
-          _remainingCount = summaryRemaining ??
-              math.max(_totalCount - _boardedCount, 0);
-        } else if (parsed.isNotEmpty) {
+        if (parsed.isNotEmpty) {
+          _totalCount = parsed.length;
           _boardedCount = parsed.where((s) => s.boarded).length;
           _remainingCount = parsed.where((s) => !s.completed).length;
-          _totalCount = parsed.length;
         } else {
-          _boardedCount = summaryBoarded ?? 0;
           _totalCount = summaryTotal;
+          _boardedCount = summaryBoarded ?? 0;
           _remainingCount = summaryRemaining ??
               math.max(_totalCount - _boardedCount, 0);
         }
@@ -281,7 +310,30 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       if (parsed.isNotEmpty) {
         _recomputeNearestNextStop();
       }
+      unawaited(_prefetchMapRoute());
     } catch (_) {}
+  }
+
+  Future<void> _prefetchMapRoute() async {
+    final dest = _allStudentStopsCompleted
+        ? _schoolDestination
+        : _currentDestination;
+    final start = _currentLocation ?? _mapFocusPoint;
+    if (_routePoints == null) {
+      await _fetchRoute(start, dest);
+    }
+  }
+
+  Future<void> _advanceAfterStudentAction({bool openNextScan = false}) async {
+    await _loadTripStops();
+    if (!mounted) return;
+    _recomputeNearestNextStop();
+    final loc = _currentLocation ?? _mapFocusPoint;
+    unawaited(_fetchRoute(loc, _currentDestination));
+    if (openNextScan && !_allStudentStopsCompleted && mounted) {
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      if (mounted) await _takeAttendance();
+    }
   }
 
   int _extractStudentId(Map<String, dynamic> raw) {
@@ -432,13 +484,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
       });
       final resp = await http.post(uri, headers: headers, body: body);
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        await _loadTripStops();
-        if (!mounted) return;
-        _recomputeNearestNextStop();
-        final loc = _currentLocation;
-        if (loc != null) {
-          await _fetchRoute(loc, _currentDestination);
-        }
+        await _advanceAfterStudentAction(openNextScan: true);
       } else {
         if (!mounted) return;
         await _showAbsentErrorDialog(
@@ -530,7 +576,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   }
 
   /// 1. Initialize Tracking & Permissions
-  void _startTripTracking() async {
+  Future<void> _startTripTracking() async {
     bool serviceEnabled;
     LocationPermission permission;
 
@@ -584,6 +630,17 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
     final tripId = _activeTripId;
     if (tripId == null || tripId <= 0) return;
     LiveLocationUploader.instance.start(tripId: tripId);
+    try {
+      final initial = await Geolocator.getCurrentPosition(
+        desiredAccuracy: kLiveTrackingAccuracy,
+      );
+      LiveLocationUploader.instance.updatePosition(
+        initial.latitude,
+        initial.longitude,
+      );
+    } catch (e) {
+      debugPrint('Initial GPS fix failed: $e');
+    }
     await _gpsTracker.start((position) async {
       try {
         final nextLocation = latlng.LatLng(
@@ -838,6 +895,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
 
   Future<void> _takeAttendance() async {
     if (_allStudentStopsCompleted) return;
+    await _loadTripStops();
+    if (!mounted) return;
     final ImagePicker picker = ImagePicker();
     try {
       final XFile? photo = await picker.pickImage(
@@ -868,7 +927,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         }
 
         final manualOpts = _stops
-            .where((s) => !s.completed)
+            .where((s) => !s.completed && !s.boarded)
             .map(
               (s) => SupervisorManualStudentOption(
                 studentId: s.studentId,
@@ -916,14 +975,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         }
         if (mounted && result == true) {
           _consecutiveNoMatchFaceAttempts = 0;
-          await _loadTripStops();
-          if (mounted) {
-            _recomputeNearestNextStop();
-            final loc = _currentLocation;
-            if (loc != null) {
-              await _fetchRoute(loc, _currentDestination);
-            }
-          }
+          await _advanceAfterStudentAction(openNextScan: true);
         }
       }
     } catch (e) {
@@ -1309,13 +1361,10 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                             child: Stack(
                               children: [
                                 Positioned.fill(
-                                  child: _currentLocation == null
-                                      ? const Center(
-                                    child: CircularProgressIndicator(),
-                                  )
-                                      : gmaps.GoogleMap(
+                                  child: gmaps.GoogleMap(
+                                    liteModeEnabled: true,
                                     initialCameraPosition: gmaps.CameraPosition(
-                                      target: toGoogleLatLng(_currentLocation!),
+                                      target: toGoogleLatLng(_mapFocusPoint),
                                       zoom: _mapZoom,
                                     ),
                                     onMapCreated: (controller) {

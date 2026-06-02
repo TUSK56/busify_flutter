@@ -99,6 +99,23 @@ Future<ParentFaceEmbedResult> verifyParentFacePhoto(XFile photo) async {
       );
     final streamed = await request.send().timeout(const Duration(seconds: 90));
     final body = await streamed.stream.bytesToString();
+    if (streamed.statusCode == 400) {
+      String message = 'Could not verify face. Please retake the photo.';
+      try {
+        final err = jsonDecode(body);
+        if (err is Map<String, dynamic>) {
+          final detail = err['detail'];
+          if (detail is String && detail.trim().isNotEmpty) {
+            message = detail.trim();
+          }
+        }
+      } catch (_) {}
+      return ParentFaceEmbedResult(
+        verified: false,
+        statusMessage: message,
+        rejectReason: 'enrollment_quality',
+      );
+    }
     if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
       throw Exception('Face service error (${streamed.statusCode})');
     }
