@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
@@ -19,7 +21,8 @@ class SupervisorHomeScreen extends StatefulWidget {
   State<SupervisorHomeScreen> createState() => _SupervisorHomeScreenState();
 }
 
-class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
+class _SupervisorHomeScreenState extends State<SupervisorHomeScreen>
+    with WidgetsBindingObserver {
   int? _activeTripId;
   String _supervisorName = '';
   String _busNumber = '—';
@@ -33,7 +36,21 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_load());
+    }
   }
 
   Future<void> _load() async {
@@ -41,13 +58,21 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen> {
     try {
       final me = await ServiceLocator.supervisorService.getMe();
       if (!mounted) return;
+      final assigned = me.assignedCount;
+      final boarded = me.boardedCount;
+      var notYet = me.notYetCount;
+      if (assigned > 0 && boarded >= assigned) {
+        notYet = 0;
+      } else if (assigned > 0) {
+        notYet = math.max(0, math.min(notYet, assigned - boarded));
+      }
       setState(() {
         _supervisorName = me.name;
         _busNumber = me.busNumber ?? '—';
         _activeTripId = me.activeTripId;
-        _assigned = me.assignedCount;
-        _boarded = me.boardedCount;
-        _notYet = me.notYetCount;
+        _assigned = assigned;
+        _boarded = boarded;
+        _notYet = notYet;
       });
     } catch (_) {
       if (!mounted) return;

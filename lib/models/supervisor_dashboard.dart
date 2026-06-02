@@ -53,9 +53,19 @@ class SupervisorDashboard {
       photoUrl: (json['photoUrl'] ?? json['photo_url'])?.toString(),
       busNumber: busNumber,
       activeTripId: activeTripId,
-      assignedCount: (json['assignedCount'] as num?)?.toInt() ?? 0,
-      boardedCount: (json['boardedCount'] as num?)?.toInt() ?? 0,
-      notYetCount: (json['notYetCount'] as num?)?.toInt() ?? 0,
+      assignedCount: _readInt(json, const ['assignedCount', 'assigned_count']) ?? 0,
+      boardedCount: _readInt(json, const ['boardedCount', 'boarded_count']) ?? 0,
+      notYetCount: _readInt(json, const ['notYetCount', 'not_yet_count']) ?? 0,
     );
+  }
+
+  static int? _readInt(Map<String, dynamic> json, List<String> keys) {
+    for (final k in keys) {
+      final v = json[k];
+      if (v is num) return v.toInt();
+      final parsed = int.tryParse(v?.toString() ?? '');
+      if (parsed != null) return parsed;
+    }
+    return null;
   }
 }

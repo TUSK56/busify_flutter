@@ -3,6 +3,10 @@
     <!-- Location permissions for live trip tracking -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Required by geolocator foreground notification on Android 9+ / 14+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Parent signup: student face photo (camera / gallery via image_picker) -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -49,6 +53,11 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/google_maps_key" />
+        <!-- Geolocator live trip tracking (foreground service with notification) -->
+        <service
+            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
