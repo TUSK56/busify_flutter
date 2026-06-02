@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'package:application/constants/app_colors.dart';
 import 'package:application/helpers/api_json.dart';
 import 'package:application/helpers/app_theme.dart';
-import 'package:application/services/live_location_uploader.dart';
 import 'package:flutter/material.dart';
 import 'package:application/constants/location_tracking.dart';
 import 'package:application/helpers/live_gps_tracker.dart';
@@ -25,10 +24,18 @@ class SupervisorFullMapScreen extends StatefulWidget {
   /// Optional; reserved for parity with trip APIs / logging.
   final int? tripId;
 
+  /// Seed from trip screen so the map renders immediately (no spinner stall).
+  final latlng.LatLng? initialLocation;
+
+  /// Optional cached route from the trip mini-map.
+  final List<latlng.LatLng>? initialRoutePoints;
+
   const SupervisorFullMapScreen({
     super.key,
     required this.routeDestination,
     this.tripId,
+    this.initialLocation,
+    this.initialRoutePoints,
   });
 
   @override
@@ -45,6 +52,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   int _routeProgressIndex = 0;
   latlng.LatLng? _currentLocation;
   bool _isFollowing = true;
+  bool _isRecentering = false;
   AnimationController? _recenterController;
 
   List<latlng.LatLng>? _routePoints;
@@ -54,8 +62,15 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   @override
   void initState() {
     super.initState();
+    _currentLocation = widget.initialLocation;
+    if (widget.initialRoutePoints != null &&
+        widget.initialRoutePoints!.length >= 2) {
+      _routePoints = List<latlng.LatLng>.from(widget.initialRoutePoints!);
+      _routeBuiltForStart = widget.initialLocation;
+      _routeBuiltForDestination = widget.routeDestination;
+    }
     unawaited(_loadBusMarkerIcon());
-    _startLocationLoop();
+    unawaited(_startLocationLoop());
   }
 
   Future<void> _loadBusMarkerIcon() async {
@@ -102,7 +117,6 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
 
   @override
   void dispose() {
-    LiveLocationUploader.instance.stop();
     unawaited(_gpsTracker.stop());
     _recenterController?.dispose();
     _recenterController = null;
@@ -112,11 +126,22 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
     final controller = _mapController;
     if (!mounted || controller == null) return;
+    _isRecentering = true;
     final zoom = targetZoom ?? _mapZoom;
     _mapZoom = zoom;
-    controller.animateCamera(
-      gmaps.CameraUpdate.newLatLngZoom(toGoogleLatLng(target), zoom),
-    );
+    controller
+        .animateCamera(
+          gmaps.CameraUpdate.newLatLngZoom(toGoogleLatLng(target), zoom),
+        )
+        .whenComplete(() {
+      if (mounted) _isRecentering = false;
+    });
+  }
+
+  void _recenterMap() {
+    final target = _currentLocation ?? widget.initialLocation ?? widget.routeDestination;
+    setState(() => _isFollowing = true);
+    _animateMapTo(target, targetZoom: 16.0);
   }
 
   bool _needsRouteRefetch(latlng.LatLng start, latlng.LatLng destination) {
@@ -135,7 +160,6 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       start.latitude,
       start.longitude,
     );
-    // Refetch if destination moved or supervisor moved a lot (new leg).
     return dDest > 0.0005 || dStart > 0.002;
   }
 
@@ -166,10 +190,29 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
       return;
     }
 
-    final tripId = widget.tripId;
-    if (tripId == null || tripId <= 0) return;
+    final dest = widget.routeDestination;
+    final seed = _currentLocation;
+    if (seed != null && _needsRouteRefetch(seed, dest)) {
+      await _fetchRoute(seed, dest);
+    }
 
-    LiveLocationUploader.instance.start(tripId: tripId);
+    try {
+      final initial = await Geolocator.getCurrentPosition(
+        desiredAccuracy: kLiveTrackingAccuracy,
+      );
+      final loc = latlng.LatLng(initial.latitude, initial.longitude);
+      if (!mounted) return;
+      setState(() => _currentLocation = loc);
+      if (_needsRouteRefetch(loc, dest)) {
+        await _fetchRoute(loc, dest);
+      }
+      if (_isFollowing) {
+        _animateMapTo(loc, targetZoom: _mapZoom);
+      }
+    } catch (e) {
+      debugPrint('Full map initial GPS fix failed: $e');
+    }
+
     await _gpsTracker.start((position) async {
       try {
         final nextLocation = latlng.LatLng(
@@ -177,7 +220,6 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
           position.longitude,
         );
 
-        final dest = widget.routeDestination;
         if (_needsRouteRefetch(nextLocation, dest)) {
           await _fetchRoute(nextLocation, dest);
         }
@@ -192,13 +234,8 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
           }
         });
 
-        LiveLocationUploader.instance.updatePosition(
-          position.latitude,
-          position.longitude,
-        );
-
-        if (_isFollowing && _currentLocation != null) {
-          _animateMapTo(_currentLocation!, targetZoom: _mapZoom);
+        if (_isFollowing && !_isRecentering) {
+          _animateMapTo(nextLocation, targetZoom: _mapZoom);
         }
       } catch (e) {
         debugPrint('Full map location loop error: $e');
@@ -244,6 +281,10 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
           _routePoints = points;
           _routeBuiltForStart = start;
           _routeBuiltForDestination = destination;
+          if (_currentLocation != null) {
+            _routeProgressIndex =
+                _closestRouteIndex(_currentLocation!, _routePoints!);
+          }
         });
       }
     } catch (e) {
@@ -254,6 +295,9 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
   @override
   Widget build(BuildContext context) {
     final dest = widget.routeDestination;
+    final busPos = _currentLocation ?? widget.initialLocation;
+    final cameraTarget = busPos ?? dest;
+
     return Scaffold(
       backgroundColor: context.appScaffoldBackground,
       appBar: PreferredSize(
@@ -288,69 +332,74 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
         bottom: false,
         child: Stack(
           children: [
-            if (_currentLocation == null)
-              const Center(child: CircularProgressIndicator())
-            else
-              gmaps.GoogleMap(
-                initialCameraPosition: gmaps.CameraPosition(
-                  target: toGoogleLatLng(_currentLocation!),
-                  zoom: _mapZoom,
-                ),
-                onMapCreated: (controller) => _mapController = controller,
-                onCameraMoveStarted: () {
-                  if (_isFollowing) {
-                    setState(() => _isFollowing = false);
-                  }
-                },
-                onCameraMove: (position) => _mapZoom = position.zoom,
-                myLocationEnabled: false,
-                zoomControlsEnabled: false,
-                mapToolbarEnabled: false,
-                markers: {
+            gmaps.GoogleMap(
+              initialCameraPosition: gmaps.CameraPosition(
+                target: toGoogleLatLng(cameraTarget),
+                zoom: _mapZoom,
+              ),
+              onMapCreated: (controller) => _mapController = controller,
+              onCameraMoveStarted: () {
+                if (_isRecentering) return;
+                if (_isFollowing) {
+                  setState(() => _isFollowing = false);
+                }
+              },
+              onCameraMove: (position) => _mapZoom = position.zoom,
+              scrollGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              myLocationEnabled: false,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+              markers: {
+                if (busPos != null)
                   gmaps.Marker(
                     markerId: const gmaps.MarkerId('bus'),
-                    position: toGoogleLatLng(_currentLocation!),
+                    position: toGoogleLatLng(busPos),
                     icon: _busMarkerIcon ??
                         gmaps.BitmapDescriptor.defaultMarkerWithHue(
                           gmaps.BitmapDescriptor.hueOrange,
                         ),
                     anchor: const Offset(0.5, 0.5),
                   ),
-                  gmaps.Marker(
-                    markerId: const gmaps.MarkerId('destination'),
-                    position: toGoogleLatLng(dest),
-                    icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
-                      gmaps.BitmapDescriptor.hueRed,
-                    ),
+                gmaps.Marker(
+                  markerId: const gmaps.MarkerId('destination'),
+                  position: toGoogleLatLng(dest),
+                  icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                    gmaps.BitmapDescriptor.hueRed,
                   ),
-                },
-                polylines: () {
-                  final points = _routePoints;
-                  if (points == null || points.length < 2) return const <gmaps.Polyline>{};
-                  final idx = _routeProgressIndex.clamp(0, points.length - 1);
-                  final remaining = points.sublist(idx);
-                  if (remaining.length < 2) return const <gmaps.Polyline>{};
-                  return {
-                    gmaps.Polyline(
-                      polylineId: const gmaps.PolylineId('remaining'),
-                      points: toGoogleLatLngList(remaining),
-                      color: const Color(0xFF2563EB),
-                      width: 4,
-                    ),
-                  };
-                }(),
+                ),
+              },
+              polylines: () {
+                final points = _routePoints;
+                if (points == null || points.length < 2) {
+                  return const <gmaps.Polyline>{};
+                }
+                final idx = _routeProgressIndex.clamp(0, points.length - 1);
+                final remaining = points.sublist(idx);
+                if (remaining.length < 2) return const <gmaps.Polyline>{};
+                return {
+                  gmaps.Polyline(
+                    polylineId: const gmaps.PolylineId('remaining'),
+                    points: toGoogleLatLngList(remaining),
+                    color: const Color(0xFF2563EB),
+                    width: 4,
+                  ),
+                };
+              }(),
+            ),
+            if (busPos == null)
+              const Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               ),
             Positioned(
               left: 16,
               bottom: 24,
               child: GestureDetector(
-                onTap: () {
-                  if (_currentLocation == null) return;
-                  setState(() {
-                    _isFollowing = true;
-                  });
-                  _animateMapTo(_currentLocation!, targetZoom: 16.0);
-                },
+                onTap: _recenterMap,
                 child: Container(
                   width: 40,
                   height: 40,
@@ -365,7 +414,7 @@ class _SupervisorFullMapScreenState extends State<SupervisorFullMapScreen>
                       ),
                     ],
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.my_location,
                     color: Color(0xff2859c5),
                     size: 22,

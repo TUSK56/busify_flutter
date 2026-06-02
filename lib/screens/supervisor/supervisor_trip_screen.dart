@@ -56,6 +56,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   Duration _stoppedTime = Duration.zero;
   DateTime? _lastEtaEngineUpdateTime;
   bool _isMiniMapFollowing = true;
+  bool _isRecentering = false;
   double? _smoothedSpeedKmh;
   double? _routeDistanceKm;
   double? _routeDurationSeconds;
@@ -496,7 +497,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   }
 
   void _maybeFollowMap(latlng.LatLng location) {
-    if (!_isMiniMapFollowing) return;
+    if (!_isMiniMapFollowing || _isRecentering) return;
     final now = DateTime.now();
     final lastAt = _lastMapFollowAt;
     final lastLoc = _lastMapFollowLocation;
@@ -642,11 +643,26 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
   void _animateMapTo(latlng.LatLng target, {double? targetZoom}) {
     final controller = _mapController;
     if (!mounted || controller == null) return;
+    _isRecentering = true;
     final zoom = targetZoom ?? _mapZoom;
     _mapZoom = zoom;
-    controller.animateCamera(
-      gmaps.CameraUpdate.newLatLngZoom(toGoogleLatLng(target), zoom),
-    );
+    controller
+        .animateCamera(
+          gmaps.CameraUpdate.newLatLngZoom(toGoogleLatLng(target), zoom),
+        )
+        .whenComplete(() {
+      if (mounted) _isRecentering = false;
+    });
+  }
+
+  void _recenterMiniMap() {
+    final target = _currentLocation ?? _mapFocusPoint;
+    setState(() {
+      _isMiniMapFollowing = true;
+      _lastMapFollowAt = null;
+      _lastMapFollowLocation = null;
+    });
+    _animateMapTo(target, targetZoom: 16.0);
   }
 
   /// 1. Initialize Tracking & Permissions
@@ -1454,6 +1470,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                       _mapController = controller;
                                     },
                                     onCameraMoveStarted: () {
+                                      if (_isRecentering) return;
                                       if (_isMiniMapFollowing) {
                                         setState(() {
                                           _isMiniMapFollowing = false;
@@ -1478,16 +1495,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                   left: 12,
                                   bottom: 12,
                                   child: GestureDetector(
-                                    onTap: () {
-                                      if (_currentLocation == null) return;
-                                      setState(() {
-                                        _isMiniMapFollowing = true;
-                                      });
-                                      _animateMapTo(
-                                        _currentLocation!,
-                                        targetZoom: 16.0,
-                                      );
-                                    },
+                                    onTap: _recenterMiniMap,
                                     child: Container(
                                       width: 40,
                                       height: 40,
@@ -1534,8 +1542,12 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
                                               fadeRoute(
                                                 SupervisorFullMapScreen(
                                                   routeDestination:
-                                                  _currentDestination,
+                                                      _currentDestination,
                                                   tripId: _activeTripId,
+                                                  initialLocation:
+                                                      _currentLocation,
+                                                  initialRoutePoints:
+                                                      _routePoints,
                                                 ),
                                               ),
                                             );
