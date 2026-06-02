@@ -16,6 +16,7 @@ import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_track_bus_screen.dart';
 import 'package:application/services/push_notifications_service.dart';
 import 'package:application/services/service_locator.dart';
+import 'package:application/services/trip_live_updates.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:application/widgets/resilient_network_image.dart';
 import 'package:flutter/material.dart';
@@ -64,6 +65,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
   String _parentPhone = '';
   String _parentEmail = '';
   String _parentGovernorate = '';
+  StreamSubscription<String>? _liveUpdatesSub;
 
   Map<String, dynamic>? _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
@@ -127,6 +129,18 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     _childOverviewFuture = ServiceLocator.parentService.getChildOverview();
     _entranceController.forward();
     _loadParentOverview();
+    PushNotificationsService.flushPendingNavigation();
+    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((reason) {
+      if (!mounted) return;
+      if (reason == 'student_link_approved' ||
+          reason == 'student_link_rejected') {
+        setState(() {
+          _childOverviewFuture =
+              ServiceLocator.parentService.getChildOverview();
+        });
+        unawaited(_loadParentOverview());
+      }
+    });
   }
 
   @override
@@ -189,6 +203,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
 
   @override
   void dispose() {
+    _liveUpdatesSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     ServiceLocator.themeController.removeListener(_onThemeChanged);
     _entranceController.dispose();
@@ -609,6 +624,37 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                                       _StatusBadge(
                                         status: linkStatus,
                                         needsReenrollment: needsReenroll,
+                                        onReenrollTap: needsReenroll &&
+                                                linkStatus == 'approved'
+                                            ? () async {
+                                                final sidRaw = st['id'] ?? st['Id'];
+                                                final sid = sidRaw is num
+                                                    ? sidRaw.toInt()
+                                                    : int.tryParse('$sidRaw');
+                                                if (sid == null || sid <= 0) {
+                                                  return;
+                                                }
+                                                final done =
+                                                    await Navigator.of(context)
+                                                        .push<bool>(
+                                                  fadeRoute(
+                                                    ParentAddChildScreen(
+                                                      reenrollStudentId: sid,
+                                                      details: st,
+                                                    ),
+                                                  ),
+                                                );
+                                                if (!mounted) return;
+                                                if (done == true) {
+                                                  setState(() {
+                                                    _childOverviewFuture =
+                                                        ServiceLocator
+                                                            .parentService
+                                                            .getChildOverview();
+                                                  });
+                                                }
+                                              }
+                                            : null,
                                       ),
                                       if (linkStatus == 'rejected') ...[
                                         const SizedBox(width: 8),
@@ -636,41 +682,6 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
                                                 MaterialTapTargetSize.shrinkWrap,
                                           ),
                                           child: const Text('Details'),
-                                        ),
-                                      ],
-                                      if (needsReenroll && linkStatus == 'approved') ...[
-                                        const SizedBox(width: 8),
-                                        TextButton(
-                                          onPressed: () async {
-                                            final sidRaw = st['id'] ?? st['Id'];
-                                            final sid = sidRaw is num
-                                                ? sidRaw.toInt()
-                                                : int.tryParse('$sidRaw');
-                                            if (sid == null || sid <= 0) return;
-                                            final done = await Navigator.of(context).push<bool>(
-                                              fadeRoute(
-                                                ParentAddChildScreen(
-                                                  reenrollStudentId: sid,
-                                                  details: st,
-                                                ),
-                                              ),
-                                            );
-                                            if (!mounted) return;
-                                            if (done == true) {
-                                              setState(() {
-                                                _childOverviewFuture =
-                                                    ServiceLocator.parentService
-                                                        .getChildOverview();
-                                              });
-                                            }
-                                          },
-                                          style: TextButton.styleFrom(
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: Size.zero,
-                                            tapTargetSize:
-                                                MaterialTapTargetSize.shrinkWrap,
-                                          ),
-                                          child: const Text('Re-scan'),
                                         ),
                                       ],
                                     ],
@@ -1125,10 +1136,12 @@ class _StatusBadge extends StatelessWidget {
   const _StatusBadge({
     required this.status,
     this.needsReenrollment = false,
+    this.onReenrollTap,
   });
 
   final String status;
   final bool needsReenrollment;
+  final VoidCallback? onReenrollTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1140,7 +1153,7 @@ class _StatusBadge extends StatelessWidget {
       'rejected' => (const Color(0xFFFEE2E2), const Color(0xFF991B1B), 'Rejected'),
       _ => (const Color(0xFFFEF3C7), const Color(0xFF92400E), 'Pending'),
     };
-    return Container(
+    final badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
@@ -1155,6 +1168,17 @@ class _StatusBadge extends StatelessWidget {
         ),
       ),
     );
+    if (onReenrollTap != null) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onReenrollTap,
+          borderRadius: BorderRadius.circular(999),
+          child: badge,
+        ),
+      );
+    }
+    return badge;
   }
 }
 

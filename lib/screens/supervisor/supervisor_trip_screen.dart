@@ -260,7 +260,8 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         final absentFlag = _readBool(m['absent'] ?? m['Absent']);
         final completedExplicit = m['completed'] ?? m['Completed'];
         final explicit = _readTriBool(completedExplicit);
-        final completedResolved = explicit ?? (boardedFlag || absentFlag);
+        final completedResolved =
+            boardedFlag || absentFlag || explicit == true;
         parsed.add(
           _TripStop(
             studentId: sid,
@@ -271,6 +272,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
             photoUrl: readPhotoUrlFromMap(m),
             location: point ?? _currentLocation ?? _schoolDestination,
             boarded: boardedFlag,
+            absent: absentFlag,
             completed: completedResolved,
           ),
         );
@@ -299,7 +301,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         if (parsed.isNotEmpty) {
           _totalCount = parsed.length;
           _boardedCount = parsed.where((s) => s.boarded).length;
-          _remainingCount = parsed.where((s) => !s.completed).length;
+          _remainingCount = parsed.where((s) => !s.boarded && !s.absent).length;
         } else {
           _totalCount = summaryTotal;
           _boardedCount = summaryBoarded ?? 0;
@@ -1055,7 +1057,7 @@ class _SupervisorTripScreenState extends State<SupervisorTripScreen>
         }
         if (mounted && result == true) {
           _consecutiveNoMatchFaceAttempts = 0;
-          await _advanceAfterStudentAction(openNextScan: true);
+          await _advanceAfterStudentAction(openNextScan: false);
         }
       }
     } catch (e) {
@@ -1851,6 +1853,7 @@ class _TripStop {
   final String? photoUrl;
   final latlng.LatLng location;
   final bool boarded;
+  final bool absent;
   final bool completed;
 
   const _TripStop({
@@ -1861,10 +1864,11 @@ class _TripStop {
     this.photoUrl,
     required this.location,
     this.boarded = false,
+    this.absent = false,
     this.completed = false,
   });
 
-  _TripStop copyWith({bool? boarded, bool? completed}) {
+  _TripStop copyWith({bool? boarded, bool? absent, bool? completed}) {
     return _TripStop(
       studentId: studentId,
       studentName: studentName,
@@ -1873,6 +1877,7 @@ class _TripStop {
       photoUrl: photoUrl,
       location: location,
       boarded: boarded ?? this.boarded,
+      absent: absent ?? this.absent,
       completed: completed ?? this.completed,
     );
   }

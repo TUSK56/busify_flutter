@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:application/helpers/fade_route.dart';
+import 'package:application/screens/parent/parent_profile_screen.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/services/trip_live_updates.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -14,11 +16,11 @@ class PushNotificationsService {
 
   static bool _started = false;
   static StreamSubscription<String>? _tokenSub;
+  static bool _pendingOpenParentProfile = false;
 
   static Future<void> init() async {
     if (_started) return;
 
-    // Firebase can throw if google-services files are missing.
     try {
       await Firebase.initializeApp();
     } catch (e) {
@@ -98,6 +100,10 @@ class PushNotificationsService {
       };
       if (tripTypes.contains(type)) {
         TripLiveUpdates.instance.notify(type);
+        return;
+      }
+      if (type == 'student_link_approved' || type == 'student_link_rejected') {
+        TripLiveUpdates.instance.notify(type);
       }
     });
   }
@@ -127,9 +133,40 @@ class PushNotificationsService {
     }
   }
 
+  static bool _isParentLinkReviewType(String type) =>
+      type == 'student_link_approved' || type == 'student_link_rejected';
+
+  /// Opens [ParentProfileScreen] when the user taps a school approve/reject push.
+  static void openParentProfileScreen() {
+    final token = ServiceLocator.tokenStorage.getToken();
+    if (token == null || token.trim().isEmpty) {
+      _pendingOpenParentProfile = true;
+      return;
+    }
+
+    final nav = ServiceLocator.navigatorKey.currentState;
+    if (nav == null) {
+      _pendingOpenParentProfile = true;
+      return;
+    }
+
+    _pendingOpenParentProfile = false;
+    nav.push(fadeRoute(const ParentProfileScreen()));
+  }
+
+  /// Call after parent home/login is ready (handles cold-start notification tap).
+  static void flushPendingNavigation() {
+    if (!_pendingOpenParentProfile) return;
+    openParentProfileScreen();
+  }
+
   static void _handleNotificationOpen(RemoteMessage message) {
     final data = message.data;
     final type = (data['type'] ?? '').toString().toLowerCase();
+    if (_isParentLinkReviewType(type)) {
+      openParentProfileScreen();
+      return;
+    }
     if (type == 'emergency_trip_ended') {
       unawaited(_openMapFromEmergencyData(Map<String, dynamic>.from(data)));
     }
@@ -144,8 +181,6 @@ class PushNotificationsService {
     });
   }
 
-  /// Call after parent login so the device token is sent with a valid JWT
-  /// (startup init often runs before login and registration may no-op).
   static Future<void> registerTokenAfterParentLogin() async {
     try {
       await Firebase.initializeApp();
@@ -165,13 +200,13 @@ class PushNotificationsService {
       if (token != null) {
         await _registerToken(token);
       }
+      flushPendingNavigation();
     } catch (e) {
       debugPrint('FCM register after login skipped: $e');
     }
   }
 
   static Future<void> _registerToken(String token) async {
-    // Only parents have the backend endpoint; supervisors will get 401 and we ignore it.
     try {
       await ServiceLocator.parentService.upsertDeviceToken(token);
     } catch (e) {

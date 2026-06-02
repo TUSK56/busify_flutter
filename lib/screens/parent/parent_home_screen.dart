@@ -179,8 +179,15 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         );
     _entranceController.forward();
     unawaited(PushNotificationsService.registerTokenAfterParentLogin());
-    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((_) {
-      if (mounted) unawaited(_refreshTripAttendanceState());
+    PushNotificationsService.flushPendingNavigation();
+    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((reason) {
+      if (!mounted) return;
+      if (reason == 'student_link_approved' ||
+          reason == 'student_link_rejected') {
+        unawaited(_loadParentOverview());
+      } else {
+        unawaited(_refreshTripAttendanceState());
+      }
     });
     _loadParentOverview();
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -97,8 +98,14 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
         _selectedGrade = grade ?? _grades.first;
         _dob = parsedDob;
         _selectedSchoolId = schoolId;
-        _faceStatusMessage =
-            'Complete ${kParentEnrollmentScanCount} face scans to re-enroll.';
+        _faceStatusMessage = _faceEnrollment.scansCompleted == 0
+            ? 'Tap the photo box to start scan 1 of ${kParentEnrollmentScanCount}'
+            : 'Scan ${_faceEnrollment.scansCompleted + 1} of ${kParentEnrollmentScanCount} — tap the photo box';
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_faceEnrollment.isComplete) {
+          unawaited(_pickFacePhoto());
+        }
       });
       return;
     }
@@ -197,7 +204,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
   }
 
   Future<void> _pickFacePhoto() async {
-    if (_faceEnrollment.isComplete) {
+    if (_faceEnrollment.isComplete && !_isReenrollMode) {
       _faceEnrollment.reset();
       setState(() {
         _facePhoto = null;

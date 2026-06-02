@@ -329,6 +329,14 @@ class SupervisorService {
       return int.tryParse(v?.toString() ?? '') ?? 0;
     }
 
+    bool readBool(dynamic v) {
+      if (v == null) return false;
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      final s = v.toString().trim().toLowerCase();
+      return s == 'true' || s == '1' || s == 'yes';
+    }
+
     var boarded = 0;
     var remaining = 0;
     var total = 0;
@@ -341,32 +349,20 @@ class SupervisorService {
     final students = body['students'] ?? body['Students'];
     if (students is List && students.isNotEmpty) {
       var boardedFromStops = 0;
-      var completedFromStops = 0;
+      var remainingFromStops = 0;
       for (final raw in students) {
         if (raw is! Map) continue;
         final m = raw is Map<String, dynamic> ? raw : Map<String, dynamic>.from(raw);
-        final boardedFlag = m['boarded'] == true || m['Boarded'] == true;
-        final absentFlag = m['absent'] == true || m['Absent'] == true;
-        final completedRaw = m['completed'] ?? m['Completed'];
-        final completed = completedRaw == true ||
-            completedRaw == 1 ||
-            boardedFlag ||
-            absentFlag;
+        final boardedFlag = readBool(m['boarded'] ?? m['Boarded']);
+        final absentFlag = readBool(m['absent'] ?? m['Absent']);
         if (boardedFlag) boardedFromStops++;
-        if (completed) completedFromStops++;
+        if (!boardedFlag && !absentFlag) remainingFromStops++;
       }
       if (total <= 0) total = students.length;
-      if (boarded <= 0 && boardedFromStops > 0) boarded = boardedFromStops;
-      if (remaining <= 0) {
-        remaining = (total - completedFromStops).clamp(0, total);
-      }
-    }
-
-    if (total <= 0 && boarded > 0) {
-      total = boarded + remaining;
-    }
-    if (remaining <= 0 && total > boarded) {
-      remaining = total - boarded;
+      boarded = boardedFromStops;
+      remaining = remainingFromStops;
+    } else if (total > 0) {
+      remaining = (total - boarded).clamp(0, total);
     }
 
     return TripAttendanceSummary(
