@@ -12,6 +12,7 @@ import 'package:application/routes/fade_route.dart';
 import 'package:application/screens/parent/parent_home_screen.dart';
 import 'package:application/screens/parent/parent_profile_screen.dart';
 import 'package:application/screens/parent/parent_track_bus_screen.dart';
+import 'package:application/models/school.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:application/widgets/parent/parent_face_enrollment.dart';
@@ -45,8 +46,10 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
 
   bool _saving = false;
 
-  List<Map<String, dynamic>> _schools = const [];
+  List<School> _schools = const [];
   int? _selectedSchoolId;
+  bool _schoolsLoading = true;
+  String? _schoolsLoadError;
 
   final _grades = const ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'];
   String? _selectedGrade;
@@ -90,10 +93,15 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       if (dobRaw != null && dobRaw.isNotEmpty) {
         parsedDob = DateTime.tryParse(dobRaw);
       }
-      int? schoolId;
-      if (schoolRaw is num) schoolId = schoolRaw.toInt();
+      final schoolId = schoolRaw == null
+          ? null
+          : _readIntFromMap(
+              {'schoolAdminId': schoolRaw},
+              const ['schoolAdminId'],
+            );
       if (!mounted) return;
       setState(() {
+        _schoolsLoading = false;
         _nameController.text = name;
         _selectedGrade = grade ?? _grades.first;
         _dob = parsedDob;
@@ -126,6 +134,7 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
       }
       if (!mounted) return;
       setState(() {
+        _schoolsLoading = false;
         _nameController.text = name;
         _selectedGrade = grade ?? _grades.first;
         _dob = parsedDob;
@@ -141,30 +150,112 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
 
     try {
       final profile = await ServiceLocator.parentService.getProfile();
-      final sid = (profile['schoolAdminId'] as num?)?.toInt();
-      final schools = await ServiceLocator.parentService.getSchools();
-      int? firstSchoolId;
-      if (schools.isNotEmpty) {
-        final first = schools.first;
-        final rawId = first['id'] ?? first['Id'];
-        if (rawId is num) {
-          firstSchoolId = rawId.toInt();
-        } else if (rawId is String) {
-          firstSchoolId = int.tryParse(rawId.trim());
-        }
-      }
+      final profileSchoolId = _readIntFromMap(
+        profile,
+        const ['schoolAdminId', 'SchoolAdminId', 'school_admin_id'],
+      );
+      final schools = await ServiceLocator.schoolService.getSchools();
       if (!mounted) return;
+      int? selected = profileSchoolId;
+      if (selected != null && !schools.any((s) => s.id == selected)) {
+        selected = null;
+      }
+      selected ??= schools.isNotEmpty ? schools.first.id : null;
       setState(() {
         _schools = schools;
-        _selectedSchoolId = sid ?? firstSchoolId;
+        _selectedSchoolId = selected;
         _selectedGrade ??= _grades.first;
+        _schoolsLoading = false;
+        _schoolsLoadError = schools.isEmpty ? 'No schools available. Try again later.' : null;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
+        _schoolsLoading = false;
+        _schoolsLoadError = 'Could not load schools. Pull to refresh or try again.';
         _selectedGrade ??= _grades.first;
       });
+      debugPrint('Load schools failed: $e');
     }
+  }
+
+  int? _readIntFromMap(Map<String, dynamic> map, List<String> keys) {
+    for (final k in keys) {
+      final v = map[k];
+      if (v is num) return v.toInt();
+      final parsed = int.tryParse(v?.toString() ?? '');
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    return null;
+  }
+
+  String? _selectedSchoolName() {
+    final id = _selectedSchoolId;
+    if (id == null) return null;
+    for (final s in _schools) {
+      if (s.id == id) return s.name;
+    }
+    return null;
+  }
+
+  Future<void> _pickSchool() async {
+    if (widget.readOnly || _isReenrollMode || _schools.isEmpty) return;
+
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.appScaffoldBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.55;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Text(
+                'Select school',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: context.appPrimaryText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxH),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _schools.length,
+                  itemBuilder: (context, index) {
+                    final school = _schools[index];
+                    final selected = school.id == _selectedSchoolId;
+                    return ListTile(
+                      title: Text(
+                        school.name,
+                        style: GoogleFonts.inter(
+                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                          color: context.appPrimaryText,
+                        ),
+                      ),
+                      trailing: selected
+                          ? const Icon(Icons.check_circle, color: AppColors.primaryBlue)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, school.id),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || picked == null) return;
+    setState(() => _selectedSchoolId = picked);
   }
 
   @override
@@ -432,38 +523,44 @@ class _ParentAddChildScreenState extends State<ParentAddChildScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 18),
-                          _IconLabel(
-                            iconPath: AppImages.schoolIcon,
-                            iconSize: const Size(35, 35),
-                            label: 'School',
-                          ),
-                          const SizedBox(height: 10),
-                          _DropdownBox<int>(
-                            value: _selectedSchoolId,
-                            hint: 'Select School',
-                            items: _schools
-                                .map(
-                                  (s) => DropdownMenuItem<int>(
-                                    value: (s['id'] as num?)?.toInt(),
-                                    child: Text(
-                                      (s['name'] ?? 'School').toString(),
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        height: 22 / 16,
-                                        color: context.appPrimaryText,
-                                      ),
-                                    ),
+                          if (!_isReenrollMode) ...[
+                            const SizedBox(height: 18),
+                            _IconLabel(
+                              iconPath: AppImages.schoolIcon,
+                              iconSize: const Size(35, 35),
+                              label: 'School',
+                            ),
+                            const SizedBox(height: 10),
+                            if (_schoolsLoading)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   ),
-                                )
-                                .toList(),
-                            onChanged: widget.readOnly
-                                ? (_) {}
-                                : (v) => setState(() => _selectedSchoolId = v),
-                            enabled: !widget.readOnly,
-                          ),
+                                ),
+                              )
+                            else if (_schoolsLoadError != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text(
+                                  _schoolsLoadError!,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: Colors.red.shade700,
+                                  ),
+                                ),
+                              )
+                            else
+                              _SchoolSelectField(
+                                label: _selectedSchoolName(),
+                                hint: 'Select School',
+                                enabled: !widget.readOnly && _schools.isNotEmpty,
+                                onTap: _pickSchool,
+                              ),
+                          ],
                           const SizedBox(height: 18),
                           _IconLabel(
                             iconPath: AppImages.gradeIcon,
@@ -928,6 +1025,68 @@ class _InputBox extends StatelessWidget {
   }
 }
 
+/// Tap-to-select school list (reliable inside [SingleChildScrollView] on Android/iOS).
+class _SchoolSelectField extends StatelessWidget {
+  const _SchoolSelectField({
+    required this.hint,
+    required this.onTap,
+    this.label,
+    this.enabled = true,
+  });
+
+  final String? label;
+  final String hint;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final display = (label != null && label!.trim().isNotEmpty) ? label! : hint;
+    final isPlaceholder = label == null || label!.trim().isEmpty;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(15),
+        child: Container(
+          width: double.infinity,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.white.withValues(alpha: 0.58),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: AppColors.textBlack.withValues(alpha: 0.25), width: 1),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  display,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    height: 22 / 16,
+                    color: isPlaceholder
+                        ? AppColors.grayText.withValues(alpha: 0.68)
+                        : context.appPrimaryText,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 30,
+                color: AppColors.grayText.withValues(alpha: 0.72),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DropdownBox<T> extends StatelessWidget {
   const _DropdownBox({
     required this.value,
@@ -945,33 +1104,43 @@ class _DropdownBox<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 322,
-      height: 44,
-      decoration: BoxDecoration(
-        color: AppColors.white.withValues(alpha: 0.58),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.textBlack.withValues(alpha: 0.25), width: 1),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          items: items,
-          onChanged: enabled ? onChanged : null,
-          isExpanded: true,
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 30,
-            color: AppColors.grayText.withValues(alpha: 0.72),
-          ),
-          hint: Text(
-            hint,
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              height: 22 / 16,
-              color: AppColors.grayText.withValues(alpha: 0.68),
+    final validItems = items.where((i) => i.value != null).toList();
+    final effectiveValue =
+        validItems.any((i) => i.value == value) ? value : null;
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: double.infinity,
+        height: 44,
+        decoration: BoxDecoration(
+          color: AppColors.white.withValues(alpha: 0.58),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: AppColors.textBlack.withValues(alpha: 0.25), width: 1),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<T>(
+            value: effectiveValue,
+            items: validItems,
+            onChanged: enabled && validItems.isNotEmpty ? onChanged : null,
+            isExpanded: true,
+            menuMaxHeight: 320,
+            borderRadius: BorderRadius.circular(12),
+            dropdownColor: context.appScaffoldBackground,
+            icon: Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 30,
+              color: AppColors.grayText.withValues(alpha: 0.72),
+            ),
+            hint: Text(
+              hint,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                height: 22 / 16,
+                color: AppColors.grayText.withValues(alpha: 0.68),
+              ),
             ),
           ),
         ),
