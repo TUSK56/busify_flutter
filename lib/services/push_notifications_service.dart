@@ -97,6 +97,8 @@ class PushNotificationsService {
         'trip_started',
         'trip_ended',
         'emergency_trip_ended',
+        'bus_near',
+        'arrived_school',
       };
       if (tripTypes.contains(type)) {
         TripLiveUpdates.instance.notify(type);

@@ -14,6 +14,7 @@ import 'package:application/widgets/resilient_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:application/helpers/map_bus_marker.dart';
 import 'package:application/helpers/map_lat_lng.dart';
+import 'package:application/helpers/smoothed_lat_lng.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -53,7 +54,10 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   late final Animation<Offset> _entranceSlide;
   Timer? _pollTimer;
   StreamSubscription<String>? _liveUpdatesSub;
-  static const Duration _pollInterval = Duration(milliseconds: 1200);
+  static const Duration _pollInterval = Duration(milliseconds: 500);
+  final SmoothedLatLng _smoothedBus = SmoothedLatLng(
+    duration: const Duration(milliseconds: 400),
+  );
   latlng.LatLng? _busLocation;
   latlng.LatLng? _destination;
   String _statusText = 'Loading';
@@ -313,8 +317,6 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         _polyline = line;
         _routeDestinationKey = destKey;
         _routeProgressIndex = _polyline.isNotEmpty ? _closestRouteIndex(bus, _polyline) : 0;
-      } else if (_polyline.isNotEmpty) {
-        _routeProgressIndex = _closestRouteIndex(bus, _polyline);
       }
 
       final nextBusNumber = () {
@@ -324,10 +326,9 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       }();
       final nextDriver =
           (dName == null || dName.trim().isEmpty) ? _driverName : dName.trim();
-      final nextEta = _computeEta(bus, target);
+      final displayBus = _polyline.length >= 2 ? _snapToPolyline(bus, _polyline) : bus;
+      final nextEta = _computeEta(displayBus, target);
       final changed = _hasActiveTrip != true ||
-          _busLocation?.latitude != bus.latitude ||
-          _busLocation?.longitude != bus.longitude ||
           _destination?.latitude != target?.latitude ||
           _destination?.longitude != target?.longitude ||
           _statusText != statusComputed ||
@@ -341,7 +342,6 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       if (changed) {
         setState(() {
           _hasActiveTrip = true;
-          _busLocation = bus;
           _destination = target;
           _statusText = statusComputed;
           _etaText = nextEta;
@@ -352,16 +352,10 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           _driverName = nextDriver;
         });
       } else {
-        _busLocation = bus;
         _destination = target;
-        if (_polyline.isNotEmpty) {
-          _routeProgressIndex = _closestRouteIndex(bus, _polyline);
-        }
       }
 
-      if (_isMiniMapFollowing && !_isRecentering) {
-        _animateMapTo(bus, targetZoom: _mapZoom);
-      }
+      _applySnappedBusLocation(bus);
     } catch (_) {}
   }
 
@@ -413,6 +407,75 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     return bestIdx;
   }
 
+  latlng.LatLng _snapToPolyline(latlng.LatLng point, List<latlng.LatLng> polyline) {
+    if (polyline.length < 2) return point;
+    var best = polyline.first;
+    var bestDist = double.infinity;
+    for (var i = 0; i < polyline.length - 1; i++) {
+      final projected = _projectOnSegment(point, polyline[i], polyline[i + 1]);
+      final d = _distanceKm(
+        point.latitude,
+        point.longitude,
+        projected.latitude,
+        projected.longitude,
+      );
+      if (d < bestDist) {
+        bestDist = d;
+        best = projected;
+      }
+    }
+    return best;
+  }
+
+  latlng.LatLng _projectOnSegment(
+    latlng.LatLng point,
+    latlng.LatLng start,
+    latlng.LatLng end,
+  ) {
+    const p = 0.017453292519943295;
+    final lat1 = start.latitude * p;
+    final lon1 = start.longitude * p;
+    final lat2 = end.latitude * p;
+    final lon2 = end.longitude * p;
+    final lat3 = point.latitude * p;
+    final lon3 = point.longitude * p;
+
+    final dx = lat2 - lat1;
+    final dy = (lon2 - lon1) * math.cos((lat1 + lat2) / 2);
+    final px = lat3 - lat1;
+    final py = (lon3 - lon1) * math.cos((lat1 + lat3) / 2);
+    final denom = dx * dx + dy * dy;
+    final t = denom <= 0 ? 0.0 : (px * dx + py * dy) / denom;
+    final clamped = t.clamp(0.0, 1.0);
+    return latlng.LatLng(
+      (lat1 + dx * clamped) / p,
+      (lon1 + (lon2 - lon1) * clamped) / p,
+    );
+  }
+
+  void _applySnappedBusLocation(latlng.LatLng raw) {
+    final snapped = _polyline.length >= 2 ? _snapToPolyline(raw, _polyline) : raw;
+    _smoothedBus.setTarget(snapped, onTick: () {
+      if (!mounted) return;
+      final display = _smoothedBus.value;
+      if (display == null) return;
+      setState(() {
+        _busLocation = display;
+        if (_polyline.isNotEmpty) {
+          _routeProgressIndex = _closestRouteIndex(display, _polyline);
+        }
+      });
+      if (_isMiniMapFollowing && !_isRecentering) {
+        _animateMapTo(display, targetZoom: _mapZoom);
+      }
+    });
+    final display = _smoothedBus.value ?? snapped;
+    _busLocation = display;
+    if (_polyline.isNotEmpty) {
+      _routeProgressIndex = _closestRouteIndex(display, _polyline);
+    }
+  }
+
   Set<gmaps.Polyline> _buildColoredRoutePolylines() {
     if (_polyline.isEmpty || _polyline.length < 2) return const {};
     final idx = _routeProgressIndex.clamp(0, _polyline.length - 1);
@@ -439,6 +502,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         markerId: const gmaps.MarkerId('bus'),
         position: toGoogleLatLng(_busLocation!),
         icon: busIcon,
+        anchor: const Offset(0.5, 0.5),
       ),
       if (_destination != null)
         gmaps.Marker(
@@ -455,6 +519,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   void dispose() {
     _liveUpdatesSub?.cancel();
     _pollTimer?.cancel();
+    _smoothedBus.dispose();
     _recenterController?.dispose();
     _entranceController.dispose();
     super.dispose();
@@ -477,24 +542,19 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
             // ✅ Header is outside the scroll view — stays fixed
             buildHeader(context),
 
-            // ✅ Only map + card scroll
             Expanded(
-              child: SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                padding: EdgeInsets.zero,
-                child: FadeTransition(
-                  opacity: _entranceFade,
-                  child: SlideTransition(
-                    position: _entranceSlide,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        buildMapSection(),
-                        const SizedBox(height: 16),
-                        buildBusStatusCard(context, cardW),
-                        const SizedBox(height: 10),
-                      ],
-                    ),
+              child: FadeTransition(
+                opacity: _entranceFade,
+                child: SlideTransition(
+                  position: _entranceSlide,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: buildMapSection()),
+                      const SizedBox(height: 12),
+                      buildBusStatusCard(context, cardW),
+                      const SizedBox(height: 10),
+                    ],
                   ),
                 ),
               ),
@@ -574,10 +634,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   }
 
   Widget buildMapSection() {
-    return SizedBox(
-      width: double.infinity,
-      height: 380,
-      child: _busLocation == null
+    return _busLocation == null
           ? Center(
         child: _hasActiveTrip
             ? const CircularProgressIndicator()
@@ -588,29 +645,35 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       )
           : Stack(
         children: [
-          gmaps.GoogleMap(
-            initialCameraPosition: gmaps.CameraPosition(
-              target: toGoogleLatLng(_busLocation!),
-              zoom: _mapZoom,
+          Positioned.fill(
+            child: gmaps.GoogleMap(
+              initialCameraPosition: gmaps.CameraPosition(
+                target: toGoogleLatLng(_busLocation!),
+                zoom: _mapZoom,
+              ),
+              onMapCreated: (controller) => _mapController = controller,
+              onCameraMoveStarted: () {
+                if (_isMiniMapFollowing) {
+                  setState(() => _isMiniMapFollowing = false);
+                }
+              },
+              onCameraMove: (position) {
+                _mapZoom = position.zoom;
+                _mapCameraCenter = latlng.LatLng(
+                  position.target.latitude,
+                  position.target.longitude,
+                );
+              },
+              scrollGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              myLocationEnabled: false,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+              markers: _buildTrackMapMarkers(),
+              polylines: _buildColoredRoutePolylines(),
             ),
-            onMapCreated: (controller) => _mapController = controller,
-            onCameraMoveStarted: () {
-              if (_isMiniMapFollowing) {
-                setState(() => _isMiniMapFollowing = false);
-              }
-            },
-            onCameraMove: (position) {
-              _mapZoom = position.zoom;
-              _mapCameraCenter = latlng.LatLng(
-                position.target.latitude,
-                position.target.longitude,
-              );
-            },
-            myLocationEnabled: false,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            markers: _buildTrackMapMarkers(),
-            polylines: _buildColoredRoutePolylines(),
           ),
           Positioned(
             left: 12,
@@ -640,8 +703,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
             ),
           ),
         ],
-      ),
-    );
+      );
   }
 
   Widget buildBusStatusCard(BuildContext context, double cardW) {

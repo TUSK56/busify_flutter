@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 import 'package:application/constants/app_colors.dart';
 import 'package:application/constants/app_images.dart';
 import 'package:application/helpers/app_theme.dart';
@@ -58,21 +57,13 @@ class _SupervisorHomeScreenState extends State<SupervisorHomeScreen>
     try {
       final me = await ServiceLocator.supervisorService.getMe();
       if (!mounted) return;
-      final assigned = me.assignedCount;
-      final boarded = me.boardedCount;
-      var notYet = me.notYetCount;
-      if (assigned > 0 && boarded >= assigned) {
-        notYet = 0;
-      } else if (assigned > 0) {
-        notYet = math.max(0, math.min(notYet, assigned - boarded));
-      }
       setState(() {
         _supervisorName = me.name;
         _busNumber = me.busNumber ?? '—';
         _activeTripId = me.activeTripId;
-        _assigned = assigned;
-        _boarded = boarded;
-        _notYet = notYet;
+        _assigned = me.assignedCount;
+        _boarded = me.boardedCount;
+        _notYet = me.notYetCount;
       });
     } catch (_) {
       if (!mounted) return;

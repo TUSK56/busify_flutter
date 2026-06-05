@@ -88,7 +88,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   Timer? _homePollTimer;
   StreamSubscription<String>? _liveUpdatesSub;
 
-  static const Duration _homePollInterval = Duration(seconds: 5);
+  static const Duration _homePollInterval = Duration(milliseconds: 1500);
 
   bool _isAfternoonTrip = false;
 
@@ -359,17 +359,14 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
 
         tripActive = (current['has_active_trip'] == true ||
                 current['hasActiveTrip'] == true) &&
-            trip != null &&
-            tripLooksStarted;
+            (trip == null || tripLooksStarted);
         if (isAfternoonTrip) {
           childAfternoonDroppedOff =
               current['child_afternoon_dropped_off'] == true ||
                   current['childAfternoonDroppedOff'] == true;
         }
       } catch (_) {
-        tripActive = false;
-        isAfternoonTrip = false;
-        childAfternoonDroppedOff = false;
+        continue;
       }
 
       if (!mounted) return;
