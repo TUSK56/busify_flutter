@@ -77,7 +77,16 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   gmaps.BitmapDescriptor? _busMarkerIcon;
   AnimationController? _recenterController;
   int? _childStudentId;
+  int? _cachedTripId;
+  int _inactivePollStreak = 0;
   bool _isRecentering = false;
+
+  static bool _tripStatusEnded(Map<String, dynamic>? trip) {
+    if (trip == null) return false;
+    final st = trip['status'] ?? trip['Status'];
+    if (st is num) return st.toInt() == 2;
+    return st.toString().toLowerCase() == 'ended';
+  }
 
   @override
   void initState() {
@@ -102,8 +111,13 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     _studentPhotoUrl = widget.studentPhotoUrl;
     unawaited(_loadBusMarkerIcon());
     _loadStudentOverview();
-    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((_) {
-      if (mounted) unawaited(_refreshLiveData());
+    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((reason) {
+      if (!mounted) return;
+      if (reason == 'trip_ended' || reason == 'emergency_trip_ended') {
+        _cachedTripId = null;
+        _inactivePollStreak = 99;
+      }
+      unawaited(_refreshLiveData());
     });
     _bootstrapLiveTracking();
   }
@@ -205,11 +219,30 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       final busNumber =
       (busInfo?['busNumber'] ?? busInfo?['BusNumber'] ?? busInfo?['id'])?.toString();
       final dName = (driverInfo?['name'] ?? driverInfo?['Name'])?.toString();
-      final hasActive = current['has_active_trip'] == true;
+      final tripMap = current['trip'] as Map<String, dynamic>?;
+      final hasActive = current['has_active_trip'] == true ||
+          current['hasActiveTrip'] == true;
       if (!hasActive) {
+        _inactivePollStreak++;
+        if (_inactivePollStreak < 4 &&
+            _cachedTripId != null &&
+            !_tripStatusEnded(tripMap)) {
+          final live = await ServiceLocator.parentService.getLiveLocation(
+            _cachedTripId!,
+          );
+          final latest = live['latest'] as Map<String, dynamic>?;
+          final lat = (latest?['latitude'] as num?)?.toDouble();
+          final lng = (latest?['longitude'] as num?)?.toDouble();
+          if (lat != null && lng != null && mounted) {
+            _applySnappedBusLocation(latlng.LatLng(lat, lng));
+          }
+          return;
+        }
         if (!mounted) return;
         setState(() {
           _hasActiveTrip = false;
+          _cachedTripId = null;
+          _inactivePollStreak = 0;
           _statusText = 'No active trip';
           _etaText = '--';
           if (busNumber != null && busNumber.trim().isNotEmpty) {
@@ -225,9 +258,11 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
         return;
       }
 
-      final trip = (current['trip'] as Map<String, dynamic>? ?? {});
-      final tripId = (trip['id'] as num?)?.toInt();
+      _inactivePollStreak = 0;
+      final trip = tripMap ?? <String, dynamic>{};
+      final tripId = (trip['id'] as num?)?.toInt() ?? _cachedTripId;
       if (tripId == null) return;
+      _cachedTripId = tripId;
 
       latlng.LatLng? target;
       final destination = current['destination'] as Map<String, dynamic>? ?? {};

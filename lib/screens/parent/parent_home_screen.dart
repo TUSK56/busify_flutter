@@ -89,6 +89,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   StreamSubscription<String>? _liveUpdatesSub;
 
   static const Duration _homePollInterval = Duration(milliseconds: 1500);
+  int _attendanceRefreshTick = 0;
+  final Map<int, int> _inactiveTripPollStreakByStudent = {};
 
   bool _isAfternoonTrip = false;
 
@@ -185,6 +187,15 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
       if (reason == 'student_link_approved' ||
           reason == 'student_link_rejected') {
         unawaited(_loadParentOverview());
+      } else if (reason == 'trip_ended' || reason == 'emergency_trip_ended') {
+        _inactiveTripPollStreakByStudent.clear();
+        unawaited(_refreshTripAttendanceState(forceAttendance: true));
+      } else if (reason == 'attendance_in' ||
+          reason == 'attendance_out' ||
+          reason == 'attendance_absent' ||
+          reason == 'student_boarded' ||
+          reason == 'student_absent') {
+        unawaited(_refreshTripAttendanceState(forceAttendance: true));
       } else {
         unawaited(_refreshTripAttendanceState());
       }
@@ -315,7 +326,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   }
 
   /// Refetches active trip + attendance so supervisor scans show up without leaving the screen.
-  Future<void> _refreshTripAttendanceState() async {
+  Future<void> _refreshTripAttendanceState({bool forceAttendance = false}) async {
     final ids = _students.isNotEmpty
         ? _students
             .map((s) => s['id'] ?? s['Id'])
@@ -326,14 +337,17 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         : (_studentId != null && _studentId! > 0 ? [_studentId!] : <int>[]);
     if (ids.isEmpty) return;
 
-    if (_students.isNotEmpty) {
-      await _loadAttendanceForAllStudents(_students);
-    } else {
-      await _loadAttendanceSummary();
+    _attendanceRefreshTick++;
+    if (forceAttendance || _attendanceRefreshTick % 8 == 0) {
+      if (_students.isNotEmpty) {
+        await _loadAttendanceForAllStudents(_students);
+      } else {
+        await _loadAttendanceSummary();
+      }
     }
 
     for (final sid in ids) {
-      var tripActive = false;
+      var tripActive = _tripActiveByStudent[sid] ?? false;
       DateTime? tripStartedLocal;
       String? busNoTrip;
       var isAfternoonTrip = false;
@@ -344,7 +358,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         );
         final trip = current['trip'] as Map<String, dynamic>?;
         tripStartedLocal = _parseTripStartedLocal(trip);
-        final tripLooksStarted = trip != null ? _tripLooksStarted(trip) : false;
         isAfternoonTrip = _tripTypeIsAfternoon(trip);
         final bus = current['bus'] as Map<String, dynamic>?;
         if (bus != null) {
@@ -357,9 +370,20 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
 
         if (!mounted) return;
 
-        tripActive = (current['has_active_trip'] == true ||
-                current['hasActiveTrip'] == true) &&
-            (trip == null || tripLooksStarted);
+        final hasActive = current['has_active_trip'] == true ||
+            current['hasActiveTrip'] == true;
+        if (hasActive) {
+          _inactiveTripPollStreakByStudent[sid] = 0;
+          tripActive = true;
+        } else {
+          final streak = (_inactiveTripPollStreakByStudent[sid] ?? 0) + 1;
+          _inactiveTripPollStreakByStudent[sid] = streak;
+          if (streak < 4 && (_tripActiveByStudent[sid] ?? false)) {
+            tripActive = true;
+          } else {
+            tripActive = false;
+          }
+        }
         if (isAfternoonTrip) {
           childAfternoonDroppedOff =
               current['child_afternoon_dropped_off'] == true ||
@@ -413,9 +437,9 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     if (rawAbsent) {
       displayPresent = false;
       label = 'Absent';
-    } else if (rawIn && tripActive) {
+    } else if (rawIn) {
       displayPresent = true;
-      label = 'Present';
+      label = tripActive ? 'Present' : 'Boarded';
     } else {
       displayPresent = null;
       label = 'Not scanned yet';
