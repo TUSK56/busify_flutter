@@ -113,9 +113,15 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     _loadStudentOverview();
     _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((reason) {
       if (!mounted) return;
-      if (reason == 'trip_ended' || reason == 'emergency_trip_ended') {
+      if (reason == 'trip_started') {
+        _hasActiveTrip = true;
+        _inactivePollStreak = 0;
+      } else if (reason == 'trip_ended' || reason == 'emergency_trip_ended') {
         _cachedTripId = null;
         _inactivePollStreak = 99;
+      } else if (reason == 'attendance_in' || reason == 'student_boarded') {
+        _hasActiveTrip = true;
+        _inactivePollStreak = 0;
       }
       unawaited(_refreshLiveData());
     });

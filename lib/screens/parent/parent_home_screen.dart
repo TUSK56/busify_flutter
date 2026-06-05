@@ -86,10 +86,11 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   String? _todayLatestScanType;
 
   Timer? _homePollTimer;
+  Timer? _attendancePollTimer;
   StreamSubscription<String>? _liveUpdatesSub;
 
-  static const Duration _homePollInterval = Duration(milliseconds: 1500);
-  int _attendanceRefreshTick = 0;
+  static const Duration _tripPollInterval = Duration(milliseconds: 500);
+  static const Duration _attendancePollInterval = Duration(seconds: 12);
   final Map<int, int> _inactiveTripPollStreakByStudent = {};
 
   bool _isAfternoonTrip = false;
@@ -150,16 +151,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     return null;
   }
 
-  /// TripStatus.NotStarted = 0, Started = 1 (System.Text.Json default for enums).
-  static bool _tripLooksStarted(Map<String, dynamic>? trip) {
-    if (trip == null) return false;
-    final st = trip['status'] ?? trip['Status'];
-    if (st == null) return true;
-    if (st is num) return st.toInt() == 1;
-    final s = st.toString().toLowerCase();
-    return s == '1' || s == 'started';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -187,17 +178,28 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
       if (reason == 'student_link_approved' ||
           reason == 'student_link_rejected') {
         unawaited(_loadParentOverview());
+      } else if (reason == 'trip_started') {
+        _applyOptimisticTripStarted();
+        unawaited(_refreshTripStateOnly());
       } else if (reason == 'trip_ended' || reason == 'emergency_trip_ended') {
         _inactiveTripPollStreakByStudent.clear();
-        unawaited(_refreshTripAttendanceState(forceAttendance: true));
+        _applyOptimisticTripEnded();
+        unawaited(_refreshTripStateOnly());
+        unawaited(_refreshAttendanceOnly());
       } else if (reason == 'attendance_in' ||
-          reason == 'attendance_out' ||
-          reason == 'attendance_absent' ||
-          reason == 'student_boarded' ||
-          reason == 'student_absent') {
-        unawaited(_refreshTripAttendanceState(forceAttendance: true));
+          reason == 'student_boarded') {
+        _applyOptimisticAttendanceIn();
+        unawaited(_refreshTripStateOnly());
+        unawaited(_refreshAttendanceOnly());
+      } else if (reason == 'attendance_out') {
+        unawaited(_refreshTripStateOnly());
+        unawaited(_refreshAttendanceOnly());
+      } else if (reason == 'attendance_absent' || reason == 'student_absent') {
+        _applyOptimisticAttendanceAbsent();
+        unawaited(_refreshTripStateOnly());
+        unawaited(_refreshAttendanceOnly());
       } else {
-        unawaited(_refreshTripAttendanceState());
+        unawaited(_refreshTripStateOnly());
       }
     });
     _loadParentOverview();
@@ -211,11 +213,81 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
       if (_students.isEmpty) {
         unawaited(_loadParentOverview());
       } else {
-        unawaited(_refreshTripAttendanceState());
+        unawaited(_refreshTripStateOnly());
       }
     } else if (state == AppLifecycleState.paused) {
       _stopHomePolling();
     }
+  }
+
+  List<int> _linkedStudentIds() {
+    if (_students.isNotEmpty) {
+      return _students
+          .map((s) => s['id'] ?? s['Id'])
+          .whereType<num>()
+          .map((n) => n.toInt())
+          .where((id) => id > 0)
+          .toList();
+    }
+    if (_studentId != null && _studentId! > 0) return [_studentId!];
+    return const [];
+  }
+
+  void _applyOptimisticTripStarted() {
+    final ids = _linkedStudentIds();
+    if (ids.isEmpty) return;
+    setState(() {
+      for (final sid in ids) {
+        _tripActiveByStudent[sid] = true;
+        _inactiveTripPollStreakByStudent[sid] = 0;
+      }
+      _tripActive = true;
+    });
+  }
+
+  void _applyOptimisticTripEnded() {
+    final ids = _linkedStudentIds();
+    setState(() {
+      for (final sid in ids) {
+        _tripActiveByStudent[sid] = false;
+      }
+      _tripActive = false;
+    });
+  }
+
+  void _applyOptimisticAttendanceIn() {
+    final ids = _linkedStudentIds();
+    if (ids.isEmpty) return;
+    setState(() {
+      for (final sid in ids) {
+        _tripActiveByStudent[sid] = true;
+        _inactiveTripPollStreakByStudent[sid] = 0;
+        _todayScanByStudent[sid] = 'IN';
+      }
+      final primary = _studentId ?? ids.first;
+      if (primary > 0) {
+        _tripActive = true;
+        _todayPresent = true;
+        _todayAttendanceLabel = 'Present';
+        _todayLatestScanType = 'IN';
+      }
+    });
+  }
+
+  void _applyOptimisticAttendanceAbsent() {
+    final ids = _linkedStudentIds();
+    if (ids.isEmpty) return;
+    setState(() {
+      for (final sid in ids) {
+        _todayScanByStudent[sid] = 'ABSENT';
+      }
+      final primary = _studentId ?? ids.first;
+      if (primary > 0) {
+        _todayPresent = false;
+        _todayAttendanceLabel = 'Absent';
+        _todayLatestScanType = 'ABSENT';
+      }
+    });
   }
 
   Future<void> _loadParentOverview() async {
@@ -301,99 +373,127 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
           }
         }
       });
-      await _loadAttendanceForAllStudents(students);
+      if (students.isNotEmpty) {
+        await Future.wait([
+          _loadAttendanceForAllStudents(students),
+          _refreshTripStateOnly(),
+        ]);
+      } else {
+        await Future.wait([
+          _loadAttendanceSummary(),
+          _refreshTripStateOnly(),
+        ]);
+      }
     } catch (_) {}
 
-    await _refreshTripAttendanceState();
-    if (mounted && _students.isNotEmpty) {
-      _startHomePolling();
-    } else if (mounted && _studentId != null && _studentId! > 0) {
+    if (mounted && _linkedStudentIds().isNotEmpty) {
       _startHomePolling();
     }
   }
 
   void _startHomePolling() {
     _homePollTimer?.cancel();
-    _homePollTimer = Timer.periodic(_homePollInterval, (_) {
+    _attendancePollTimer?.cancel();
+    unawaited(_refreshTripStateOnly());
+    _homePollTimer = Timer.periodic(_tripPollInterval, (_) {
       if (!mounted) return;
-      unawaited(_refreshTripAttendanceState());
+      unawaited(_refreshTripStateOnly());
+    });
+    _attendancePollTimer = Timer.periodic(_attendancePollInterval, (_) {
+      if (!mounted) return;
+      unawaited(_refreshAttendanceOnly());
     });
   }
 
   void _stopHomePolling() {
     _homePollTimer?.cancel();
     _homePollTimer = null;
+    _attendancePollTimer?.cancel();
+    _attendancePollTimer = null;
   }
 
-  /// Refetches active trip + attendance so supervisor scans show up without leaving the screen.
-  Future<void> _refreshTripAttendanceState({bool forceAttendance = false}) async {
-    final ids = _students.isNotEmpty
-        ? _students
-            .map((s) => s['id'] ?? s['Id'])
-            .whereType<num>()
-            .map((n) => n.toInt())
-            .where((id) => id > 0)
-            .toList()
-        : (_studentId != null && _studentId! > 0 ? [_studentId!] : <int>[]);
+  Future<void> _refreshAttendanceOnly() async {
+    if (_students.isNotEmpty) {
+      await _loadAttendanceForAllStudents(_students);
+    } else {
+      await _loadAttendanceSummary();
+    }
+    if (!mounted) return;
+    for (final sid in _linkedStudentIds()) {
+      _applyTripAndTodayUiForStudent(
+        studentId: sid,
+        tripActive: _tripActiveByStudent[sid] ?? _tripActive,
+        tripStartedLocal: _tripStartedLocalByStudent[sid],
+        busNoTrip: _busNumberByStudent[sid],
+        busFallback: _busNumberByStudent[sid],
+        isAfternoonTrip: _isAfternoonTripByStudent[sid] ?? false,
+        childAfternoonDroppedOff:
+            _childAfternoonDroppedByStudent[sid] ?? false,
+      );
+    }
+  }
+
+  Future<void> _refreshTripStateOnly() async {
+    final ids = _linkedStudentIds();
     if (ids.isEmpty) return;
 
-    _attendanceRefreshTick++;
-    if (forceAttendance || _attendanceRefreshTick % 8 == 0) {
-      if (_students.isNotEmpty) {
-        await _loadAttendanceForAllStudents(_students);
-      } else {
-        await _loadAttendanceSummary();
-      }
-    }
+    final results = await Future.wait(
+      ids.map((sid) async {
+        try {
+          final current = await ServiceLocator.parentService.getCurrentTrip(
+            studentId: sid,
+          );
+          return (sid: sid, current: current, ok: true);
+        } catch (_) {
+          return (sid: sid, current: null, ok: false);
+        }
+      }),
+    );
 
-    for (final sid in ids) {
+    if (!mounted) return;
+
+    for (final row in results) {
+      final sid = row.sid;
+      if (!row.ok || row.current == null) {
+        if (_tripActiveByStudent[sid] == true) continue;
+        continue;
+      }
+
+      final current = row.current!;
       var tripActive = _tripActiveByStudent[sid] ?? false;
       DateTime? tripStartedLocal;
       String? busNoTrip;
       var isAfternoonTrip = false;
       var childAfternoonDroppedOff = false;
-      try {
-        final current = await ServiceLocator.parentService.getCurrentTrip(
-          studentId: sid,
-        );
-        final trip = current['trip'] as Map<String, dynamic>?;
-        tripStartedLocal = _parseTripStartedLocal(trip);
-        isAfternoonTrip = _tripTypeIsAfternoon(trip);
-        final bus = current['bus'] as Map<String, dynamic>?;
-        if (bus != null) {
-          final bn =
-              bus['busNumber'] ?? bus['BusNumber'] ?? bus['bus_number'];
-          if (bn != null && bn.toString().trim().isNotEmpty) {
-            busNoTrip = bn.toString().trim();
-          }
-        }
 
-        if (!mounted) return;
-
-        final hasActive = current['has_active_trip'] == true ||
-            current['hasActiveTrip'] == true;
-        if (hasActive) {
-          _inactiveTripPollStreakByStudent[sid] = 0;
-          tripActive = true;
-        } else {
-          final streak = (_inactiveTripPollStreakByStudent[sid] ?? 0) + 1;
-          _inactiveTripPollStreakByStudent[sid] = streak;
-          if (streak < 4 && (_tripActiveByStudent[sid] ?? false)) {
-            tripActive = true;
-          } else {
-            tripActive = false;
-          }
+      final trip = current['trip'] as Map<String, dynamic>?;
+      tripStartedLocal = _parseTripStartedLocal(trip);
+      isAfternoonTrip = _tripTypeIsAfternoon(trip);
+      final bus = current['bus'] as Map<String, dynamic>?;
+      if (bus != null) {
+        final bn = bus['busNumber'] ?? bus['BusNumber'] ?? bus['bus_number'];
+        if (bn != null && bn.toString().trim().isNotEmpty) {
+          busNoTrip = bn.toString().trim();
         }
-        if (isAfternoonTrip) {
-          childAfternoonDroppedOff =
-              current['child_afternoon_dropped_off'] == true ||
-                  current['childAfternoonDroppedOff'] == true;
-        }
-      } catch (_) {
-        continue;
       }
 
-      if (!mounted) return;
+      final hasActive = current['has_active_trip'] == true ||
+          current['hasActiveTrip'] == true;
+      if (hasActive) {
+        _inactiveTripPollStreakByStudent[sid] = 0;
+        tripActive = true;
+      } else {
+        final streak = (_inactiveTripPollStreakByStudent[sid] ?? 0) + 1;
+        _inactiveTripPollStreakByStudent[sid] = streak;
+        tripActive = streak < 6 && (_tripActiveByStudent[sid] ?? false);
+      }
+
+      if (isAfternoonTrip) {
+        childAfternoonDroppedOff =
+            current['child_afternoon_dropped_off'] == true ||
+                current['childAfternoonDroppedOff'] == true;
+      }
+
       final existingBus = _busNumberByStudent[sid];
       final busFb = (existingBus != null && existingBus.trim().isNotEmpty)
           ? existingBus.trim()
@@ -617,47 +717,61 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     final scanTimeByStudent = <int, String?>{};
     final weekByStudent = <int, int>{};
 
-    for (final s in students) {
-      final sidRaw = s['id'] ?? s['Id'];
-      if (sidRaw is! num) continue;
-      final sid = sidRaw.toInt();
-      try {
-        final week = await ServiceLocator.parentService.getAttendance(
-          studentId: sid,
-          fromDate: _formatYmd(monday.subtract(const Duration(days: 1))),
-          toDate: _formatYmd(friday.add(const Duration(days: 1))),
-        );
-        final latestByDay = <String, ({DateTime ts, String type})>{};
-        for (final a in week) {
-          final scanType = _normalizeScanType(a['scanType'] ?? a['ScanType']);
-          if (scanType != 'IN' && scanType != 'ABSENT') continue;
-          final ts = (a['timestamp'] ?? a['Timestamp'])?.toString();
-          final local = _parseApiTimestampToLocal(ts);
-          if (local == null) continue;
-          final day = DateTime(local.year, local.month, local.day);
-          if (day.isBefore(monday) || day.isAfter(friday)) continue;
-          if (day.weekday < DateTime.monday || day.weekday > DateTime.friday) {
-            continue;
+    final rows = await Future.wait(
+      students.map((s) async {
+        final sidRaw = s['id'] ?? s['Id'];
+        if (sidRaw is! num) return null;
+        final sid = sidRaw.toInt();
+        try {
+          final week = await ServiceLocator.parentService.getAttendance(
+            studentId: sid,
+            fromDate: _formatYmd(monday.subtract(const Duration(days: 1))),
+            toDate: _formatYmd(friday.add(const Duration(days: 1))),
+          );
+          final latestByDay = <String, ({DateTime ts, String type})>{};
+          for (final a in week) {
+            final scanType = _normalizeScanType(a['scanType'] ?? a['ScanType']);
+            if (scanType != 'IN' && scanType != 'ABSENT') continue;
+            final ts = (a['timestamp'] ?? a['Timestamp'])?.toString();
+            final local = _parseApiTimestampToLocal(ts);
+            if (local == null) continue;
+            final day = DateTime(local.year, local.month, local.day);
+            if (day.isBefore(monday) || day.isAfter(friday)) continue;
+            if (day.weekday < DateTime.monday || day.weekday > DateTime.friday) {
+              continue;
+            }
+            final key = _formatYmd(day);
+            final prev = latestByDay[key];
+            if (prev == null || local.isAfter(prev.ts)) {
+              latestByDay[key] = (ts: local, type: scanType);
+            }
           }
-          final key = _formatYmd(day);
-          final prev = latestByDay[key];
-          if (prev == null || local.isAfter(prev.ts)) {
-            latestByDay[key] = (ts: local, type: scanType);
+          final todayRec = latestByDay[todayKey];
+          var presentDays = 0;
+          for (var d = monday;
+              !d.isAfter(friday);
+              d = d.add(const Duration(days: 1))) {
+            final key = _formatYmd(d);
+            final v = latestByDay[key];
+            if (v?.type == 'IN') presentDays++;
           }
+          return (
+            sid: sid,
+            scan: todayRec?.type,
+            scanTime: todayRec != null ? _formatTime(todayRec.ts) : null,
+            week: presentDays,
+          );
+        } catch (_) {
+          return null;
         }
-        final todayRec = latestByDay[todayKey];
-        scanByStudent[sid] = todayRec?.type;
-        scanTimeByStudent[sid] = todayRec != null ? _formatTime(todayRec.ts) : null;
-        var presentDays = 0;
-        for (var d = monday;
-            !d.isAfter(friday);
-            d = d.add(const Duration(days: 1))) {
-          final key = _formatYmd(d);
-          final v = latestByDay[key];
-          if (v?.type == 'IN') presentDays++;
-        }
-        weekByStudent[sid] = presentDays;
-      } catch (_) {}
+      }),
+    );
+
+    for (final row in rows) {
+      if (row == null) continue;
+      scanByStudent[row.sid] = row.scan;
+      scanTimeByStudent[row.sid] = row.scanTime;
+      weekByStudent[row.sid] = row.week;
     }
 
     if (!mounted) return;

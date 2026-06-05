@@ -8,7 +8,7 @@ import 'package:application/services/trip_live_updates.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PushNotificationsService {
@@ -17,6 +17,11 @@ class PushNotificationsService {
   static bool _started = false;
   static StreamSubscription<String>? _tokenSub;
   static bool _pendingOpenParentProfile = false;
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  static const String _androidChannelId = 'busify_alerts';
+  static const String _androidChannelName = 'Busify Alerts';
+  static int _notificationId = 0;
 
   static Future<void> init() async {
     if (_started) return;
@@ -30,6 +35,7 @@ class PushNotificationsService {
       }
     }
 
+    await _initLocalNotifications();
     _started = true;
 
     FirebaseMessaging.onBackgroundMessage(_onBackgroundMessage);
@@ -46,46 +52,72 @@ class PushNotificationsService {
         debugPrint('FCM iOS foreground presentation: $e');
       }
     }
-    try {
-      await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-    } catch (_) {}
-
-    if (Platform.isAndroid) {
-      try {
-        final status = await Permission.notification.status;
-        if (!status.isGranted) {
-          await Permission.notification.request();
-        }
-      } catch (e) {
-        debugPrint('Android notification permission: $e');
-      }
-    }
-
-    try {
-      final token = await messaging.getToken();
-      if (token != null) {
-        await _registerToken(token);
-      }
-    } catch (e) {
-      debugPrint('FCM getToken failed: $e');
-    }
-
-    _tokenSub?.cancel();
-    _tokenSub = messaging.onTokenRefresh.listen((token) async {
-      await _registerToken(token);
-    });
 
     _attachNotificationOpenHandlers(messaging);
     _attachForegroundMessageHandler(messaging);
   }
 
+  static Future<void> _initLocalNotifications() async {
+    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const ios = DarwinInitializationSettings();
+    const settings = InitializationSettings(android: android, iOS: ios);
+    await _localNotifications.initialize(settings);
+
+    if (Platform.isAndroid) {
+      final plugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      await plugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _androidChannelId,
+          _androidChannelName,
+          description: 'Trip, attendance, and bus alerts',
+          importance: Importance.high,
+          playSound: true,
+          enableVibration: true,
+        ),
+      );
+    }
+  }
+
+  static Future<void> _showBannerNotification(RemoteMessage message) async {
+    final title = message.notification?.title?.trim();
+    final body = message.notification?.body?.trim();
+    final displayTitle =
+        (title != null && title.isNotEmpty) ? title : 'Busify';
+    final displayBody = (body != null && body.isNotEmpty)
+        ? body
+        : (message.data['message']?.toString().trim().isNotEmpty == true
+            ? message.data['message'].toString()
+            : 'You have a new update');
+
+    final id = ++_notificationId;
+    const androidDetails = AndroidNotificationDetails(
+      _androidChannelId,
+      _androidChannelName,
+      channelDescription: 'Trip, attendance, and bus alerts',
+      importance: Importance.high,
+      priority: Priority.high,
+      ticker: 'Busify',
+      icon: '@mipmap/ic_launcher',
+    );
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    await _localNotifications.show(
+      id,
+      displayTitle,
+      displayBody,
+      const NotificationDetails(android: androidDetails, iOS: iosDetails),
+    );
+  }
+
   static void _attachForegroundMessageHandler(FirebaseMessaging messaging) {
-    FirebaseMessaging.onMessage.listen((message) {
+    FirebaseMessaging.onMessage.listen((message) async {
+      await _showBannerNotification(message);
+
       final type = (message.data['type'] ?? '').toString().toLowerCase();
       if (type.isEmpty) return;
       const tripTypes = {
@@ -138,7 +170,6 @@ class PushNotificationsService {
   static bool _isParentLinkReviewType(String type) =>
       type == 'student_link_approved' || type == 'student_link_rejected';
 
-  /// Opens [ParentProfileScreen] when the user taps a school approve/reject push.
   static void openParentProfileScreen() {
     final token = ServiceLocator.tokenStorage.getToken();
     if (token == null || token.trim().isEmpty) {
@@ -156,7 +187,6 @@ class PushNotificationsService {
     nav.push(fadeRoute(const ParentProfileScreen()));
   }
 
-  /// Call after parent home/login is ready (handles cold-start notification tap).
   static void flushPendingNavigation() {
     if (!_pendingOpenParentProfile) return;
     openParentProfileScreen();
@@ -185,18 +215,8 @@ class PushNotificationsService {
 
   static Future<void> registerTokenAfterParentLogin() async {
     try {
-      await Firebase.initializeApp();
-      await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-      if (Platform.isAndroid) {
-        final status = await Permission.notification.status;
-        if (!status.isGranted) {
-          await Permission.notification.request();
-        }
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
       }
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
@@ -206,6 +226,11 @@ class PushNotificationsService {
     } catch (e) {
       debugPrint('FCM register after login skipped: $e');
     }
+
+    _tokenSub?.cancel();
+    _tokenSub = FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+      await _registerToken(token);
+    });
   }
 
   static Future<void> _registerToken(String token) async {

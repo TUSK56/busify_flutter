@@ -1,12 +1,14 @@
 import 'package:application/helpers/app_theme.dart';
 import 'package:application/screens/onboarding/launch_splash_screen.dart';
 import 'package:application/services/service_locator.dart';
+import 'package:application/services/app_permissions_service.dart';
 import 'package:application/services/push_notifications_service.dart';
 import 'package:flutter/material.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ServiceLocator.init();
+  await AppPermissionsService.requestOnFirstLaunchIfNeeded();
   await PushNotificationsService.init();
   runApp(const MyApp());
 }
