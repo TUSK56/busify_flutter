@@ -102,6 +102,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   final Map<int, String?> _todayScanByStudent = <int, String?>{};
   final Map<int, String?> _todayScanTimeByStudent = <int, String?>{};
   final Map<int, int> _weekPresentByStudent = <int, int>{};
+  final Map<int, DateTime> _optimisticScanAtByStudent = <int, DateTime>{};
 
   /// Backend serializes [ScanType] as JSON numbers (IN=0, OUT=1, ABSENT=2) unless configured otherwise.
   static String _normalizeScanType(dynamic v) {
@@ -258,11 +259,21 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   void _applyOptimisticAttendanceIn() {
     final ids = _linkedStudentIds();
     if (ids.isEmpty) return;
+    final now = DateTime.now();
     setState(() {
       for (final sid in ids) {
         _tripActiveByStudent[sid] = true;
         _inactiveTripPollStreakByStudent[sid] = 0;
+        final wasIn = _todayScanByStudent[sid] == 'IN';
         _todayScanByStudent[sid] = 'IN';
+        _todayScanTimeByStudent[sid] = _formatTime(now);
+        _optimisticScanAtByStudent[sid] = now;
+        if (!wasIn) {
+          final prevWeek = _weekPresentByStudent[sid] ?? 0;
+          if (prevWeek < 5) {
+            _weekPresentByStudent[sid] = prevWeek + 1;
+          }
+        }
       }
       final primary = _studentId ?? ids.first;
       if (primary > 0) {
@@ -271,6 +282,12 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         _todayAttendanceLabel = 'Present';
         _todayLatestScanType = 'IN';
       }
+    });
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (mounted) unawaited(_refreshAttendanceOnly());
+    });
+    Future<void>.delayed(const Duration(seconds: 6), () {
+      if (mounted) unawaited(_refreshAttendanceOnly());
     });
   }
 
@@ -769,22 +786,39 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
 
     for (final row in rows) {
       if (row == null) continue;
-      scanByStudent[row.sid] = row.scan;
-      scanTimeByStudent[row.sid] = row.scanTime;
-      weekByStudent[row.sid] = row.week;
+      final sid = row.sid;
+      final prevScan = _todayScanByStudent[sid];
+      final optimisticAt = _optimisticScanAtByStudent[sid];
+      var scan = row.scan;
+      if (scan == null && prevScan == 'IN') {
+        final keepOptimistic = optimisticAt != null &&
+            DateTime.now().difference(optimisticAt) <
+                const Duration(seconds: 120);
+        if (keepOptimistic) scan = 'IN';
+      } else if (scan == 'IN') {
+        _optimisticScanAtByStudent.remove(sid);
+      }
+
+      scanByStudent[sid] = scan;
+      scanTimeByStudent[sid] = row.scanTime ?? _todayScanTimeByStudent[sid];
+      var week = row.week;
+      if (scan == 'IN' && week == 0) {
+        week = math.max(_weekPresentByStudent[sid] ?? 0, 1);
+      }
+      weekByStudent[sid] = week;
     }
 
     if (!mounted) return;
     setState(() {
-      _todayScanByStudent
-        ..clear()
-        ..addAll(scanByStudent);
-      _todayScanTimeByStudent
-        ..clear()
-        ..addAll(scanTimeByStudent);
-      _weekPresentByStudent
-        ..clear()
-        ..addAll(weekByStudent);
+      for (final e in scanByStudent.entries) {
+        _todayScanByStudent[e.key] = e.value;
+      }
+      for (final e in scanTimeByStudent.entries) {
+        _todayScanTimeByStudent[e.key] = e.value;
+      }
+      for (final e in weekByStudent.entries) {
+        _weekPresentByStudent[e.key] = e.value;
+      }
     });
   }
 
@@ -888,11 +922,18 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
       final today = sid == null ? null : _todayScanByStudent[sid];
       final tripA = sid == null ? false : (_tripActiveByStudent[sid] ?? false);
       final rawIn = today == 'IN';
-      final present =
-          today == 'ABSENT' ? false : (rawIn && tripA ? true : null);
-      final label = today == 'ABSENT'
-          ? 'Absent'
-          : (rawIn && tripA ? 'Present' : 'Not scanned yet');
+      final bool? present;
+      final String label;
+      if (today == 'ABSENT') {
+        present = false;
+        label = 'Absent';
+      } else if (rawIn) {
+        present = true;
+        label = tripA ? 'Present' : 'Boarded';
+      } else {
+        present = null;
+        label = 'Not scanned yet';
+      }
       final week = sid == null ? 0 : (_weekPresentByStudent[sid] ?? 0);
       final scanTime = sid == null ? null : _todayScanTimeByStudent[sid];
       final studentBusNumber = sid == null
@@ -1309,9 +1350,14 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     final tripA = sid != null ? (_tripActiveByStudent[sid] ?? false) : _tripActive;
     final today = sid == null ? _todayLatestScanType : _todayScanByStudent[sid];
     final rawIn = today == 'IN';
-    final todayPresent = today == 'ABSENT'
-        ? false
-        : (rawIn && tripA ? true : null);
+    final bool? todayPresent;
+    if (today == 'ABSENT') {
+      todayPresent = false;
+    } else if (rawIn) {
+      todayPresent = true;
+    } else {
+      todayPresent = null;
+    }
     final busNo = sid == null
         ? _busNumber
         : (_busNumberByStudent[sid] ?? '--');
