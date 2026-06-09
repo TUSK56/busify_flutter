@@ -53,7 +53,7 @@ class _SupervisorQrConfirmationScreenState
   late int _boarded;
   late int _remaining;
   Timer? _pollTimer;
-  StreamSubscription<String>? _liveUpdatesSub;
+  StreamSubscription<TripLiveUpdateEvent>? _liveUpdatesSub;
 
   @override
   void initState() {
@@ -136,7 +136,7 @@ class _SupervisorQrConfirmationScreenState
                             borderRadius: BorderRadius.circular(50),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF22C55E).withOpacity(0.8),
+                                color: const Color(0xFF22C55E).withValues(alpha: 0.8),
                                 blurRadius: 16,
                                 spreadRadius: 4,
                               ),
