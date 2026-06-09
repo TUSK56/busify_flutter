@@ -9,6 +9,8 @@ import 'package:application/helpers/supervisor_photo.dart';
 import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:application/widgets/resilient_network_image.dart';
+import 'package:application/helpers/parent_navigation.dart';
+import 'package:application/services/parent_trip_state_cache.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/services/push_notifications_service.dart';
 import 'package:application/services/trip_live_updates.dart';
@@ -18,7 +20,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 
 
-import 'parent_profile_screen.dart';
 import 'parent_track_bus_screen.dart';
 
 /// Layout / visibility knobs for [ParentHomeScreen].
@@ -91,6 +92,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
 
   static const Duration _tripPollInterval = Duration(milliseconds: 300);
   static const Duration _attendancePollInterval = Duration(seconds: 8);
+  static const int _inactiveTripGracePolls = 20;
   final Map<int, int> _inactiveTripPollStreakByStudent = {};
 
   bool _isAfternoonTrip = false;
@@ -152,10 +154,87 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     return null;
   }
 
+  static bool _currentTripIsActive(Map<String, dynamic>? current) {
+    if (current == null) return false;
+    if (current['has_active_trip'] == true || current['hasActiveTrip'] == true) {
+      return true;
+    }
+    final trip = current['trip'] as Map<String, dynamic>?;
+    if (trip == null) return false;
+    final st = trip['status'] ?? trip['Status'];
+    if (st is num) return st.toInt() == 1;
+    return st.toString().toLowerCase() == 'started';
+  }
+
+  void _restoreFromCache() {
+    final snap = ParentTripStateCache.instance.readFresh();
+    if (snap == null) return;
+    setState(() {
+      _tripActive = snap.tripActive;
+      _tripActiveByStudent.addAll(snap.tripActiveByStudent);
+      _tripStartedLocalByStudent.addAll(snap.tripStartedLocalByStudent);
+      _isAfternoonTripByStudent.addAll(snap.isAfternoonTripByStudent);
+      _childAfternoonDroppedByStudent.addAll(snap.childAfternoonDroppedByStudent);
+      _busNumberByStudent.addAll(snap.busNumberByStudent);
+      _todayScanByStudent.addAll(snap.todayScanByStudent);
+      _todayScanTimeByStudent.addAll(snap.todayScanTimeByStudent);
+      _weekPresentByStudent.addAll(snap.weekPresentByStudent);
+      _optimisticScanAtByStudent.addAll(snap.optimisticScanAtByStudent);
+      if (snap.primaryStudentId != null) {
+        _studentId = snap.primaryStudentId;
+      }
+      final primary = snap.primaryStudentId;
+      if (primary != null) {
+        final scan = snap.todayScanByStudent[primary];
+        final tripA = snap.tripActiveByStudent[primary] ?? snap.tripActive;
+        if (scan == 'IN') {
+          _todayPresent = true;
+          _todayAttendanceLabel = tripA ? 'Present' : 'Boarded';
+          _todayLatestScanType = 'IN';
+        } else if (scan == 'ABSENT') {
+          _todayPresent = false;
+          _todayAttendanceLabel = 'Absent';
+          _todayLatestScanType = 'ABSENT';
+        }
+        final bn = snap.busNumberByStudent[primary];
+        if (bn != null && bn.isNotEmpty) _busNumber = bn;
+        _boardedTimeText = _tripStartTimeLabel(
+          tripA,
+          snap.tripStartedLocalByStudent[primary],
+        );
+      }
+    });
+  }
+
+  void _persistToCache() {
+    ParentTripStateCache.instance.save(
+      ParentTripStateSnapshot(
+        tripActiveByStudent: Map<int, bool>.from(_tripActiveByStudent),
+        tripStartedLocalByStudent:
+            Map<int, DateTime?>.from(_tripStartedLocalByStudent),
+        isAfternoonTripByStudent:
+            Map<int, bool>.from(_isAfternoonTripByStudent),
+        childAfternoonDroppedByStudent:
+            Map<int, bool>.from(_childAfternoonDroppedByStudent),
+        busNumberByStudent: Map<int, String>.from(_busNumberByStudent),
+        todayScanByStudent: Map<int, String?>.from(_todayScanByStudent),
+        todayScanTimeByStudent:
+            Map<int, String?>.from(_todayScanTimeByStudent),
+        weekPresentByStudent: Map<int, int>.from(_weekPresentByStudent),
+        optimisticScanAtByStudent:
+            Map<int, DateTime>.from(_optimisticScanAtByStudent),
+        tripActive: _tripActive,
+        primaryStudentId: _studentId,
+        cachedAt: DateTime.now(),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _restoreFromCache();
     _entranceController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -185,6 +264,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         unawaited(_refreshTripStateOnly());
       } else if (reason == 'trip_ended' || reason == 'emergency_trip_ended') {
         _inactiveTripPollStreakByStudent.clear();
+        ParentTripStateCache.instance.clear();
         _applyOptimisticTripEnded(busNumber: event.busNumber);
         unawaited(_refreshTripStateOnly());
         unawaited(_refreshAttendanceOnly());
@@ -215,10 +295,13 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
       if (_students.isEmpty) {
         unawaited(_loadParentOverview());
       } else {
+        _startHomePolling();
         unawaited(_refreshTripStateOnly());
+        unawaited(_refreshAttendanceOnly());
       }
     } else if (state == AppLifecycleState.paused) {
       _stopHomePolling();
+      _persistToCache();
     }
   }
 
@@ -500,12 +583,16 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     for (final row in results) {
       final sid = row.sid;
       if (!row.ok || row.current == null) {
-        if (_tripActiveByStudent[sid] == true) continue;
+        if (_tripActiveByStudent[sid] == true ||
+            ParentTripStateCache.instance.tripActiveFor(sid)) {
+          continue;
+        }
         continue;
       }
 
       final current = row.current!;
-      var tripActive = _tripActiveByStudent[sid] ?? false;
+      var tripActive = _tripActiveByStudent[sid] ??
+          ParentTripStateCache.instance.tripActiveFor(sid);
       DateTime? tripStartedLocal;
       String? busNoTrip;
       var isAfternoonTrip = false;
@@ -522,15 +609,16 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         }
       }
 
-      final hasActive = current['has_active_trip'] == true ||
-          current['hasActiveTrip'] == true;
+      final hasActive = _currentTripIsActive(current);
       if (hasActive) {
         _inactiveTripPollStreakByStudent[sid] = 0;
         tripActive = true;
       } else {
         final streak = (_inactiveTripPollStreakByStudent[sid] ?? 0) + 1;
         _inactiveTripPollStreakByStudent[sid] = streak;
-        tripActive = streak < 6 && (_tripActiveByStudent[sid] ?? false);
+        final wasActive = _tripActiveByStudent[sid] == true ||
+            ParentTripStateCache.instance.tripActiveFor(sid);
+        tripActive = streak < _inactiveTripGracePolls && wasActive;
       }
 
       if (isAfternoonTrip) {
@@ -553,6 +641,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         childAfternoonDroppedOff: childAfternoonDroppedOff,
       );
     }
+    _persistToCache();
   }
 
   static bool _tripTypeIsAfternoon(Map<String, dynamic>? trip) {
@@ -614,6 +703,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
         _busNumber = (bn == null || bn.isEmpty) ? '--' : bn;
       }
     });
+    _persistToCache();
   }
 
   /// Line under Bus # below "Boarded Bus" (depends on Morning vs Afternoon trip).
@@ -853,6 +943,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
 
   @override
   void dispose() {
+    _persistToCache();
     _liveUpdatesSub?.cancel();
     _stopHomePolling();
     WidgetsBinding.instance.removeObserver(this);
@@ -916,19 +1007,14 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
                     break;
                   }
                 }
-                Navigator.of(context).push(
-                  fadeRoute(
-                    ParentTrackBusScreen(
-                      studentId: sid,
-                      studentName: trackName ?? _studentName,
-                      studentPhotoUrl: _studentPhotoUrl,
-                    ),
-                  ),
+                parentNavigateTrackBus(
+                  context,
+                  studentId: sid,
+                  studentName: trackName ?? _studentName,
+                  studentPhotoUrl: _studentPhotoUrl,
                 );
               },
-              onProfileTap: () {
-                Navigator.of(context).push(fadeRoute(const ParentProfileScreen()));
-              },
+              onProfileTap: () => parentNavigateProfile(context),
             ),
           ],
         ),

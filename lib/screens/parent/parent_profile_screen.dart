@@ -12,8 +12,7 @@ import 'package:application/screens/onboarding/role_selection_screen.dart';
 import 'package:application/screens/parent/parent_add_child_screen.dart';
 import 'package:application/screens/parent/parent_change_password_screen.dart';
 import 'package:application/screens/parent/parent_edit_profile_screen.dart';
-import 'package:application/screens/parent/parent_home_screen.dart';
-import 'package:application/screens/parent/parent_track_bus_screen.dart';
+import 'package:application/helpers/parent_navigation.dart';
 import 'package:application/services/push_notifications_service.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/services/trip_live_updates.dart';
@@ -265,18 +264,8 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
 
             ParentBottomNavBar(
               activeTab: ParentNavTab.profile,
-              onHomeTap: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  fadeRoute(const ParentHomeScreen()),
-                      (route) => false,
-                );
-              },
-              onTrackBusTap: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  fadeRoute(const ParentTrackBusScreen()),
-                      (route) => false,
-                );
-              },
+              onHomeTap: () => parentNavigateHome(context),
+              onTrackBusTap: () => parentNavigateTrackBus(context),
               onProfileTap: () {},
             ),
           ],

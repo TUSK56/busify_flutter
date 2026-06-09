@@ -8,7 +8,6 @@ import 'package:application/helpers/app_theme.dart';
 import 'package:application/helpers/api_json.dart';
 import 'package:application/helpers/app_back_button.dart';
 import 'package:application/helpers/supervisor_photo.dart';
-import 'package:application/routes/fade_route.dart';
 import 'package:application/widgets/parent/parent_bottom_nav_bar.dart';
 import 'package:application/widgets/resilient_network_image.dart';
 import 'package:flutter/material.dart';
@@ -19,11 +18,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as latlng;
+import 'package:application/helpers/parent_navigation.dart';
+import 'package:application/services/parent_trip_state_cache.dart';
 import 'package:application/services/service_locator.dart';
 import 'package:application/services/trip_live_updates.dart';
-
-import 'parent_home_screen.dart';
-import 'parent_profile_screen.dart';
 
 class _TrackBusLayout {
   _TrackBusLayout._();
@@ -86,6 +84,17 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     final st = trip['status'] ?? trip['Status'];
     if (st is num) return st.toInt() == 2;
     return st.toString().toLowerCase() == 'ended';
+  }
+
+  static bool _currentTripIsActive(Map<String, dynamic> current) {
+    if (current['has_active_trip'] == true || current['hasActiveTrip'] == true) {
+      return true;
+    }
+    final trip = current['trip'] as Map<String, dynamic>?;
+    if (trip == null) return false;
+    final st = trip['status'] ?? trip['Status'];
+    if (st is num) return st.toInt() == 1;
+    return st.toString().toLowerCase() == 'started';
   }
 
   @override
@@ -236,11 +245,12 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       (busInfo?['busNumber'] ?? busInfo?['BusNumber'] ?? busInfo?['id'])?.toString();
       final dName = (driverInfo?['name'] ?? driverInfo?['Name'])?.toString();
       final tripMap = current['trip'] as Map<String, dynamic>?;
-      final hasActive = current['has_active_trip'] == true ||
-          current['hasActiveTrip'] == true;
+      final hasActive = _currentTripIsActive(current);
       if (!hasActive) {
         _inactivePollStreak++;
-        if (_inactivePollStreak < 15 &&
+        final cacheActive = _childStudentId != null &&
+            ParentTripStateCache.instance.tripActiveFor(_childStudentId!);
+        if ((_inactivePollStreak < 20 || cacheActive) &&
             _cachedTripId != null &&
             !_tripStatusEnded(tripMap)) {
           final live = await ServiceLocator.parentService.getLiveLocation(
@@ -628,18 +638,9 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
               offset: Offset(0, -_TrackBusLayout.navBarVerticalOffset),
               child: ParentBottomNavBar(
                 activeTab: ParentNavTab.trackBus,
-                onHomeTap: () {
-                  final nav = Navigator.of(context);
-                  if (nav.canPop()) {
-                    nav.pop();
-                  } else {
-                    nav.pushReplacement(fadeRoute(const ParentHomeScreen()));
-                  }
-                },
+                onHomeTap: () => parentNavigateHome(context),
                 onTrackBusTap: () {},
-                onProfileTap: () {
-                  Navigator.of(context).push(fadeRoute(const ParentProfileScreen()));
-                },
+                onProfileTap: () => parentNavigateProfile(context),
               ),
             ),
           ],
