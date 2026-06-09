@@ -87,10 +87,10 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
 
   Timer? _homePollTimer;
   Timer? _attendancePollTimer;
-  StreamSubscription<String>? _liveUpdatesSub;
+  StreamSubscription<TripLiveUpdateEvent>? _liveUpdatesSub;
 
-  static const Duration _tripPollInterval = Duration(milliseconds: 500);
-  static const Duration _attendancePollInterval = Duration(seconds: 12);
+  static const Duration _tripPollInterval = Duration(milliseconds: 300);
+  static const Duration _attendancePollInterval = Duration(seconds: 8);
   final Map<int, int> _inactiveTripPollStreakByStudent = {};
 
   bool _isAfternoonTrip = false;
@@ -174,29 +174,30 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     _entranceController.forward();
     unawaited(PushNotificationsService.registerTokenAfterParentLogin());
     PushNotificationsService.flushPendingNavigation();
-    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((reason) {
+    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((event) {
       if (!mounted) return;
+      final reason = event.reason;
       if (reason == 'student_link_approved' ||
           reason == 'student_link_rejected') {
         unawaited(_loadParentOverview());
       } else if (reason == 'trip_started') {
-        _applyOptimisticTripStarted();
+        _applyOptimisticTripStarted(busNumber: event.busNumber);
         unawaited(_refreshTripStateOnly());
       } else if (reason == 'trip_ended' || reason == 'emergency_trip_ended') {
         _inactiveTripPollStreakByStudent.clear();
-        _applyOptimisticTripEnded();
+        _applyOptimisticTripEnded(busNumber: event.busNumber);
         unawaited(_refreshTripStateOnly());
         unawaited(_refreshAttendanceOnly());
       } else if (reason == 'attendance_in' ||
           reason == 'student_boarded') {
-        _applyOptimisticAttendanceIn();
+        _applyOptimisticAttendanceIn(studentId: event.studentId);
         unawaited(_refreshTripStateOnly());
         unawaited(_refreshAttendanceOnly());
       } else if (reason == 'attendance_out') {
         unawaited(_refreshTripStateOnly());
         unawaited(_refreshAttendanceOnly());
       } else if (reason == 'attendance_absent' || reason == 'student_absent') {
-        _applyOptimisticAttendanceAbsent();
+        _applyOptimisticAttendanceAbsent(studentId: event.studentId);
         unawaited(_refreshTripStateOnly());
         unawaited(_refreshAttendanceOnly());
       } else {
@@ -234,30 +235,55 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
     return const [];
   }
 
-  void _applyOptimisticTripStarted() {
-    final ids = _linkedStudentIds();
+  List<int> _studentIdsForBus(String? busNumber) {
+    if (busNumber == null || busNumber.trim().isEmpty) {
+      return _linkedStudentIds();
+    }
+    final normalized = busNumber.trim();
+    final ids = <int>[];
+    for (final s in _students) {
+      final sidRaw = s['id'] ?? s['Id'];
+      if (sidRaw is! num) continue;
+      final sid = sidRaw.toInt();
+      final bus = (_busNumberByStudent[sid] ??
+              (s['busNumber'] ?? s['BusNumber'] ?? s['bus_number']))
+          ?.toString()
+          .trim();
+      if (bus == normalized) ids.add(sid);
+    }
+    return ids.isEmpty ? _linkedStudentIds() : ids;
+  }
+
+  void _applyOptimisticTripStarted({String? busNumber}) {
+    final ids = _studentIdsForBus(busNumber);
     if (ids.isEmpty) return;
     setState(() {
       for (final sid in ids) {
         _tripActiveByStudent[sid] = true;
         _inactiveTripPollStreakByStudent[sid] = 0;
       }
-      _tripActive = true;
+      if (_studentId != null && ids.contains(_studentId)) {
+        _tripActive = true;
+      }
     });
   }
 
-  void _applyOptimisticTripEnded() {
-    final ids = _linkedStudentIds();
+  void _applyOptimisticTripEnded({String? busNumber}) {
+    final ids = _studentIdsForBus(busNumber);
     setState(() {
       for (final sid in ids) {
         _tripActiveByStudent[sid] = false;
       }
-      _tripActive = false;
+      if (_studentId != null && ids.contains(_studentId)) {
+        _tripActive = false;
+      }
     });
   }
 
-  void _applyOptimisticAttendanceIn() {
-    final ids = _linkedStudentIds();
+  void _applyOptimisticAttendanceIn({int? studentId}) {
+    final ids = (studentId != null && studentId > 0)
+        ? [studentId]
+        : const <int>[];
     if (ids.isEmpty) return;
     final now = DateTime.now();
     setState(() {
@@ -275,31 +301,33 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
           }
         }
       }
-      final primary = _studentId ?? ids.first;
-      if (primary > 0) {
-        _tripActive = true;
+      final primary = _studentId;
+      if (primary != null && primary > 0 && ids.contains(primary)) {
+        _tripActive = _tripActiveByStudent[primary] ?? true;
         _todayPresent = true;
         _todayAttendanceLabel = 'Present';
         _todayLatestScanType = 'IN';
       }
     });
-    Future<void>.delayed(const Duration(seconds: 2), () {
+    Future<void>.delayed(const Duration(seconds: 1), () {
       if (mounted) unawaited(_refreshAttendanceOnly());
     });
-    Future<void>.delayed(const Duration(seconds: 6), () {
+    Future<void>.delayed(const Duration(seconds: 3), () {
       if (mounted) unawaited(_refreshAttendanceOnly());
     });
   }
 
-  void _applyOptimisticAttendanceAbsent() {
-    final ids = _linkedStudentIds();
+  void _applyOptimisticAttendanceAbsent({int? studentId}) {
+    final ids = (studentId != null && studentId > 0)
+        ? [studentId]
+        : const <int>[];
     if (ids.isEmpty) return;
     setState(() {
       for (final sid in ids) {
         _todayScanByStudent[sid] = 'ABSENT';
       }
-      final primary = _studentId ?? ids.first;
-      if (primary > 0) {
+      final primary = _studentId;
+      if (primary != null && primary > 0 && ids.contains(primary)) {
         _todayPresent = false;
         _todayAttendanceLabel = 'Absent';
         _todayLatestScanType = 'ABSENT';
@@ -603,13 +631,14 @@ class _ParentHomeScreenState extends State<ParentHomeScreen>
   String _rideStatusLineForStudent(int sid, bool? todayPresent) {
     final tripActive = _tripActiveByStudent[sid] ?? false;
     if (!tripActive) return '';
+    final scannedIn = _todayScanByStudent[sid] == 'IN';
     final isAfternoon = _isAfternoonTripByStudent[sid] ?? false;
     if (isAfternoon) {
       if (_childAfternoonDroppedByStudent[sid] == true) return 'Arrived home';
-      if (todayPresent == true) return 'On the way home';
+      if (scannedIn || todayPresent == true) return 'On the way home';
       return 'On the way';
     }
-    if (todayPresent == true) return 'On the way to school';
+    if (scannedIn || todayPresent == true) return 'On the way to school';
     return 'On the way';
   }
 

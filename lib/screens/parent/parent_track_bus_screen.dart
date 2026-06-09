@@ -53,8 +53,8 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
   late final Animation<double> _entranceFade;
   late final Animation<Offset> _entranceSlide;
   Timer? _pollTimer;
-  StreamSubscription<String>? _liveUpdatesSub;
-  static const Duration _pollInterval = Duration(milliseconds: 500);
+  StreamSubscription<TripLiveUpdateEvent>? _liveUpdatesSub;
+  static const Duration _pollInterval = Duration(milliseconds: 300);
   final SmoothedLatLng _smoothedBus = SmoothedLatLng(
     duration: const Duration(milliseconds: 400),
   );
@@ -111,8 +111,15 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
     _studentPhotoUrl = widget.studentPhotoUrl;
     unawaited(_loadBusMarkerIcon());
     _loadStudentOverview();
-    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((reason) {
+    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((event) {
       if (!mounted) return;
+      final reason = event.reason;
+      final targetsThisChild = event.studentId == null ||
+          event.studentId == _childStudentId ||
+          event.studentId == widget.studentId;
+      if (!targetsThisChild && reason != 'trip_started' && reason != 'trip_ended') {
+        return;
+      }
       if (reason == 'trip_started') {
         _hasActiveTrip = true;
         _inactivePollStreak = 0;
@@ -215,8 +222,11 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
 
   Future<void> _refreshLiveData() async {
     try {
+      final sid = _childStudentId ?? widget.studentId;
+      if (sid == null || sid <= 0) return;
+
       final current = await ServiceLocator.parentService.getCurrentTrip(
-        studentId: _childStudentId,
+        studentId: sid,
       );
       final busInfo = current['bus'] as Map<String, dynamic>?;
       final driverInfo =
@@ -230,7 +240,7 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
           current['hasActiveTrip'] == true;
       if (!hasActive) {
         _inactivePollStreak++;
-        if (_inactivePollStreak < 4 &&
+        if (_inactivePollStreak < 15 &&
             _cachedTripId != null &&
             !_tripStatusEnded(tripMap)) {
           final live = await ServiceLocator.parentService.getLiveLocation(
@@ -338,10 +348,23 @@ class _ParentTrackBusScreenState extends State<ParentTrackBusScreen>
       final latest = live['latest'] as Map<String, dynamic>?;
       final lat = (latest?['latitude'] as num?)?.toDouble();
       final lng = (latest?['longitude'] as num?)?.toDouble();
-      if (lat == null || lng == null) return;
-      final bus = latlng.LatLng(lat, lng);
+      final bus = (lat != null && lng != null) ? latlng.LatLng(lat, lng) : _busLocation;
 
       if (!mounted) return;
+
+      if (bus == null) {
+        setState(() {
+          _hasActiveTrip = true;
+          _statusText = statusComputed;
+          _etaText = '--';
+          if (busNumber != null && busNumber.trim().isNotEmpty) {
+            _busNumber = busNumber.trim();
+          }
+          _driverName =
+              (dName == null || dName.trim().isEmpty) ? _driverName : dName.trim();
+        });
+        return;
+      }
 
       final destKey = target == null
           ? ''

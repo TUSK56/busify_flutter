@@ -219,7 +219,10 @@ class _SupervisorAttendanceScreenState
         return int.tryParse(v?.toString() ?? '') ?? 0;
       }
 
-      TripLiveUpdates.instance.notify('attendance_in');
+      TripLiveUpdates.instance.notify(
+        'attendance_in',
+        studentId: effectiveStudentId,
+      );
 
       if (!mounted) return;
       final confirmName = picked?.name ?? widget.studentName;

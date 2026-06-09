@@ -65,7 +65,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
   String _parentPhone = '';
   String _parentEmail = '';
   String _parentGovernorate = '';
-  StreamSubscription<String>? _liveUpdatesSub;
+  StreamSubscription<TripLiveUpdateEvent>? _liveUpdatesSub;
 
   Map<String, dynamic>? _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
@@ -130,10 +130,10 @@ class _ParentProfileScreenState extends State<ParentProfileScreen>
     _entranceController.forward();
     _loadParentOverview();
     PushNotificationsService.flushPendingNavigation();
-    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((reason) {
+    _liveUpdatesSub = TripLiveUpdates.instance.stream.listen((event) {
       if (!mounted) return;
-      if (reason == 'student_link_approved' ||
-          reason == 'student_link_rejected') {
+      if (event.reason == 'student_link_approved' ||
+          event.reason == 'student_link_rejected') {
         setState(() {
           _childOverviewFuture =
               ServiceLocator.parentService.getChildOverview();

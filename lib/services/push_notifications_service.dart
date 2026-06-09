@@ -132,8 +132,20 @@ class PushNotificationsService {
         'bus_near',
         'arrived_school',
       };
+      final studentIdRaw =
+          message.data['studentId'] ?? message.data['student_id'];
+      final studentId = int.tryParse(studentIdRaw?.toString() ?? '');
+      final busNumber =
+          (message.data['busNumber'] ?? message.data['bus_number'])
+              ?.toString()
+              .trim();
+
       if (tripTypes.contains(type)) {
-        TripLiveUpdates.instance.notify(type);
+        TripLiveUpdates.instance.notify(
+          type,
+          studentId: studentId,
+          busNumber: busNumber?.isNotEmpty == true ? busNumber : null,
+        );
         return;
       }
       if (type == 'student_link_approved' || type == 'student_link_rejected') {
